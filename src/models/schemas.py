@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ChatRequest(BaseModel):
@@ -56,6 +56,21 @@ class ConsultationResponse(BaseModel):
     language: str
 
 
+class TranscriptSegmentUpdateRequest(BaseModel):
+    content: str = Field(
+        ...,
+        min_length=1,
+        description="Nội dung transcript segment sau khi chỉnh sửa",
+    )
+
+    @field_validator("content")
+    @classmethod
+    def validate_content_not_empty(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Content cannot be empty or whitespace only")
+        return value
+
+
 class TranscriptSegmentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -72,4 +87,5 @@ class TranscriptSegmentResponse(BaseModel):
 class TranscriptResponse(BaseModel):
     consultation_id: UUID
     status: str
-    segments: list[TranscriptSegmentResponse]
+    segments: list[TranscriptSegmentResponse]
+

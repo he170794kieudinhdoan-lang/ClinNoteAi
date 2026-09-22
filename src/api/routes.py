@@ -27,6 +27,8 @@ from src.models.schemas import (
     PatientCreateRequest,
     PatientResponse,
     TranscriptResponse,
+    TranscriptSegmentResponse,
+    TranscriptSegmentUpdateRequest,
 )
 from src.models.user import User
 from uuid import UUID
@@ -317,3 +319,39 @@ async def get_consultation_transcript(
         status=consultation.status,
         segments=segments,
     )
+
+
+@router.patch(
+    "/transcript-segments/{segment_id}",
+    response_model=TranscriptSegmentResponse,
+)
+async def update_transcript_segment(
+    segment_id: UUID,
+    request: TranscriptSegmentUpdateRequest,
+    db: Session = Depends(get_db),
+) -> TranscriptSegment:
+    """Chỉnh sửa nội dung (content) của một transcript segment."""
+
+    segment = (
+        db.query(TranscriptSegment)
+        .filter(TranscriptSegment.id == segment_id)
+        .first()
+    )
+
+    if segment is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Transcript segment not found",
+        )
+
+    try:
+        segment.content = request.content
+        db.commit()
+        db.refresh(segment)
+        return segment
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update transcript segment content",
+        ) from exc

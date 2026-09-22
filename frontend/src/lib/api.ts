@@ -173,3 +173,15 @@ export function getConsultationTranscript(consultationId: string) {
   return request<GetTranscriptResponse>(`/api/v1/consultations/${consultationId}/transcript`);
 }
 
+/**
+ * 4. PATCH /api/v1/transcript-segments/{segment_id}
+ * Update content of a single transcript segment in backend DB.
+ */
+export function updateTranscriptSegment(segmentId: string, content: string) {
+  return request<BackendTranscriptSegment>(`/api/v1/transcript-segments/${segmentId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ content }),
+  });
+}
+
+
