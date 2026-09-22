@@ -15,10 +15,20 @@ import SoapEditor from "@/components/SoapEditor";
 import { removeEncounter, saveEncounter, useEncounter } from "@/hooks/useEncounter";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { draftFromTranscript } from "@/lib/draftNote";
-import { UPLOADED_DRAFT } from "@/lib/mock";
+import {
+  createConsultation,
+  getConsultationTranscript,
+  mapSegmentToTranscriptLine,
+  uploadConsultationAudio,
+} from "@/lib/api";
+import { getSupabase } from "@/lib/supabase";
 import type { Encounter, Patient } from "@/types";
 
 const EMPTY_SOAP = { subjective: "", objective: "", assessment: "", plan: "" };
+
+function isUUID(str: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
 
 function initials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -31,20 +41,6 @@ function dobLine(patient: Patient) {
   if (patient.dob) return `${patient.dob} · ${patient.age} tuổi`;
   if (patient.age > 0) return `${patient.age} tuổi`;
   return "—";
-}
-
-function withUpload(current: Encounter, file: File): Encounter {
-  // MOCK: gắn UPLOADED_DRAFT thay cho STT. Sẽ thay bằng POST /api/v1/encounters/:id/audio.
-  return {
-    ...current,
-    status: "soap",
-    audioFileName: file.name,
-    transcript: UPLOADED_DRAFT.transcript.map((line) => ({ ...line })),
-    soap: { ...UPLOADED_DRAFT.soap, sources: { ...UPLOADED_DRAFT.soap.sources } },
-    icdSuggestions: UPLOADED_DRAFT.icdSuggestions.map((item) => ({ ...item })),
-    selectedIcd: UPLOADED_DRAFT.icdSuggestions[0]?.code,
-    missingFields: [],
-  };
 }
 
 function withoutAudio(current: Encounter): Encounter {
@@ -68,6 +64,8 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const [draft, setDraft] = useState<Encounter | null>(null);
   const [tab, setTab] = useState<"upload" | "record">("upload");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
   const audioUrlRef = useRef<string | null>(null);
   const seen = useRef<string | null>(null);
   const leaveRef = useRef(false);
@@ -85,6 +83,35 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     setTab("upload");
     setDraft(encounter);
   }, [encounter, id]);
+
+  // Fetch backend transcript if encounter has a valid backend consultationId
+  useEffect(() => {
+    const consultationId = draft?.consultationId;
+    if (!consultationId) return;
+
+    let active = true;
+    getConsultationTranscript(consultationId)
+      .then((res) => {
+        if (!active || !res.segments || res.segments.length === 0) return;
+        const lines = res.segments.map(mapSegmentToTranscriptLine);
+        setDraft((current) => {
+          if (!current) return current;
+          return {
+            ...current,
+            status: current.status === "empty" ? "soap" : current.status,
+            transcript: lines,
+            missingFields: current.missingFields.filter((f) => f !== "Audio / transcript"),
+          };
+        });
+      })
+      .catch(() => {
+        // Silently skip if consultation not found on backend DB
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [draft?.consultationId]);
 
   useEffect(() => {
     if (!draft || leaveRef.current) return;
@@ -121,13 +148,90 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     [],
   );
 
-  const takeFile = useCallback((file: File) => {
+  const takeFile = useCallback(async (file: File) => {
     if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     const url = URL.createObjectURL(file);
     audioUrlRef.current = url;
     setAudioUrl(url);
     setTab("upload");
-    setDraft((current) => (current ? withUpload(current, file) : current));
+
+    setIsUploading(true);
+    setUploadError("");
+
+    try {
+      const currentDraft = draftRef.current;
+      let targetConsultationId = currentDraft?.consultationId;
+
+      // Nếu chưa có consultation_id, kiểm tra patient_id và doctor_id để tạo consultation mới trên backend
+      if (!targetConsultationId) {
+        const patientId = currentDraft?.patientId || currentDraft?.patient?.id;
+        let doctorId = currentDraft?.doctorId;
+
+        // Fallback lấy doctor_id từ Supabase Auth session nếu chưa lưu trên draft
+        if (!doctorId) {
+          const supabase = getSupabase();
+          if (supabase) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            if (sessionData.session?.user?.id) {
+              doctorId = sessionData.session.user.id;
+            }
+          }
+        }
+
+        if (!patientId || !doctorId) {
+          const missing: string[] = [];
+          if (!patientId) missing.push("patient_id (chưa tạo bệnh nhân trên CSDL)");
+          if (!doctorId) missing.push("doctor_id (chưa đăng nhập)");
+          throw new Error(
+            `Không thể tạo lượt khám (consultation): Thiếu ${missing.join(" và ")}.`
+          );
+        }
+
+        // POST /api/v1/consultations
+        const newConsultation = await createConsultation({
+          patient_id: patientId,
+          doctor_id: doctorId,
+        });
+        targetConsultationId = newConsultation.id;
+
+        // Cập nhật consultationId và doctorId vào state draft ngay lập tức
+        setDraft((current) => (current ? { ...current, consultationId: targetConsultationId, doctorId } : current));
+      }
+
+      // 1. Upload audio tới POST /api/v1/consultations/{consultation_id}/audio
+      const uploadRes = await uploadConsultationAudio(targetConsultationId, file);
+
+      // 2. Lấy transcript mới nhất từ GET /api/v1/consultations/{consultation_id}/transcript
+      let lines = uploadRes.transcript.map(mapSegmentToTranscriptLine);
+      try {
+        const transcriptRes = await getConsultationTranscript(targetConsultationId);
+        if (transcriptRes.segments && transcriptRes.segments.length > 0) {
+          lines = transcriptRes.segments.map(mapSegmentToTranscriptLine);
+        }
+      } catch (err: any) {
+        console.warn("Không lấy được transcript qua GET API, dùng kết quả từ upload response:", err);
+      }
+
+      setDraft((current) => {
+        if (!current) return current;
+        const nextSoap = current.transcript.length === 0 ? draftFromTranscript(lines) : current;
+        return {
+          ...current,
+          status: "soap",
+          audioFileName: file.name,
+          consultationId: targetConsultationId,
+          transcript: lines,
+          soap: nextSoap.soap || current.soap,
+          icdSuggestions: nextSoap.icdSuggestions || current.icdSuggestions,
+          selectedIcd: current.selectedIcd || nextSoap.selectedIcd,
+          missingFields: [],
+        };
+      });
+    } catch (err: any) {
+      setUploadError(err.message || "Xử lý âm thanh thất bại.");
+    } finally {
+      setIsUploading(false);
+    }
   }, []);
 
   const clearFile = useCallback(() => {
@@ -225,6 +329,8 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
             audioUrl={audioUrl}
             lines={draft.transcript}
             locked={locked}
+            isUploading={isUploading}
+            uploadError={uploadError}
             onFile={takeFile}
             onClear={clearFile}
             onLines={onLines}

@@ -1,14 +1,4 @@
-/**
- * API client → FastAPI (mặc định http://localhost:8000).
- *
- * BE hiện có:
- *   GET  /health
- *   GET  /api/v1/status
- *   POST /api/v1/chat   { message }
- *
- * TODO khi BE sẵn: list/create encounter, upload audio, generate SOAP, approve.
- * Giữ signature bên dưới, chỉ đổi URL + body.
- */
+import type { TranscriptLine } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -21,7 +11,15 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
-  if (!res.ok) throw new Error(await res.text());
+  if (!res.ok) {
+    const errorText = await res.text();
+    let detail = errorText;
+    try {
+      const parsed = JSON.parse(errorText);
+      if (parsed.detail) detail = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
+    } catch {}
+    throw new Error(detail);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -40,12 +38,138 @@ export function chat(message: string) {
   });
 }
 
-// MOCK đang nằm ở lib/mock.ts, lib/draftNote.ts, lib/icdCatalog.ts và hooks/useEncounter.ts.
-// Khi có route thì thay đúng các hàm đó, UI giữ useQuery:
-// GET    /api/v1/encounters
-// POST   /api/v1/encounters
-// GET    /api/v1/encounters/:id
-// POST   /api/v1/encounters/:id/audio
-// POST   /api/v1/encounters/:id/soap
-// POST   /api/v1/encounters/:id/approve
-// GET    /api/v1/icd
+export interface CreatePatientRequest {
+  patient_code: string;
+  full_name: string;
+  date_of_birth?: string | null;
+  sex?: string | null;
+}
+
+export interface PatientResponse {
+  id: string;
+  patient_code: string;
+  full_name: string;
+  date_of_birth: string | null;
+  sex: string | null;
+  created_at: string;
+}
+
+/**
+ * 0. POST /api/v1/patients
+ * Create a new patient record in backend DB.
+ */
+export function createPatient(data: CreatePatientRequest) {
+  return request<PatientResponse>("/api/v1/patients", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Types & Helper function matching backend transcript segment schema.
+ */
+export interface BackendTranscriptSegment {
+  id: string;
+  speaker_label: string;
+  resolved_role: string | null;
+  content: string;
+  start_ms: number | null;
+  end_ms: number | null;
+  asr_confidence?: number | null;
+  role_confidence?: number | null;
+}
+
+export interface CreateConsultationRequest {
+  patient_id: string;
+  doctor_id: string;
+}
+
+export interface ConsultationResponse {
+  id: string;
+  patient_id: string;
+  doctor_id: string;
+  status: string;
+  audio_path: string | null;
+  language: string;
+}
+
+export interface UploadAudioResponse {
+  consultation_id: string;
+  status: string;
+  segments_count: number;
+  transcript: BackendTranscriptSegment[];
+}
+
+export interface GetTranscriptResponse {
+  consultation_id: string;
+  status: string;
+  segments: BackendTranscriptSegment[];
+}
+
+/**
+ * Map backend BackendTranscriptSegment to frontend TranscriptLine.
+ * Rules:
+ * - resolved_role === "doctor" -> speaker: "doctor"
+ * - resolved_role === "patient" -> speaker: "patient"
+ * - content -> text
+ * - start_ms / 1000 -> timestampSec
+ * - end_ms / 1000 -> endSec
+ */
+export function mapSegmentToTranscriptLine(seg: BackendTranscriptSegment): TranscriptLine {
+  return {
+    id: seg.id,
+    speaker: seg.resolved_role === "doctor" ? "doctor" : "patient",
+    text: seg.content,
+    timestampSec: seg.start_ms != null ? seg.start_ms / 1000 : 0,
+    endSec: seg.end_ms != null ? seg.end_ms / 1000 : undefined,
+  };
+}
+
+/**
+ * 1. POST /api/v1/consultations
+ * Create a new consultation record in backend DB.
+ */
+export function createConsultation(data: CreateConsultationRequest) {
+  return request<ConsultationResponse>("/api/v1/consultations", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * 2. POST /api/v1/consultations/{consultation_id}/audio
+ * Upload audio file to backend. Runs Blaze STT + Qwen speaker role classifier + DB saving.
+ */
+export async function uploadConsultationAudio(
+  consultationId: string,
+  file: File
+): Promise<UploadAudioResponse> {
+  const formData = new FormData();
+  formData.append("audio_file", file);
+
+  const res = await fetch(`${API_BASE}/api/v1/consultations/${consultationId}/audio`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    let detail = errorText;
+    try {
+      const parsed = JSON.parse(errorText);
+      if (parsed.detail) detail = typeof parsed.detail === "string" ? parsed.detail : JSON.stringify(parsed.detail);
+    } catch {}
+    throw new Error(detail);
+  }
+
+  return res.json() as Promise<UploadAudioResponse>;
+}
+
+/**
+ * 3. GET /api/v1/consultations/{consultation_id}/transcript
+ * Retrieve persisted transcript segments for a consultation.
+ */
+export function getConsultationTranscript(consultationId: string) {
+  return request<GetTranscriptResponse>(`/api/v1/consultations/${consultationId}/transcript`);
+}
+

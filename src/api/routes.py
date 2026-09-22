@@ -24,6 +24,8 @@ from src.models.schemas import (
     ChatResponse,
     ConsultationCreateRequest,
     ConsultationResponse,
+    PatientCreateRequest,
+    PatientResponse,
     TranscriptResponse,
 )
 from src.models.user import User
@@ -50,6 +52,51 @@ async def chat(request: ChatRequest) -> ChatResponse:
 async def agent_status():
     """Kiểm tra trạng thái agent."""
     return {"status": "ready", "agent": "LangGraph Agent v1.0"}
+
+
+@router.post(
+    "/patients",
+    response_model=PatientResponse,
+    status_code=201,
+)
+async def create_patient(
+    request: PatientCreateRequest,
+    db: Session = Depends(get_db),
+) -> Patient:
+    """Tạo một patient mới."""
+
+    existing_patient = (
+        db.query(Patient)
+        .filter(Patient.patient_code == request.patient_code)
+        .first()
+    )
+
+    if existing_patient is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Patient code already exists",
+        )
+
+    try:
+        patient = Patient(
+            patient_code=request.patient_code,
+            full_name=request.full_name,
+            date_of_birth=request.date_of_birth,
+            sex=request.sex,
+        )
+
+        db.add(patient)
+        db.commit()
+        db.refresh(patient)
+
+        return patient
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create patient record",
+        ) from exc
+
 
 
 @router.post(
