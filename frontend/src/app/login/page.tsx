@@ -3,7 +3,7 @@
 import { Button, Card, Input, Label } from "neobrutalism-ui-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 
 type Mode = "login" | "register" | "forgot";
@@ -37,6 +37,64 @@ export default function LoginPage() {
   const [busy, setBusy] = useState<"form" | "google" | null>(null);
   const [sentTo, setSentTo] = useState("");
   const [notice, setNotice] = useState("");
+  const mainVideo = useRef<HTMLVideoElement>(null);
+  const hoverVideo = useRef<HTMLVideoElement>(null);
+  const hoverTimer = useRef<number | null>(null);
+  const fadeTimer = useRef<number | null>(null);
+  const wantScene = useRef(false);
+  const [scene, setScene] = useState(false);
+
+  function showFieldScene() {
+    wantScene.current = true;
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    if (fadeTimer.current) window.clearTimeout(fadeTimer.current);
+    mainVideo.current?.pause();
+    const clip = hoverVideo.current;
+    if (!clip) {
+      setScene(true);
+      return;
+    }
+    const reveal = () => {
+      if (!wantScene.current) return;
+      void clip.play();
+      setScene(true);
+    };
+    if (!clip.paused && clip.currentTime > 0) {
+      reveal();
+      return;
+    }
+    if (clip.currentTime > 0.05) {
+      clip.addEventListener("seeked", reveal, { once: true });
+      clip.currentTime = 0;
+      return;
+    }
+    reveal();
+  }
+
+  function hideFieldScene() {
+    wantScene.current = false;
+    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    hoverTimer.current = window.setTimeout(() => {
+      if (wantScene.current) return;
+      void mainVideo.current?.play();
+      setScene(false);
+      if (fadeTimer.current) window.clearTimeout(fadeTimer.current);
+      fadeTimer.current = window.setTimeout(() => {
+        if (!wantScene.current) hoverVideo.current?.pause();
+      }, 700);
+    }, 80);
+  }
+
+  useEffect(() => {
+    const clip = hoverVideo.current;
+    const prime = () => clip?.pause();
+    if (clip && clip.readyState < 2) clip.addEventListener("loadeddata", prime);
+    return () => {
+      clip?.removeEventListener("loadeddata", prime);
+      if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+      if (fadeTimer.current) window.clearTimeout(fadeTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -54,6 +112,7 @@ export default function LoginPage() {
     setNotice("");
     setShowPassword(false);
     setShowConfirmPassword(false);
+    setShake(0);
   }
 
   function validate() {
@@ -199,12 +258,37 @@ export default function LoginPage() {
 
         {/* 2-Column Body */}
         <div className="grid min-h-0 flex-1 md:grid-cols-[280px_1fr]">
-          <aside className="hidden bg-[#F8F0E5] md:block" aria-hidden="true" />
+          <aside className="hidden h-full items-end bg-[#F8F0E5] md:flex">
+            <div className="relative w-full">
+              <video
+                ref={mainVideo}
+                src="/clinic-side.mp4?v=2"
+                autoPlay
+                loop
+                muted
+                playsInline
+                className="relative z-10 w-full"
+                aria-hidden="true"
+                suppressHydrationWarning
+              />
+              <video
+                ref={hoverVideo}
+                src="/clinic-hover.mp4"
+                loop
+                muted
+                playsInline
+                preload="auto"
+                className={`pointer-events-none absolute inset-0 z-20 h-full w-full object-contain transition-opacity duration-700 ease-in-out ${scene ? "opacity-100" : "opacity-0"}`}
+                aria-hidden="true"
+                suppressHydrationWarning
+              />
+            </div>
+          </aside>
 
           <section className="flex flex-col justify-center bg-[#F8F0E5] p-5 sm:p-8">
             {/* Top switcher & Title */}
-            <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-b border-[#c9bba8] pb-4">
-              <div>
+            <div className="mb-6 flex flex-nowrap items-start justify-between gap-3 border-b border-[#c9bba8] pb-4">
+              <div key={mode} className="wf-rise min-w-0 flex-1">
                 <h1 className="font-serif text-xl font-bold tracking-tight text-[#5c4e42]">
                   {mode === "login"
                     ? "Đăng nhập tài khoản"
@@ -212,7 +296,7 @@ export default function LoginPage() {
                       ? "Tạo tài khoản bác sĩ"
                       : "Khôi phục mật khẩu"}
                 </h1>
-                <p className="mt-1 text-xs text-[#826e5e]">
+                <p className="mt-1 text-sm text-[#826e5e]">
                   {mode === "login"
                     ? "Chào mừng trở lại! Vui lòng nhập thông tin phiên làm việc."
                     : mode === "register"
@@ -222,7 +306,7 @@ export default function LoginPage() {
               </div>
 
               {/* Segmented Mode Control */}
-              <div className="inline-flex border border-[#c9bba8] bg-[#efe6d8] p-1 shadow-[2px_2px_0_#e4d8c8]">
+              <div className="inline-flex shrink-0 border border-[#c9bba8] bg-[#efe6d8] p-1 shadow-[2px_2px_0_#e4d8c8]">
                 {(
                   [
                     ["login", "Đăng nhập"],
@@ -238,6 +322,7 @@ export default function LoginPage() {
                     border="none"
                     tone={mode === id ? "yellow" : "cream"}
                     press="none"
+                    className="whitespace-nowrap"
                     onClick={() => switchMode(id)}
                   >
                     {label}
@@ -250,7 +335,7 @@ export default function LoginPage() {
             <form
               key={`${mode}-${shake}-${sentTo}`}
               onSubmit={onSubmit}
-              className={`space-y-4 ${shake ? "wf-shake" : ""}`}
+              className={`wf-rise space-y-4 ${shake ? "wf-shake" : ""}`}
               noValidate
             >
               {sentTo ? (
@@ -263,11 +348,11 @@ export default function LoginPage() {
                     </svg>
                   </div>
                   <h3 className="text-base font-bold text-[#341804]">Đã gửi thư khôi phục!</h3>
-                  <p className="mt-1 text-xs text-[#725e4f]">
+                  <p className="mt-1 text-sm text-[#725e4f]">
                     Chúng tôi đã gửi hướng dẫn đặt lại mật khẩu đến:
                   </p>
                   <p className="mt-1 font-semibold text-sm text-[#482307]">{sentTo}</p>
-                  <p className="mt-2 text-[11px] text-[#938072]">
+                  <p className="mt-2 text-xs text-[#938072]">
                     Vui lòng kiểm tra hộp thư đến hoặc mục thư rác (Spam).
                   </p>
                   <div className="mt-5 flex justify-center gap-3">
@@ -440,7 +525,11 @@ export default function LoginPage() {
                   {errors.form && <p className="text-base font-medium text-rose-600">{errors.form}</p>}
 
                   {/* Primary Submit Button */}
-                  <div className="pt-2">
+                  <div
+                    className="pt-2"
+                    onMouseEnter={mode === "forgot" ? undefined : showFieldScene}
+                    onMouseLeave={mode === "forgot" ? undefined : hideFieldScene}
+                  >
                     <Button
                       type="submit"
                       disabled={busy !== null}
@@ -498,6 +587,7 @@ export default function LoginPage() {
                         </span>
                       </div>
 
+                      <div onMouseEnter={showFieldScene} onMouseLeave={hideFieldScene}>
                       <Button
                         type="button"
                         disabled={busy !== null}
@@ -534,8 +624,9 @@ export default function LoginPage() {
                             />
                           </svg>
                         )}
-                        <span>Tài khoản Google</span>
+                        <span>{mode === "register" ? "Đăng ký bằng Google" : "Tài khoản Google"}</span>
                       </Button>
+                      </div>
                     </>
                   )}
                 </>

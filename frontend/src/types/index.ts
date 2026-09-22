@@ -14,8 +14,10 @@ export type Gender = "Nam" | "Nữ" | "Khác";
 export interface Patient {
   name: string;
   age: number;
-  gender: Gender;
+  gender?: Gender;
   reason: string; // lý do khám
+  code?: string;
+  dob?: string;
 }
 
 export interface TranscriptLine {
@@ -31,11 +33,14 @@ export interface SoapNote {
   objective: string;
   assessment: string;
   plan: string;
+  /** Câu dẫn nguồn dưới mỗi ô, ví dụ "bản ghi 00:14 – 01:10". */
+  sources?: Partial<Record<"subjective" | "objective" | "assessment" | "plan", string>>;
 }
 
 export interface IcdSuggestion {
   code: string;
   title: string;
+  confidence?: number;
 }
 
 export interface Encounter {
@@ -46,6 +51,8 @@ export interface Encounter {
   transcript: TranscriptLine[];
   soap: SoapNote;
   icdSuggestions: IcdSuggestion[];
+  /** Mã đang chọn trên dải ICD-10. Gợi ý vẫn nằm ở icdSuggestions. */
+  selectedIcd?: string;
   missingFields: string[]; // cảnh báo thiếu / chưa grounded
   audioFileName?: string;
 }
