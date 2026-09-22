@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 class ChatRequest(BaseModel):
     message: str = Field(
@@ -34,3 +34,20 @@ class ConsultationResponse(BaseModel):
     status: str
     audio_path: str | None
     language: str
+
+class TranscriptSegmentResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    speaker_label: str
+    resolved_role: str | None
+    content: str
+    start_ms: int | None
+    end_ms: int | None
+    asr_confidence: float | None
+    role_confidence: float | None
+
+class TranscriptResponse(BaseModel):
+    consultation_id: UUID
+    status: str
+    segments: list[TranscriptSegmentResponse]

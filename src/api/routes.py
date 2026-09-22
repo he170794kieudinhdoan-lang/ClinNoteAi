@@ -24,9 +24,11 @@ from src.models.schemas import (
     ChatResponse,
     ConsultationCreateRequest,
     ConsultationResponse,
+    TranscriptResponse,
 )
 from src.models.user import User
 from uuid import UUID
+from src.models.transcript_segment import TranscriptSegment
 
 router = APIRouter()
 
@@ -226,3 +228,45 @@ async def upload_consultation_audio(
     finally:
         if temp_path is not None:
             temp_path.unlink(missing_ok=True)
+
+
+@router.get(
+    "/consultations/{consultation_id}/transcript",
+    response_model=TranscriptResponse,
+)
+async def get_consultation_transcript(
+    consultation_id: UUID,
+    db: Session = Depends(get_db),
+) -> TranscriptResponse:
+    """Lấy transcript đã lưu của consultation."""
+
+    consultation = (
+        db.query(Consultation)
+        .filter(Consultation.id == consultation_id)
+        .first()
+    )
+
+    if consultation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Consultation not found",
+        )
+
+    segments = (
+        db.query(TranscriptSegment)
+        .filter(
+            TranscriptSegment.consultation_id
+            == consultation_id
+        )
+        .order_by(
+            TranscriptSegment.start_ms.asc(),
+            TranscriptSegment.id.asc(),
+        )
+        .all()
+    )
+
+    return TranscriptResponse(
+        consultation_id=consultation.id,
+        status=consultation.status,
+        segments=segments,
+    )
