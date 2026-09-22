@@ -180,8 +180,10 @@ def main():
     with open(log_file, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
-    # Output valid JSON (required by some tools like Gemini)
-    print(json.dumps({"status": "logged"}))
+    # Emit an empty JSON object: Gemini requires JSON, while Codex validates
+    # hook output against its lifecycle schema and rejects custom fields such
+    # as {"status": "logged"} even though the log entry was written.
+    print("{}")
 
 
 if __name__ == "__main__":
