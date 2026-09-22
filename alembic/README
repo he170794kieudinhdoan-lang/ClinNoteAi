@@ -1,1 +1,52 @@
 Generic single-database configuration.
+
+# Database Migration Guide (Alembic)
+
+Alembic được sử dụng trong project này để quản lý và đồng bộ hóa database schema tự động với các SQLAlchemy models (`src/models/`).
+
+## 1. Cấu hình môi trường
+
+Alembic tự động lấy giá trị `DATABASE_URL` từ file `.env` thông qua `src/config.py` và `alembic/env.py`.
+
+Ví dụ file `.env`:
+```env
+DATABASE_URL=postgresql://user:password@localhost:5432/dbname
+```
+
+> **Lưu ý quan trọng:** Không commit file `.env` chứa thông tin đăng nhập lên Git repository!
+
+## 2. Hướng dẫn dành cho Developers
+
+### Sau khi pull code mới về:
+Chạy lệnh sau để áp dụng tất cả các migration mới nhất vào database local:
+```bash
+alembic upgrade head
+```
+
+### Kiểm tra trạng thái migration hiện tại:
+Kiểm tra phiên bản migration đang áp dụng trên database:
+```bash
+alembic current
+```
+
+Xem lịch sử các phiên bản migration:
+```bash
+alembic history --verbose
+```
+
+### Tạo migration mới (khi thay đổi SQLAlchemy Models):
+Sau khi chỉnh sửa hoặc tạo thêm SQLAlchemy models trong `src/models/`, tạo migration revision tự động bằng lệnh:
+```bash
+alembic revision --autogenerate -m "mô tả thay đổi"
+```
+*Lưu ý: Sau khi tạo, hãy kiểm tra lại file được tạo ra trong thư mục `alembic/versions/` trước khi commit.*
+
+### Áp dụng migration vừa tạo:
+```bash
+alembic upgrade head
+```
+
+### Rollback (nếu cần quay về revision trước):
+```bash
+alembic downgrade -1
+```
