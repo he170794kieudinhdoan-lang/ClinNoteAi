@@ -30,6 +30,6 @@ class TranscriptSegment(Base):
     asr_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     role_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
 
-    consultation: Mapped["Consultation"] = relationship(back_populates="transcript_segments")
-    clinical_facts: Mapped[list["ClinicalFact"]] = relationship(back_populates="transcript_segment")
-    evidence_links: Mapped[list["EvidenceLink"]] = relationship(back_populates="transcript_segment")
+    consultation: Mapped[Consultation] = relationship(back_populates="transcript_segments")
+    clinical_facts: Mapped[list[ClinicalFact]] = relationship(back_populates="transcript_segment")
+    evidence_links: Mapped[list[EvidenceLink]] = relationship(back_populates="transcript_segment")

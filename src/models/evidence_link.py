@@ -38,5 +38,5 @@ class EvidenceLink(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    soap_claim: Mapped["SoapClaim"] = relationship(back_populates="evidence_links")
-    transcript_segment: Mapped["TranscriptSegment"] = relationship(back_populates="evidence_links")
+    soap_claim: Mapped[SoapClaim] = relationship(back_populates="evidence_links")
+    transcript_segment: Mapped[TranscriptSegment] = relationship(back_populates="evidence_links")

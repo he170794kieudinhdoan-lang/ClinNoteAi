@@ -27,10 +27,10 @@ class SoapClaim(Base):
     claim_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     claim_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    soap_note: Mapped["SoapNote"] = relationship(back_populates="claims")
-    evidence_links: Mapped[list["EvidenceLink"]] = relationship(
+    soap_note: Mapped[SoapNote] = relationship(back_populates="claims")
+    evidence_links: Mapped[list[EvidenceLink]] = relationship(
         back_populates="soap_claim", cascade="all, delete-orphan"
     )
-    verification_results: Mapped[list["VerificationResult"]] = relationship(
+    verification_results: Mapped[list[VerificationResult]] = relationship(
         back_populates="soap_claim", cascade="all, delete-orphan"
     )

@@ -41,11 +41,11 @@ class SoapNote(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    consultation: Mapped["Consultation"] = relationship(back_populates="soap_notes")
-    approver: Mapped["User | None"] = relationship(
+    consultation: Mapped[Consultation] = relationship(back_populates="soap_notes")
+    approver: Mapped[User | None] = relationship(
         back_populates="approved_notes",
         foreign_keys=[approved_by],
     )
-    claims: Mapped[list["SoapClaim"]] = relationship(
+    claims: Mapped[list[SoapClaim]] = relationship(
         back_populates="soap_note", cascade="all, delete-orphan"
     )

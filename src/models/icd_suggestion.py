@@ -25,4 +25,4 @@ class IcdSuggestion(Base):
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="SUGGESTED")
 
-    consultation: Mapped["Consultation"] = relationship(back_populates="icd_suggestions")
+    consultation: Mapped[Consultation] = relationship(back_populates="icd_suggestions")

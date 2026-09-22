@@ -29,4 +29,4 @@ class VerificationResult(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    soap_claim: Mapped["SoapClaim"] = relationship(back_populates="verification_results")
+    soap_claim: Mapped[SoapClaim] = relationship(back_populates="verification_results")

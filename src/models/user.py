@@ -27,11 +27,11 @@ class User(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    consultations: Mapped[list["Consultation"]] = relationship(
+    consultations: Mapped[list[Consultation]] = relationship(
         back_populates="doctor",
         foreign_keys="Consultation.doctor_id",
     )
-    approved_notes: Mapped[list["SoapNote"]] = relationship(
+    approved_notes: Mapped[list[SoapNote]] = relationship(
         back_populates="approver",
         foreign_keys="SoapNote.approved_by",
     )

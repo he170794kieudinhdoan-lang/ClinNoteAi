@@ -36,5 +36,5 @@ class ClinicalFact(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    consultation: Mapped["Consultation"] = relationship(back_populates="clinical_facts")
-    transcript_segment: Mapped["TranscriptSegment | None"] = relationship(back_populates="clinical_facts")
+    consultation: Mapped[Consultation] = relationship(back_populates="clinical_facts")
+    transcript_segment: Mapped[TranscriptSegment | None] = relationship(back_populates="clinical_facts")

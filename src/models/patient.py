@@ -26,4 +26,4 @@ class Patient(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    consultations: Mapped[list["Consultation"]] = relationship(back_populates="patient")
+    consultations: Mapped[list[Consultation]] = relationship(back_populates="patient")

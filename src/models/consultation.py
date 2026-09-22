@@ -38,20 +38,20 @@ class Consultation(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    patient: Mapped["Patient"] = relationship(back_populates="consultations")
-    doctor: Mapped["User"] = relationship(
+    patient: Mapped[Patient] = relationship(back_populates="consultations")
+    doctor: Mapped[User] = relationship(
         back_populates="consultations",
         foreign_keys=[doctor_id],
     )
-    transcript_segments: Mapped[list["TranscriptSegment"]] = relationship(
+    transcript_segments: Mapped[list[TranscriptSegment]] = relationship(
         back_populates="consultation", cascade="all, delete-orphan"
     )
-    clinical_facts: Mapped[list["ClinicalFact"]] = relationship(
+    clinical_facts: Mapped[list[ClinicalFact]] = relationship(
         back_populates="consultation", cascade="all, delete-orphan"
     )
-    soap_notes: Mapped[list["SoapNote"]] = relationship(
+    soap_notes: Mapped[list[SoapNote]] = relationship(
         back_populates="consultation", cascade="all, delete-orphan"
     )
-    icd_suggestions: Mapped[list["IcdSuggestion"]] = relationship(
+    icd_suggestions: Mapped[list[IcdSuggestion]] = relationship(
         back_populates="consultation", cascade="all, delete-orphan"
     )
