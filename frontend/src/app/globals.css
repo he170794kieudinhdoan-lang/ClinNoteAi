@@ -112,6 +112,27 @@ button:disabled {
   }
 }
 
+@keyframes wf-cover-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.22);
+    opacity: 0;
+  }
+}
+
+@keyframes wf-cover-sweep {
+  0% {
+    transform: translateX(-130%);
+  }
+  100% {
+    transform: translateX(340%);
+  }
+}
+
 .wf-rise {
   animation: wf-rise 0.35s ease both;
 }
@@ -124,10 +145,101 @@ button:disabled {
   animation: wf-spin 0.7s linear infinite;
 }
 
+.wf-cover-breathe {
+  animation: wf-cover-breathe 1.6s ease-out infinite;
+}
+
+.wf-cover-sweep {
+  animation: wf-cover-sweep 1.15s ease-in-out infinite;
+}
+
+.no-y-scroll {
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-y-scroll::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.lw-head,
+.lw-sill,
+.lw-jamb {
+  position: absolute;
+  pointer-events: none;
+  background-color: #e4c9a4;
+}
+
+.lw-jamb {
+  top: 10px;
+  bottom: 12px;
+  z-index: 30;
+  width: 10px;
+}
+
+.lw-jamb-left {
+  left: 0;
+  background-image: linear-gradient(to right, #e7d0b0, #e4c9a4 45%, #d4b48a);
+  box-shadow:
+    -3px 0 6px rgba(120, 84, 48, 0.14),
+    inset -4px 0 5px rgba(120, 84, 48, 0.22);
+}
+
+.lw-jamb-right {
+  right: 0;
+  background-image: linear-gradient(to left, #e7d0b0, #e4c9a4 45%, #d4b48a);
+  box-shadow:
+    4px 0 8px rgba(120, 84, 48, 0.16),
+    inset 4px 0 5px rgba(120, 84, 48, 0.22);
+}
+
+.lw-head {
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 31;
+  height: 10px;
+  background-image: linear-gradient(#e7d0b0, #dcc09a);
+  box-shadow:
+    inset 0 -1px 0 #c9a87a,
+    0 6px 10px rgba(120, 84, 48, 0.2);
+}
+
+.lw-sill {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 32;
+  height: 12px;
+  background-image: linear-gradient(#ead6b8, #d4b48a);
+  box-shadow:
+    0 -8px 12px rgba(120, 84, 48, 0.18),
+    0 4px 6px rgba(120, 84, 48, 0.12);
+}
+
+.login-card-bg {
+  background-color: #f8f0e5 !important;
+  background-image: linear-gradient(to right, #e3c8a6 0%, #f3e4cc 18%, #f8f0e5 34%) !important;
+}
+
+.lw-glass {
+  box-shadow:
+    inset 0 0 0 1px rgba(74, 48, 24, 0.35),
+    inset 14px 0 22px rgba(62, 38, 16, 0.42),
+    inset -14px 0 22px rgba(62, 38, 16, 0.42),
+    inset 0 14px 22px rgba(62, 38, 16, 0.48),
+    inset 0 -12px 18px rgba(62, 38, 16, 0.34);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wf-rise,
   .wf-shake,
-  .wf-spin {
+  .wf-spin,
+  .wf-cover-breathe,
+  .wf-cover-sweep {
     animation: none;
   }
 }
