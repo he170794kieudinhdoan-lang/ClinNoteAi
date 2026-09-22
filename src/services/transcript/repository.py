@@ -90,3 +90,30 @@ def save_consultation_transcript(
     except Exception:
         db.rollback()
         raise
+
+def save_transcript_for_consultation(
+    db: Session,
+    consultation: Consultation,
+    segments: list[dict[str, Any]],
+) -> list[TranscriptSegment]:
+    try:
+        transcript_segments = save_transcript_segments(
+            db=db,
+            consultation_id=consultation.id,
+            segments=segments,
+        )
+
+        consultation.status = "COMPLETED"
+
+        db.commit()
+
+        for segment in transcript_segments:
+            db.refresh(segment)
+
+        db.refresh(consultation)
+
+        return transcript_segments
+
+    except Exception:
+        db.rollback()
+        raise

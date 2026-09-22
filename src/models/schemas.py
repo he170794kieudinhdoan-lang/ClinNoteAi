@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
+from uuid import UUID
 
+from pydantic import BaseModel, Field
 
 class ChatRequest(BaseModel):
     message: str = Field(
@@ -19,3 +21,16 @@ class ChatResponse(BaseModel):
         default="",
         description="Phân tích nội bộ",
     )
+
+class ConsultationCreateRequest(BaseModel):
+    patient_id: UUID
+    doctor_id: UUID
+
+
+class ConsultationResponse(BaseModel):
+    id: UUID
+    patient_id: UUID
+    doctor_id: UUID
+    status: str
+    audio_path: str | None
+    language: str
