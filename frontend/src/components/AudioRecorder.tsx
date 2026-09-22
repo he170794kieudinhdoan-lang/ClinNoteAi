@@ -5,7 +5,7 @@
  * Upload: thả file → màn đã tải. Record: màn ghi âm ở bước sau.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import TranscriptPanel from "@/components/TranscriptPanel";
 import type { TranscriptLine } from "@/types";
 
@@ -21,7 +21,7 @@ function isAudio(file: File) {
   return file.type.startsWith("audio/") || AUDIO_EXT.test(file.name);
 }
 
-export default function AudioRecorder({
+function AudioRecorder({
   tab,
   onTab,
   fileName,
@@ -30,6 +30,8 @@ export default function AudioRecorder({
   locked,
   onFile,
   onClear,
+  onLines,
+  onRegen,
 }: {
   tab: "upload" | "record";
   onTab: (tab: "upload" | "record") => void;
@@ -39,6 +41,8 @@ export default function AudioRecorder({
   locked?: boolean;
   onFile: (file: File) => void;
   onClear: () => void;
+  onLines?: (lines: TranscriptLine[]) => void;
+  onRegen?: () => void;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [over, setOver] = useState(false);
@@ -48,7 +52,9 @@ export default function AudioRecorder({
   const [duration, setDuration] = useState(0);
   const uploaded = Boolean(fileName);
   const knownDuration = Number.isFinite(duration) && duration > 0;
-  const shownDuration = knownDuration ? duration : lines.reduce((max, line) => Math.max(max, line.timestampSec), 0);
+  const shownDuration = knownDuration
+    ? duration
+    : lines.reduce((max, line) => Math.max(max, line.endSec ?? line.timestampSec), 0);
 
   useEffect(() => {
     if (tab !== "upload") setPlaying(false);
@@ -75,21 +81,21 @@ export default function AudioRecorder({
   }
 
   return (
-    <section className="flex min-h-72 flex-1 flex-col border border-[#c9bba8] bg-[#fffdf8] lg:min-h-0">
-      <header className="flex items-center justify-between gap-2 border-b border-[#c9bba8] bg-[#efe6d8] px-3.5 py-2">
+    <section className="flex min-h-72 flex-1 flex-col overflow-hidden rounded-2xl border border-[#efe4d4] bg-[#fffdf9] shadow-sm lg:min-h-0">
+      <header className="flex items-center justify-between gap-2 border-b border-[#f3eadf] px-3.5 py-2">
         <h2 className="text-sm font-bold">Âm thanh</h2>
-        <div className="flex h-6 w-32 overflow-hidden border border-[#c9bba8] text-[11px]">
+        <div className="flex h-7 w-36 overflow-hidden rounded-lg border border-[#eadfce] text-[11px]">
           <button
             type="button"
             onClick={() => onTab("upload")}
-            className={`flex-1 ${tab === "upload" ? "bg-[#e4d5bc] font-bold text-[#3e342c]" : "bg-[#fffdf8] text-[#866e5a]"}`}
+            className={`flex-1 ${tab === "upload" ? "bg-[#e7d8c0] font-semibold text-[#3e342c]" : "bg-white text-[#866e5a]"}`}
           >
             Tải lên
           </button>
           <button
             type="button"
             onClick={() => onTab("record")}
-            className={`flex-1 border-l border-[#c9bba8] ${tab === "record" ? "bg-[#e4d5bc] font-bold text-[#3e342c]" : "bg-[#fffdf8] text-[#866e5a]"}`}
+            className={`flex-1 border-l border-[#eadfce] ${tab === "record" ? "bg-[#e7d8c0] font-semibold text-[#3e342c]" : "bg-white text-[#866e5a]"}`}
           >
             Ghi âm
           </button>
@@ -103,8 +109,8 @@ export default function AudioRecorder({
         </div>
       ) : uploaded ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-3.5">
-          <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2.5 border border-[#c9bba8] px-2.5 py-2">
-            <span className="grid h-7 w-7 place-items-center border border-[#c9bba8] text-sm" aria-hidden>
+          <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg border border-[#eadfce] px-2.5 py-2">
+            <span className="grid h-7 w-7 place-items-center rounded-md border border-[#eadfce] bg-[#f6f0e6] text-sm" aria-hidden>
               ♪
             </span>
             <span className="min-w-0">
@@ -124,7 +130,7 @@ export default function AudioRecorder({
               onClick={toggle}
               disabled={!audioUrl}
               aria-label={playing ? "Tạm dừng" : "Phát"}
-              className="grid h-7 w-7 place-items-center rounded-full border border-[#c9bba8] bg-[#fffdf8] text-[10px] disabled:text-[#b3a394]"
+              className="grid h-7 w-7 place-items-center rounded-full border border-[#eadfce] bg-white text-[10px] disabled:text-[#b3a394]"
             >
               {playing ? "❚❚" : "▶"}
             </button>
@@ -162,7 +168,7 @@ export default function AudioRecorder({
             />
           )}
 
-          <TranscriptPanel lines={lines} />
+          <TranscriptPanel lines={lines} locked={locked} onChange={onLines} onRegen={onRegen} />
         </div>
       ) : (
         <div className="flex flex-1 flex-col p-3.5">
@@ -177,8 +183,8 @@ export default function AudioRecorder({
               setOver(false);
               pick(event.dataTransfer.files[0]);
             }}
-            className={`flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed px-5 py-8 text-center ${
-              over ? "border-[#5c4e42] bg-[#efe6d8]" : "border-[#c9bba8]"
+            className={`flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-5 py-8 text-center ${
+              over ? "border-[#5c4e42] bg-[#f6f0e6]" : "border-[#eadfce]"
             }`}
           >
             <input
@@ -190,11 +196,11 @@ export default function AudioRecorder({
                 event.target.value = "";
               }}
             />
-            <span className="grid h-14 w-14 place-items-center border-2 border-[#c9bba8] text-2xl" aria-hidden>
+            <span className="grid h-14 w-14 place-items-center rounded-2xl border border-[#eadfce] bg-[#f6f0e6] text-2xl" aria-hidden>
               ♪
             </span>
             <span className="text-sm font-bold">Kéo thả file âm thanh</span>
-            <span className="inline-flex h-8 items-center border border-[#c9bba8] bg-[#fffdf8] px-4 text-sm shadow-[2px_2px_0_#e4d8c8]">
+            <span className="inline-flex h-9 items-center rounded-full bg-[#ead9c2] px-4 text-sm font-semibold">
               Chọn file
             </span>
           </label>
@@ -204,3 +210,5 @@ export default function AudioRecorder({
     </section>
   );
 }
+
+export default memo(AudioRecorder);

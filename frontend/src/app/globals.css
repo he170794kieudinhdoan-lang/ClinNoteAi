@@ -35,10 +35,8 @@ body::before {
 }
 
 body:has(.plain-canvas) {
-  background-image: linear-gradient(to bottom, #efe6d8, #e4d5c4);
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: auto;
+  background-color: #efe6d8;
+  background-image: none;
 }
 
 body:has(.plain-canvas)::before {

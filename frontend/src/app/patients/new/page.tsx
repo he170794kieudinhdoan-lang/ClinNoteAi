@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useRef, useState } from "react";
+import { saveEncounter } from "@/hooks/useEncounter";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import type { Encounter, Gender } from "@/types";
 
 const GENDERS: Gender[] = ["Nam", "Nữ", "Khác"];
@@ -36,6 +38,7 @@ function ageFromParts(day: string, month: string, year: string) {
 }
 
 export default function AddPatientPage() {
+  const authed = useRequireAuth();
   const router = useRouter();
   const [code, setCode] = useState("");
   const [name, setName] = useState("");
@@ -87,11 +90,12 @@ export default function AddPatientPage() {
       icdSuggestions: [],
       missingFields: ["Audio / transcript"],
     };
-    // ponytail: chưa có POST /patients — giữ trên tab này tới khi có API.
-    const stored = JSON.parse(sessionStorage.getItem("clinnote-encounters") || "[]") as Encounter[];
-    sessionStorage.setItem("clinnote-encounters", JSON.stringify([encounter, ...stored]));
+    // MOCK: chưa có POST /api/v1/encounters — saveEncounter giữ trên tab này tới khi có API.
+    saveEncounter(encounter);
     router.push(`/encounters/${encounter.id}`);
   }
+
+  if (!authed) return <main className="nb-classic min-h-dvh bg-[#efe6d8]" />;
 
   return (
     <main className="nb-classic relative min-h-screen text-[#3e342c]">
@@ -99,29 +103,29 @@ export default function AddPatientPage() {
         type="button"
         aria-label="Đóng"
         onClick={() => router.push("/")}
-        className="fixed inset-0 z-0 bg-[#f3ece1]/35"
+        className="fixed inset-0 z-0 bg-[#3e342c]/15"
       />
 
       <form
         onSubmit={onSubmit}
         noValidate
-        className="pointer-events-auto fixed left-1/2 top-1/2 z-20 flex max-h-[calc(100vh-2rem)] w-[min(780px,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden border-2 border-[#a89884] bg-[#fffdf8] shadow-[6px_6px_0_#c9bba8]"
+        className="pointer-events-auto fixed left-1/2 top-1/2 z-20 flex max-h-[calc(100vh-2rem)] w-[min(780px,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-md border border-[#d9cbb8] bg-[#f6f0e6] shadow-[0_16px_40px_rgba(62,52,44,0.12)]"
       >
-        <header className="flex items-center justify-between border-b border-[#c9bba8] bg-[#efe6d8] px-5 py-3.5">
-          <h1 className="text-base font-bold">Thêm bệnh nhân</h1>
+        <header className="flex items-center justify-between px-5 py-4">
+          <h1 className="font-serif text-xl font-bold">Thêm bệnh nhân</h1>
           <Link
             href="/"
             aria-label="Đóng"
-            className="grid h-7 w-7 place-items-center border border-[#c9bba8] bg-[#fffdf8] text-sm transition-colors hover:bg-[#e4d5bc]"
+            className="grid h-8 w-8 place-items-center rounded-sm border border-[#d9cbb8] bg-white text-sm shadow-sm transition-colors hover:bg-[#f6f0e6]"
           >
             ✕
           </Link>
         </header>
 
         <div className="grid min-h-0 flex-1 overflow-auto md:grid-cols-[1fr_260px] md:items-stretch">
-          <div className="grid grid-cols-1 content-start gap-x-4 gap-y-4 border-[#c9bba8] p-5 sm:grid-cols-2 md:border-r">
+          <div className="grid grid-cols-1 content-start gap-x-4 gap-y-4 p-5 sm:grid-cols-2 md:border-r md:border-[#d9cbb8]">
             <Field label="Mã định danh y tế" required error={errors.code} count={`${code.length}/10`}>
-              <div className="flex h-10 items-center border border-[#c9bba8] bg-[#fffdf8] px-2.5">
+              <div className="flex h-10 items-center rounded-sm border border-[#d9cbb8] bg-white px-2.5">
                 <input
                   value={code}
                   maxLength={10}
@@ -176,23 +180,21 @@ export default function AddPatientPage() {
               </div>
             </Field>
             <Field label="Tuổi">
-              <div className="flex h-10 items-center gap-1.5 border border-dashed border-[#c9bba8] px-2.5 text-xs text-[#866e5a]">
+              <div className="flex h-10 items-center gap-1.5 rounded-sm border border-[#d9cbb8] bg-[#fffdf9] px-2.5 text-xs text-[#866e5a]">
                 <b className="text-sm text-[#3e342c]">{age === null ? "--" : age}</b>
                 tuổi
               </div>
             </Field>
 
             <Field label="Giới tính" className="sm:col-span-2">
-              <div className="flex h-10 border border-[#c9bba8]">
+              <div className="flex h-10 overflow-hidden rounded-sm border border-[#d9cbb8] bg-white">
                 {GENDERS.map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => setGender(item)}
-                    className={`flex-1 border-r border-[#c9bba8] text-xs transition-colors last:border-r-0 ${
-                      gender === item
-                        ? "bg-[#e4d5bc] font-bold text-[#3e342c]"
-                        : "bg-[#fffdf8] text-[#866e5a] hover:bg-[#efe6d8]"
+                    className={`flex-1 border-r border-[#d9cbb8] text-xs transition-colors last:border-r-0 ${
+                      gender === item ? "bg-[#e7d8c0] font-semibold text-[#3e342c]" : "text-[#866e5a] hover:bg-[#f6f0e6]"
                     }`}
                   >
                     {item}
@@ -202,23 +204,23 @@ export default function AddPatientPage() {
             </Field>
           </div>
 
-          <aside className="flex flex-col bg-[#f3ece1] p-5">
-            <div className="flex flex-1 flex-col border border-[#c9bba8] bg-[#fffdf8] p-4">
+          <aside className="flex flex-col p-5">
+            <div className="flex flex-1 flex-col rounded-sm border border-[#d9cbb8] bg-[#fffdf9] p-4">
               <div className="flex items-start gap-3">
                 <img
                   src="/default-avatar.jpg"
                   alt=""
-                  className="h-12 w-12 shrink-0 rounded-full border border-[#c9bba8] object-cover"
+                  className="h-14 w-12 shrink-0 rounded-sm border border-[#d9cbb8] object-cover"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug">{name.trim() || "—"}</p>
-                    <span className="shrink-0 border border-[#c9bba8] bg-[#efe6d8] px-1.5 text-[10px] font-semibold">MỚI</span>
+                    <span className="shrink-0 rounded-sm border border-[#d9cbb8] bg-white px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">MỚI</span>
                   </div>
-                  <p className="mt-0.5 font-mono text-xs text-[#866e5a]">{code || "··········"}</p>
+                  <p className="mt-1 font-mono text-xs tracking-wide text-[#866e5a]">{code || "··········"}</p>
                 </div>
               </div>
-              <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 border-t border-[#efe6d8] pt-4 text-xs text-[#866e5a]">
+              <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 border-t border-[#d9cbb8] pt-3 text-xs text-[#866e5a]">
                 <dt>Tuổi</dt>
                 <dd className="text-[#3e342c]">{age === null ? "—" : age}</dd>
                 <dt>Giới tính</dt>
@@ -228,7 +230,7 @@ export default function AddPatientPage() {
           </aside>
         </div>
 
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#c9bba8] bg-[#efe6d8] px-5 py-3">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#d9cbb8] px-5 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <Step n="1" active>
               Đăng ký
@@ -239,13 +241,13 @@ export default function AddPatientPage() {
             <Step n="3">Xuất ghi chú</Step>
           </div>
           <div className="flex gap-2.5">
-            <button type="button" onClick={() => router.push("/")} className="h-8 border border-[#c9bba8] bg-[#fffdf8] px-4 text-sm transition-colors hover:bg-[#efe6d8]">
+            <button type="button" onClick={() => router.push("/")} className="h-9 rounded-sm border border-[#d9cbb8] bg-white px-4 text-sm shadow-sm transition-colors hover:bg-[#f6f0e6]">
               Hủy
             </button>
             <button
               type="submit"
               disabled={busy}
-              className="h-8 border border-[#c9bba8] bg-[#e4d5bc] px-4 text-sm font-semibold shadow-[2px_2px_0_#c9bba8] transition-colors hover:bg-[#efe6d8] disabled:opacity-60"
+              className="h-9 rounded-sm bg-[#ead9c2] px-4 text-sm font-semibold transition-colors hover:bg-[#e3d0b4] disabled:opacity-60"
             >
               {busy ? "Đang tạo..." : "Đăng ký và tiếp tục →"}
             </button>
@@ -257,7 +259,7 @@ export default function AddPatientPage() {
 }
 
 const inputClass =
-  "h-10 w-full border border-[#c9bba8] bg-[#fffdf8] px-2.5 text-sm text-[#3e342c] outline-none placeholder:text-[#b3a394]";
+  "h-10 w-full rounded-sm border border-[#d9cbb8] bg-white px-2.5 text-sm text-[#3e342c] outline-none placeholder:text-[#b3a394]";
 
 function Field({
   label,
@@ -292,8 +294,8 @@ function Field({
 function Step({ n, active, children }: { n: string; active?: boolean; children: ReactNode }) {
   return (
     <div
-      className={`flex items-center justify-center gap-2 border px-2.5 py-1.5 text-xs ${
-        active ? "border-[#c9bba8] bg-[#e4d5bc] font-bold" : "border-dashed border-[#c9bba8] text-[#866e5a]"
+      className={`flex items-center justify-center gap-2 rounded-sm px-2.5 py-1.5 text-xs ${
+        active ? "border border-[#d9cbb8] bg-[#e7d8c0] font-semibold" : "border border-[#d9cbb8] text-[#866e5a]"
       }`}
     >
       <span className="grid h-4 w-4 place-items-center rounded-full border border-current text-[10px]">{n}</span>

@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import ClinicShell from "@/components/ClinicShell";
 import { useEncounterList } from "@/hooks/useEncounter";
-import { getSupabase } from "@/lib/supabase";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
 import type { EncounterStatus } from "@/types";
 
 const STATUS_LABEL: Record<EncounterStatus, string> = {
@@ -23,7 +23,7 @@ const FILTERS: { id: "all" | EncounterStatus; label: string }[] = [
 ];
 
 export default function DashboardPage() {
-  const router = useRouter();
+  const authed = useRequireAuth();
   const { encounters } = useEncounterList();
   const [filter, setFilter] = useState<(typeof FILTERS)[number]["id"]>("all");
 
@@ -42,61 +42,15 @@ export default function DashboardPage() {
   ] as const;
   const peak = Math.max(1, ...bars.map(([, n]) => n));
 
-  async function logout() {
-    await getSupabase()?.auth.signOut();
-    router.push("/login");
-  }
+  if (!authed) return <main className="nb-classic min-h-dvh bg-[#efe6d8]" />;
 
   return (
-    <main className="plain-canvas nb-classic flex min-h-screen flex-col text-[#3e342c]">
-      <header className="flex items-center justify-between border-b border-[#c9bba8] bg-[#efe6d8] px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-3">
-          <div className="grid h-9 w-9 place-items-center border border-[#c9bba8] bg-[#e4d5bc] shadow-[2px_2px_0_#e4d8c8]">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M4.5 3v5a4 4 0 0 0 8 0V3" />
-              <path d="M8.5 12v3a4 4 0 0 0 4 4h1a4 4 0 0 0 4-4v-3" />
-              <circle cx="17.5" cy="11.5" r="1.5" />
-              <path d="M12.5 19v2" />
-            </svg>
-          </div>
-          <div className="leading-tight">
-            <p className="text-sm font-bold">ClinNote</p>
-            <p className="text-[11px] text-[#866e5a]">Trang chủ</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-8 items-center border border-[#c9bba8] bg-[#e4d5bc] px-2.5 text-[11px] font-medium shadow-[2px_2px_0_#e4d8c8]">
-            VI
-          </span>
-          <button
-            type="button"
-            onClick={logout}
-            className="inline-flex h-8 items-center border border-[#c9bba8] bg-[#fffdf8] px-3 text-xs font-medium shadow-[2px_2px_0_#e4d8c8] transition-colors hover:bg-[#e4d5bc]"
-          >
-            Đăng xuất
-          </button>
-          <Link href="/login" aria-label="Tài khoản" className="block h-8 w-8 overflow-hidden rounded-full border border-[#c9bba8] bg-[#fffdf8]">
-            <img src="/default-avatar.jpg" alt="" className="h-full w-full object-cover" />
-          </Link>
-        </div>
-      </header>
-
-      <div className="grid min-h-0 flex-1 md:grid-cols-[200px_1fr]">
-        <aside className="flex flex-col gap-1 border-[#c9bba8] bg-[#f3ece1] p-3 md:border-r">
-          <p className="px-2 pb-1 text-[10px] font-semibold tracking-[0.16em] text-[#866e5a]">LÀM VIỆC</p>
-          <Link href="/" className="border border-[#c9bba8] bg-[#fffdf8] px-3 py-2 text-sm font-semibold transition-colors hover:bg-[#e4d5bc]">
-            Trang chủ
-          </Link>
-          <Link href="/patients/new" className="px-3 py-2 text-sm text-[#5c4e42] transition-colors hover:bg-[#fffdf8]">
-            Thêm bệnh nhân
-          </Link>
-        </aside>
-
-        <section className="flex flex-col gap-4 p-4 sm:p-5">
+    <ClinicShell section="home" title="Trang chủ" plain>
+      <section className="flex h-full min-h-0 flex-col gap-4 overflow-hidden px-5 pt-1 pb-5">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <p className="text-[11px] font-semibold tracking-[0.14em] text-[#866e5a]">HÔM NAY</p>
-              <h1 className="font-serif text-xl font-bold">Lượt khám</h1>
+              <p className="text-[11px] font-semibold tracking-[0.14em] text-[#9a8674]">HÔM NAY</p>
+              <h1 className="font-serif text-2xl font-bold tracking-tight">Lượt khám</h1>
             </div>
             <div className="flex flex-wrap gap-2">
               {FILTERS.map((item) => (
@@ -104,10 +58,10 @@ export default function DashboardPage() {
                   key={item.id}
                   type="button"
                   onClick={() => setFilter(item.id)}
-                  className={`h-8 border px-3 text-xs transition-colors ${
+                  className={`h-8 rounded-lg px-3 text-xs transition-colors ${
                     filter === item.id
-                      ? "border-[#c9bba8] bg-[#e4d5bc] font-semibold shadow-[2px_2px_0_#e4d8c8]"
-                      : "border-[#c9bba8] bg-[#fffdf8] hover:bg-[#efe6d8]"
+                      ? "bg-[#e7d8c0] font-semibold text-[#3e342c]"
+                      : "border border-[#eadfce] bg-white text-[#5c4e42] hover:bg-[#f6f0e6]"
                   }`}
                 >
                   {item.label}
@@ -123,33 +77,35 @@ export default function DashboardPage() {
             <Stat label="Đã duyệt" value={counts.final} />
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
-            <article className="flex min-h-72 flex-col border border-[#c9bba8] bg-[#fffdf8] p-4">
+          <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1.6fr_1fr]">
+            <article className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-[#efe4d4] bg-[#fffdf9] p-4 shadow-sm">
               <h2 className="text-sm font-bold">Theo trạng thái</h2>
-              <div className="mt-4 flex h-28 items-end gap-3">
+              <div className="mt-4 flex h-28 items-end gap-6 px-2">
                 {bars.map(([label, n]) => (
-                  <div key={label} className="flex flex-1 flex-col items-center gap-1">
-                    <div className="flex h-24 w-full items-end">
+                  <div key={label} className="flex flex-1 flex-col items-center gap-1.5">
+                    <div className="flex h-24 w-full items-end justify-center">
                       <div
-                        className="w-full border border-[#c9bba8] border-b-0 bg-[#e4d5bc]"
-                        style={{ height: `${Math.max(8, (n / peak) * 100)}%` }}
+                        className={`w-full max-w-16 rounded-t-md ${n === peak && n > 0 ? "bg-[#dcc7a6]" : "bg-[#eadcc4]"}`}
+                        style={{ height: `${Math.max(n === 0 ? 6 : 12, (n / peak) * 100)}%` }}
                       />
                     </div>
-                    <span className="text-[10px] text-[#866e5a]">{label}</span>
+                    <span className="text-[11px] text-[#9a8674]">{label}</span>
                   </div>
                 ))}
               </div>
 
-              <ul className="mt-4 divide-y divide-[#efe6d8] border-t border-[#efe6d8]">
+              <ul className="mt-3 min-h-0 flex-1 divide-y divide-[#f3eadf] overflow-auto border-t border-[#f3eadf]">
                 {visible.length === 0 && <li className="py-4 text-sm text-[#866e5a]">Chưa có lượt khám.</li>}
                 {visible.map((item) => (
                   <li key={item.id}>
-                    <Link href={`/encounters/${item.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm transition-colors hover:bg-[#f3ece1]">
+                    <Link href={`/encounters/${item.id}`} className="flex items-center justify-between gap-3 rounded-lg py-3 text-sm transition-colors hover:bg-[#faf6f0]">
                       <span className="min-w-0">
-                        <span className="block break-words font-semibold">{item.patient.name}</span>
-                        <span className="font-mono text-xs text-[#866e5a]">{item.patient.code || item.createdAt.slice(0, 10)}</span>
+                        <span className="block truncate font-semibold">{item.patient.name}</span>
+                        <span className="block truncate text-xs text-[#9a8674]">
+                          {item.patient.code || item.patient.reason || item.createdAt.slice(0, 10)}
+                        </span>
                       </span>
-                      <span className="shrink-0 border border-[#c9bba8] bg-[#efe6d8] px-1.5 text-[10px] font-semibold">
+                      <span className="shrink-0 rounded-full border border-[#eadfce] bg-white px-2.5 py-0.5 text-[11px] text-[#5c4e42]">
                         {STATUS_LABEL[item.status]}
                       </span>
                     </Link>
@@ -158,31 +114,30 @@ export default function DashboardPage() {
               </ul>
             </article>
 
-            <article className="flex flex-col border border-[#c9bba8] bg-[#fffdf8] p-4">
-              <p className="text-[11px] font-semibold tracking-[0.14em] text-[#866e5a]">BẮT ĐẦU</p>
+            <article className="flex h-full min-h-0 flex-col rounded-2xl border border-[#efe4d4] bg-[#fffdf9] p-5 shadow-sm">
+              <p className="text-[11px] font-semibold tracking-[0.14em] text-[#9a8674]">BẮT ĐẦU</p>
               <h2 className="mt-1 text-sm font-bold">Thêm bệnh nhân</h2>
-              <p className="mt-2 text-sm leading-relaxed text-[#5c4e42]">
+              <p className="mt-2 text-sm leading-relaxed text-[#6d5c4e]">
                 Nhập mã định danh y tế, rồi mở lượt khám để ghi âm và xuất ghi chú.
               </p>
               <Link
                 href="/patients/new"
-                className="mt-auto inline-flex h-10 items-center justify-center border border-[#c9bba8] bg-[#e4d5bc] px-4 text-sm font-semibold shadow-[2px_2px_0_#c9bba8] transition-colors hover:bg-[#efe6d8]"
+                className="mt-auto inline-flex h-12 items-center justify-center rounded-lg bg-[#ead9c2] px-4 text-sm font-semibold transition-colors hover:bg-[#e3d0b4]"
               >
                 Thêm bệnh nhân
               </Link>
             </article>
           </div>
-        </section>
-      </div>
-    </main>
+      </section>
+    </ClinicShell>
   );
 }
 
 function Stat({ label, value }: { label: string; value: number }) {
   return (
-    <article className="border border-[#c9bba8] bg-[#fffdf8] px-3 py-3">
-      <p className="text-[11px] text-[#866e5a]">{label}</p>
-      <p className="mt-1 font-serif text-3xl leading-none font-bold">{value}</p>
+    <article className="rounded-2xl border border-[#efe4d4] bg-[#fffdf9] px-4 py-3 shadow-sm">
+      <p className="text-[11px] text-[#9a8674]">{label}</p>
+      <p className="mt-2 font-serif text-4xl leading-none font-bold">{value}</p>
     </article>
   );
 }

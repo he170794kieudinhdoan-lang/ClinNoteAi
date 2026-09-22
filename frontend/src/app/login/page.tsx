@@ -1,7 +1,6 @@
 "use client";
 
 import { Button, Card, Input, Label } from "neobrutalism-ui-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
@@ -37,73 +36,57 @@ export default function LoginPage() {
   const [busy, setBusy] = useState<"form" | "google" | null>(null);
   const [sentTo, setSentTo] = useState("");
   const [notice, setNotice] = useState("");
+  const [phase, setPhase] = useState<"form" | "leave">("form");
+  const [scene, setScene] = useState(false);
+  const sceneRef = useRef(false);
   const mainVideo = useRef<HTMLVideoElement>(null);
   const hoverVideo = useRef<HTMLVideoElement>(null);
-  const hoverTimer = useRef<number | null>(null);
-  const fadeTimer = useRef<number | null>(null);
-  const wantScene = useRef(false);
-  const [scene, setScene] = useState(false);
-
-  function showFieldScene() {
-    wantScene.current = true;
-    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
-    if (fadeTimer.current) window.clearTimeout(fadeTimer.current);
-    mainVideo.current?.pause();
-    const clip = hoverVideo.current;
-    if (!clip) {
-      setScene(true);
-      return;
-    }
-    const reveal = () => {
-      if (!wantScene.current) return;
-      void clip.play();
-      setScene(true);
-    };
-    if (!clip.paused && clip.currentTime > 0) {
-      reveal();
-      return;
-    }
-    if (clip.currentTime > 0.05) {
-      clip.addEventListener("seeked", reveal, { once: true });
-      clip.currentTime = 0;
-      return;
-    }
-    reveal();
-  }
-
-  function hideFieldScene() {
-    wantScene.current = false;
-    if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
-    hoverTimer.current = window.setTimeout(() => {
-      if (wantScene.current) return;
-      void mainVideo.current?.play();
-      setScene(false);
-      if (fadeTimer.current) window.clearTimeout(fadeTimer.current);
-      fadeTimer.current = window.setTimeout(() => {
-        if (!wantScene.current) hoverVideo.current?.pause();
-      }, 700);
-    }, 80);
-  }
 
   useEffect(() => {
+    const main = mainVideo.current;
     const clip = hoverVideo.current;
-    const prime = () => clip?.pause();
-    if (clip && clip.readyState < 2) clip.addEventListener("loadeddata", prime);
-    return () => {
-      clip?.removeEventListener("loadeddata", prime);
-      if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
-      if (fadeTimer.current) window.clearTimeout(fadeTimer.current);
-    };
-  }, []);
+    if (!main || !clip) return;
+    if (scene) {
+      main.pause();
+      clip.currentTime = 0;
+      void clip.play();
+      return;
+    }
+    clip.pause();
+    void main.play();
+  }, [scene]);
 
   useEffect(() => {
     const supabase = getSupabase();
     if (!supabase) return;
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session) router.replace("/");
+      if (!session || sceneRef.current) return;
+      setPhase("leave");
+      window.setTimeout(() => router.replace("/"), 0);
     });
     return () => data.subscription.unsubscribe();
   }, [router]);
+
+  function playOutro() {
+    sceneRef.current = true;
+    setScene(true);
+    return new Promise<void>((resolve) => {
+      window.setTimeout(() => {
+        const clip = hoverVideo.current;
+        if (!clip) {
+          resolve();
+          return;
+        }
+        const cap = window.setTimeout(finish, 4500);
+        function finish() {
+          window.clearTimeout(cap);
+          clip?.removeEventListener("ended", finish);
+          resolve();
+        }
+        clip.addEventListener("ended", finish);
+      }, 0);
+    });
+  }
 
   function switchMode(next: Mode) {
     setMode(next);
@@ -142,15 +125,18 @@ export default function LoginPage() {
 
     setBusy(kind);
     setNotice("");
-    const redirectTo = `${window.location.origin}/login`;
+    const redirectTo = `${window.location.origin}/`;
+    let left = false;
 
     try {
       if (kind === "google") {
+        await playOutro();
         const { error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: { redirectTo },
         });
         if (error) throw error;
+        left = true;
         return;
       }
 
@@ -173,19 +159,24 @@ export default function LoginPage() {
           return;
         }
       } else {
+        const outro = playOutro();
         const { error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
         });
         if (error) throw error;
+        await outro;
       }
 
-      router.push("/");
+      left = true;
+      router.replace("/");
     } catch (err) {
+      sceneRef.current = false;
+      setScene(false);
       setErrors({ form: err instanceof Error ? err.message : "Không đăng nhập được." });
       setShake((n) => n + 1);
     } finally {
-      setBusy(null);
+      if (!left) setBusy(null);
     }
   }
 
@@ -202,6 +193,8 @@ export default function LoginPage() {
 
   const strength = mode === "register" ? getPasswordStrength(password) : null;
 
+  if (phase === "leave") return <main className="nb-classic min-h-dvh bg-[#efe6d8]" />;
+
   return (
     <main className="nb-classic relative flex min-h-screen items-center justify-center p-3 sm:p-6">
       <Card
@@ -209,11 +202,11 @@ export default function LoginPage() {
         radius="sm"
         shadow="sm"
         border="thin"
-        className="wf-rise relative z-10 flex w-full max-w-[940px] flex-col overflow-hidden"
+        className="wf-rise relative z-10 flex w-full max-w-[940px] flex-col overflow-hidden !rounded-[22px] !border-[#efe4d4] !bg-[#f6f0e6] !shadow-[0_16px_40px_rgba(62,52,44,0.12)]"
       >
-        <header className="flex items-center justify-between border-b border-[#c9bba8] bg-[#efe6d8] px-4 py-3 sm:px-6">
+        <header className="flex items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center border border-[#c9bba8] bg-[#e4d5bc] text-[#5c4e42] shadow-[2px_2px_0_#e4d8c8]">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#efe3d0] text-[#5c4e42]">
               {/* Medical Pulse / Stethoscope Logo */}
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M4.5 3v5a4 4 0 0 0 8 0V3" />
@@ -225,69 +218,46 @@ export default function LoginPage() {
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold tracking-tight text-[#5c4e42]">ClinNote AI</span>
-                <span className="border border-[#c9bba8] bg-[#f3ece1] px-2 py-0.5 text-[10px] font-semibold text-[#5c4e42]">
+                <span className="rounded-full border border-[#eadfce] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#5c4e42]">
                   HITL Edition
                 </span>
               </div>
               <p className="hidden text-[11px] text-[#866e5a] sm:block">Trợ lý y khoa thông minh</p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            <span className="inline-flex h-8 items-center gap-1.5 border border-[#c9bba8] bg-[#e4d5bc] px-2.5 text-[11px] font-medium text-[#5c4e42] shadow-[2px_2px_0_#e4d8c8]">
-              VI
-            </span>
-            <Link
-              href="/"
-              className="inline-flex h-8 items-center gap-1.5 border border-[#c9bba8] bg-[#efe6d8] px-3 text-xs font-medium text-[#5c4e42] shadow-[2px_2px_0_#e4d8c8] transition-transform hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none"
-            >
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m15 18-6-6 6-6"/>
-              </svg>
-              <span>Dashboard</span>
-            </Link>
-            <Link
-              href="/"
-              aria-label="Đóng và về Dashboard"
-              className="grid h-8 w-8 place-items-center border border-[#c9bba8] bg-[#efe6d8] text-sm font-semibold text-[#5c4e42] shadow-[2px_2px_0_#e4d8c8] transition-transform hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-none"
-            >
-              ✕
-            </Link>
-          </div>
         </header>
 
         {/* 2-Column Body */}
         <div className="grid min-h-0 flex-1 md:grid-cols-[280px_1fr]">
-          <aside className="hidden h-full items-end bg-[#F8F0E5] md:flex">
+          <aside className="hidden h-full items-start bg-[#F8F0E5] md:flex">
             <div className="relative w-full">
               <video
                 ref={mainVideo}
-                src="/clinic-side.mp4?v=2"
+                src="/login.mp4"
                 autoPlay
                 loop
                 muted
                 playsInline
-                className="relative z-10 w-full"
+                className={`relative z-10 w-full transition-opacity duration-300 ${scene ? "opacity-0" : "opacity-100"}`}
                 aria-hidden="true"
                 suppressHydrationWarning
               />
               <video
                 ref={hoverVideo}
-                src="/clinic-hover.mp4"
-                loop
+                src="/login-success.mp4"
                 muted
                 playsInline
-                preload="auto"
-                className={`pointer-events-none absolute inset-0 z-20 h-full w-full object-contain transition-opacity duration-700 ease-in-out ${scene ? "opacity-100" : "opacity-0"}`}
+                preload="metadata"
+                className={`pointer-events-none absolute inset-0 z-20 h-full w-full object-contain transition-opacity duration-300 ${scene ? "opacity-100" : "opacity-0"}`}
                 aria-hidden="true"
                 suppressHydrationWarning
               />
             </div>
           </aside>
 
-          <section className="flex flex-col justify-center bg-[#F8F0E5] p-5 sm:p-8">
+          <section className="flex flex-col justify-start bg-[#F8F0E5] px-5 pt-1 pb-5 sm:px-8 sm:pt-2 sm:pb-6">
             {/* Top switcher & Title */}
-            <div className="mb-6 flex flex-nowrap items-start justify-between gap-3 border-b border-[#c9bba8] pb-4">
+            <div className="mb-4 flex flex-nowrap items-start justify-between gap-3 border-b border-[#eadfce] pb-3">
               <div key={mode} className="wf-rise min-w-0 flex-1">
                 <h1 className="font-serif text-xl font-bold tracking-tight text-[#5c4e42]">
                   {mode === "login"
@@ -306,7 +276,7 @@ export default function LoginPage() {
               </div>
 
               {/* Segmented Mode Control */}
-              <div className="inline-flex shrink-0 border border-[#c9bba8] bg-[#efe6d8] p-1 shadow-[2px_2px_0_#e4d8c8]">
+              <div className="inline-flex shrink-0 rounded-lg border border-[#eadfce] bg-white p-1 shadow-sm">
                 {(
                   [
                     ["login", "Đăng nhập"],
@@ -317,12 +287,12 @@ export default function LoginPage() {
                     key={id}
                     type="button"
                     size="sm"
-                    radius="none"
+                    radius="sm"
                     shadow="none"
                     border="none"
                     tone={mode === id ? "yellow" : "cream"}
                     press="none"
-                    className="whitespace-nowrap"
+                    className={`!rounded-md whitespace-nowrap ${mode === id ? "!bg-[#e7d8c0]" : "!bg-transparent !shadow-none"}`}
                     onClick={() => switchMode(id)}
                   >
                     {label}
@@ -452,7 +422,7 @@ export default function LoginPage() {
 
                       {/* Password strength indicator for Registration */}
                       {strength && password.length > 0 && (
-                        <div className="border border-[#c9bba8] bg-[#efe6d8] px-3 py-2 text-[11px]">
+                        <div className="rounded-lg border border-[#eadfce] bg-white px-3 py-2 text-[11px]">
                           <div className="flex items-center justify-between text-[#7c624e]">
                             <span>{strength.label}</span>
                             <span className="font-semibold">{strength.score}/3</span>
@@ -525,21 +495,17 @@ export default function LoginPage() {
                   {errors.form && <p className="text-base font-medium text-rose-600">{errors.form}</p>}
 
                   {/* Primary Submit Button */}
-                  <div
-                    className="pt-2"
-                    onMouseEnter={mode === "forgot" ? undefined : showFieldScene}
-                    onMouseLeave={mode === "forgot" ? undefined : hideFieldScene}
-                  >
+                  <div className="pt-2">
                     <Button
                       type="submit"
                       disabled={busy !== null}
                       tone="yellow"
                       size="lg"
-                      radius="none"
-                      className="!h-11"
-                      shadow="sm"
-                      border="thin"
-                      press="push"
+                      radius="lg"
+                      className="!h-11 !rounded-lg !border-0 !bg-[#ead9c2] !shadow-none hover:!bg-[#e3d0b4]"
+                      shadow="none"
+                      border="none"
+                      press="none"
                       fullWidth
                     >
                       {busy === "form" ? (
@@ -580,25 +546,24 @@ export default function LoginPage() {
                     <>
                       <div className="relative my-3 flex items-center justify-center">
                         <div className="absolute inset-0 flex items-center">
-                          <div className="w-full border-t border-[#c9bba8]" />
+                          <div className="w-full border-t border-[#eadfce]" />
                         </div>
                         <span className="relative bg-[#F8F0E5] px-3 text-[11px] font-medium tracking-wide text-[#948171] uppercase">
                           hoặc tiếp tục với
                         </span>
                       </div>
 
-                      <div onMouseEnter={showFieldScene} onMouseLeave={hideFieldScene}>
                       <Button
                         type="button"
                         disabled={busy !== null}
                         onClick={() => finish("google")}
                         tone="cream"
                         size="lg"
-                        radius="none"
-                        className="!h-11"
-                        shadow="sm"
-                        border="thin"
-                        press="push"
+                        radius="lg"
+                        className="!h-11 !rounded-lg !border !border-[#eadfce] !bg-white !shadow-none"
+                        shadow="none"
+                        border="none"
+                        press="none"
                         fullWidth
                       >
                         {busy === "google" ? (
@@ -626,7 +591,6 @@ export default function LoginPage() {
                         )}
                         <span>{mode === "register" ? "Đăng ký bằng Google" : "Tài khoản Google"}</span>
                       </Button>
-                      </div>
                     </>
                   )}
                 </>
@@ -685,7 +649,7 @@ function EnhancedField({
           aria-describedby={error ? `${id}-error` : undefined}
           tone="cream"
           border="thin"
-          className="min-w-0 flex-1"
+          className="min-w-0 flex-1 !rounded-lg"
         />
         {trailing && <span className="shrink-0">{trailing}</span>}
       </div>

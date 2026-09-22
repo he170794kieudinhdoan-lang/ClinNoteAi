@@ -7,10 +7,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use, useEffect, useRef, useState } from "react";
+import { memo, use, useCallback, useEffect, useRef, useState } from "react";
 import AudioRecorder from "@/components/AudioRecorder";
+import AccountMenu from "@/components/AccountMenu";
+import FinalNote from "@/components/FinalNote";
 import SoapEditor from "@/components/SoapEditor";
 import { removeEncounter, saveEncounter, useEncounter } from "@/hooks/useEncounter";
+import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { draftFromTranscript } from "@/lib/draftNote";
 import { UPLOADED_DRAFT } from "@/lib/mock";
 import type { Encounter, Patient } from "@/types";
 
@@ -30,7 +34,7 @@ function dobLine(patient: Patient) {
 }
 
 function withUpload(current: Encounter, file: File): Encounter {
-  // ponytail: bản ghi/SOAP cục bộ tới khi có POST audio + STT.
+  // MOCK: gắn UPLOADED_DRAFT thay cho STT. Sẽ thay bằng POST /api/v1/encounters/:id/audio.
   return {
     ...current,
     status: "soap",
@@ -59,6 +63,7 @@ function withoutAudio(current: Encounter): Encounter {
 export default function ClinicalEditorPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const router = useRouter();
+  const authed = useRequireAuth();
   const { encounter, ready } = useEncounter(id);
   const [draft, setDraft] = useState<Encounter | null>(null);
   const [tab, setTab] = useState<"upload" | "record">("upload");
@@ -66,27 +71,48 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const audioUrlRef = useRef<string | null>(null);
   const seen = useRef<string | null>(null);
   const leaveRef = useRef(false);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+  const loadedId = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!encounter || encounter.id !== id || loadedId.current === id) return;
+    loadedId.current = id;
     seen.current = null;
     if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
     audioUrlRef.current = null;
     setAudioUrl(null);
     setTab("upload");
-    if (encounter) setDraft(encounter);
-  }, [encounter]);
+    setDraft(encounter);
+  }, [encounter, id]);
 
   useEffect(() => {
     if (!draft || leaveRef.current) return;
-    const serial = JSON.stringify(draft);
     if (seen.current === null) {
-      seen.current = serial;
+      seen.current = JSON.stringify(draft);
       return;
     }
-    if (seen.current === serial) return;
-    seen.current = serial;
-    saveEncounter(draft);
+    const timer = window.setTimeout(() => {
+      const current = draftRef.current;
+      if (!current || leaveRef.current) return;
+      const serial = JSON.stringify(current);
+      if (seen.current === serial) return;
+      seen.current = serial;
+      saveEncounter(current);
+    }, 400);
+    return () => window.clearTimeout(timer);
   }, [draft]);
+
+  useEffect(
+    () => () => {
+      const current = draftRef.current;
+      if (!current || leaveRef.current) return;
+      const serial = JSON.stringify(current);
+      if (seen.current === serial) return;
+      saveEncounter(current);
+    },
+    [],
+  );
 
   useEffect(
     () => () => {
@@ -95,13 +121,43 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     [],
   );
 
+  const takeFile = useCallback((file: File) => {
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    const url = URL.createObjectURL(file);
+    audioUrlRef.current = url;
+    setAudioUrl(url);
+    setTab("upload");
+    setDraft((current) => (current ? withUpload(current, file) : current));
+  }, []);
+
+  const clearFile = useCallback(() => {
+    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    audioUrlRef.current = null;
+    setAudioUrl(null);
+    setDraft((current) => (current ? withoutAudio(current) : current));
+  }, []);
+
+  const onLines = useCallback((transcript: Encounter["transcript"]) => {
+    setDraft((current) => (current ? { ...current, transcript } : current));
+  }, []);
+
+  const regen = useCallback(() => {
+    setDraft((current) => {
+      if (!current || current.transcript.length === 0) return current;
+      const next = draftFromTranscript(current.transcript);
+      return { ...current, soap: next.soap, icdSuggestions: next.icdSuggestions, selectedIcd: next.selectedIcd };
+    });
+  }, []);
+
+  if (!authed) return <main className="nb-classic min-h-dvh bg-[#efe6d8]" />;
+
   if (!ready || (encounter && !draft)) {
-    return <main className="nb-classic min-h-screen bg-[#f3ece1]" />;
+    return <main className="plain-canvas nb-classic fixed inset-x-[5vw] inset-y-[5vh] rounded-[22px] bg-[#f6f0e6]" />;
   }
 
   if (!encounter || !draft) {
     return (
-      <main className="nb-classic min-h-screen p-6 text-[#3e342c]">
+      <main className="plain-canvas nb-classic fixed inset-x-[5vw] inset-y-[5vh] rounded-[22px] bg-[#f6f0e6] p-6 text-[#3e342c]">
         <p>Không có lượt khám này.</p>
         <Link href="/" className="mt-3 inline-block text-sm underline">
           Về trang chủ
@@ -114,22 +170,6 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const encounterId = draft.id;
   const canApprove = !locked && (["subjective", "objective", "assessment", "plan"] as const).every((key) => draft.soap[key].trim());
 
-  function takeFile(file: File) {
-    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-    const url = URL.createObjectURL(file);
-    audioUrlRef.current = url;
-    setAudioUrl(url);
-    setTab("upload");
-    setDraft((current) => (current ? withUpload(current, file) : current));
-  }
-
-  function clearFile() {
-    if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-    audioUrlRef.current = null;
-    setAudioUrl(null);
-    setDraft((current) => (current ? withoutAudio(current) : current));
-  }
-
   function leave(next: Encounter | null) {
     leaveRef.current = true;
     if (next) saveEncounter(next);
@@ -137,11 +177,17 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     router.push("/");
   }
 
+  function approve() {
+    setDraft((current) =>
+      current ? { ...current, status: "final", approvedAt: new Date().toISOString() } : current,
+    );
+  }
+
   return (
-    <main className="nb-classic flex min-h-dvh flex-col text-[#3e342c] lg:h-dvh lg:overflow-hidden">
-      <header className="flex items-center justify-between border-b border-[#c9bba8] bg-[#efe6d8] px-4 py-3 sm:px-5">
+    <main className="plain-canvas nb-classic fixed inset-x-[5vw] inset-y-[5vh] flex flex-col overflow-hidden rounded-[22px] bg-[#f6f0e6] text-[#3e342c] shadow-[0_16px_40px_rgba(62,52,44,0.08)]">
+      <header className="flex items-center justify-between px-4 py-3 sm:px-5">
         <Link href="/" className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center border border-[#c9bba8] bg-[#e4d5bc] shadow-[2px_2px_0_#e4d8c8]">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-[#efe3d0]">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M4.5 3v5a4 4 0 0 0 8 0V3" />
               <path d="M8.5 12v3a4 4 0 0 0 4 4h1a4 4 0 0 0 4-4v-3" />
@@ -155,60 +201,22 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           </span>
         </Link>
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-8 items-center border border-[#c9bba8] bg-[#e4d5bc] px-2.5 text-[11px] font-medium shadow-[2px_2px_0_#e4d8c8]">VI</span>
-          <Link href="/" className="inline-flex h-8 items-center border border-[#c9bba8] bg-[#fffdf8] px-3 text-xs font-medium shadow-[2px_2px_0_#e4d8c8] hover:bg-[#e4d5bc]">
+          <Link href="/" className="inline-flex h-8 items-center rounded-lg border border-[#eadfce] bg-white px-3 text-xs shadow-sm hover:bg-[#f6f0e6]">
             ← Trang chủ
           </Link>
-          <img src="/default-avatar.jpg" alt="" className="h-8 w-8 rounded-full border border-[#c9bba8] object-cover" />
+          <AccountMenu />
         </div>
       </header>
 
+      {locked ? (
+        <FinalNote encounter={draft}>
+          <PatientCard patient={draft.patient} locked />
+        </FinalNote>
+      ) : (
+      <>
       <div className="grid min-h-0 flex-1 lg:grid-cols-[20.5rem_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col gap-3.5 border-[#c9bba8] bg-[#f3ece1] p-3.5 lg:overflow-hidden lg:border-r">
-          <article className="relative mt-2 border border-[#c9bba8] bg-[#fffdf8]">
-            <span className="absolute -top-2 left-3 bg-[#f3ece1] px-1.5 text-[9px] tracking-[0.16em] text-[#866e5a]">BỆNH NHÂN</span>
-            <div className="flex items-center gap-3 border-b border-dashed border-[#c9bba8] px-3 py-3">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[#c9bba8] text-sm font-bold">
-                {initials(draft.patient.name)}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block break-words text-sm font-semibold leading-snug">{draft.patient.name}</span>
-                <span className="mt-0.5 flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm tracking-wide">{draft.patient.code || "—"}</span>
-                  <span className="inline-flex items-center gap-1 border border-[#c9bba8] bg-[#efe6d8] px-1.5 text-[10px] font-semibold">
-                    <span className={`h-2 w-2 rounded-full border border-[#3e342c] ${locked ? "bg-[#3e342c]" : "bg-[#fffdf8]"}`} />
-                    {locked ? "ĐÃ DUYỆT" : "CHỜ"}
-                  </span>
-                </span>
-              </span>
-            </div>
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-2 px-3 py-2.5 text-xs">
-              <div>
-                <dt className="text-[9px] tracking-wide text-[#866e5a]">NGÀY SINH</dt>
-                <dd>{dobLine(draft.patient)}</dd>
-              </div>
-              <div>
-                <dt className="text-[9px] tracking-wide text-[#866e5a]">GIỚI TÍNH</dt>
-                <dd>{draft.patient.gender || "—"}</dd>
-              </div>
-              <div>
-                <dt className="text-[9px] tracking-wide text-[#866e5a]">BHYT</dt>
-                <dd className="text-[#b3a394]">—</dd>
-              </div>
-              <div>
-                <dt className="text-[9px] tracking-wide text-[#866e5a]">SỐ ĐIỆN THOẠI</dt>
-                <dd className="text-[#b3a394]">—</dd>
-              </div>
-            </dl>
-            <div className="flex flex-wrap gap-1.5 px-3 pb-3">
-              <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed border-[#c9bba8] px-2.5 text-[10px] font-bold">
-                Dị ứng <span className="font-normal text-[#866e5a]">—</span>
-              </span>
-              <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed border-[#c9bba8] px-2.5 text-[10px] font-bold">
-                Cách ly <span className="font-normal text-[#866e5a]">—</span>
-              </span>
-            </div>
-          </article>
+        <aside className="flex min-h-0 flex-col gap-3.5 p-3.5 lg:overflow-hidden lg:border-r lg:border-[#eadfce]">
+          <PatientCard patient={draft.patient} locked={false} />
 
           <AudioRecorder
             tab={tab}
@@ -219,6 +227,8 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
             locked={locked}
             onFile={takeFile}
             onClear={clearFile}
+            onLines={onLines}
+            onRegen={regen}
           />
         </aside>
 
@@ -232,33 +242,79 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
             onSoap={(soap) => setDraft((current) => (current ? { ...current, soap } : current))}
             onSelect={(selectedIcd) => setDraft((current) => (current ? { ...current, selectedIcd } : current))}
             onSuggestions={(icdSuggestions) => setDraft((current) => (current ? { ...current, icdSuggestions } : current))}
+            onRegen={regen}
           />
         </div>
       </div>
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#c9bba8] bg-[#efe6d8] px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 rounded-full border border-[#3e342c] bg-[#3e342c]" />
-          <span className="text-xs text-[#866e5a]">Tự lưu</span>
-        </div>
+      <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-[#eadfce] px-4 py-3 sm:px-5">
         <div className="flex gap-2.5">
-          <button type="button" onClick={() => leave(null)} className="h-8 border border-[#c9bba8] bg-[#fffdf8] px-4 text-sm hover:bg-[#efe6d8]">
+          <button type="button" onClick={() => leave(null)} className="h-9 rounded-lg border border-[#eadfce] bg-white px-4 text-sm shadow-sm hover:bg-[#f6f0e6]">
             Hủy lượt khám
           </button>
           <button
             type="button"
             disabled={!canApprove}
-            onClick={() => leave({ ...draft, status: "final" })}
-            className={`h-8 px-4 text-sm font-semibold ${
-              canApprove
-                ? "border border-[#c9bba8] bg-[#e4d5bc] shadow-[2px_2px_0_#c9bba8] hover:bg-[#efe6d8]"
-                : "border border-dashed border-[#c9bba8] bg-[#fffdf8] text-[#b3a394]"
+            onClick={approve}
+            className={`h-9 rounded-full px-4 text-sm font-semibold ${
+              canApprove ? "bg-[#ead9c2] hover:bg-[#e3d0b4]" : "border border-dashed border-[#eadfce] bg-white text-[#b3a394]"
             }`}
           >
             {locked ? "Đã duyệt" : "Duyệt"}
           </button>
         </div>
       </footer>
+      </>
+      )}
     </main>
   );
 }
+
+const PatientCard = memo(function PatientCard({ patient, locked }: { patient: Encounter["patient"]; locked: boolean }) {
+  return (
+    <article className="relative mt-2 rounded-2xl border border-[#efe4d4] bg-[#fffdf9] shadow-sm">
+      <span className="absolute -top-2 left-3 bg-[#f6f0e6] px-1.5 text-[9px] tracking-[0.16em] text-[#9a8674]">BỆNH NHÂN</span>
+      <div className="flex items-center gap-3 border-b border-dashed border-[#eadfce] px-3 py-3">
+        <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-[#eadfce] bg-white text-sm font-bold">
+          {initials(patient.name)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block break-words text-sm font-semibold leading-snug">{patient.name}</span>
+          <span className="mt-0.5 flex flex-wrap items-center gap-2">
+            <span className="font-mono text-sm tracking-wide">{patient.code || "—"}</span>
+            <span className="inline-flex items-center gap-1 rounded-full border border-[#eadfce] bg-white px-2 py-0.5 text-[10px] font-semibold">
+              <span className={`h-2 w-2 rounded-full ${locked ? "bg-[#3e342c]" : "border border-[#eadfce] bg-white"}`} />
+              {locked ? "ĐÃ DUYỆT" : "CHỜ"}
+            </span>
+          </span>
+        </span>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-3 gap-y-2 px-3 py-2.5 text-xs">
+        <div>
+          <dt className="text-[9px] tracking-wide text-[#866e5a]">NGÀY SINH</dt>
+          <dd>{dobLine(patient)}</dd>
+        </div>
+        <div>
+          <dt className="text-[9px] tracking-wide text-[#866e5a]">GIỚI TÍNH</dt>
+          <dd>{patient.gender || "—"}</dd>
+        </div>
+        <div>
+          <dt className="text-[9px] tracking-wide text-[#866e5a]">BHYT</dt>
+          <dd className="text-[#b3a394]">—</dd>
+        </div>
+        <div>
+          <dt className="text-[9px] tracking-wide text-[#866e5a]">SỐ ĐIỆN THOẠI</dt>
+          <dd className="text-[#b3a394]">—</dd>
+        </div>
+      </dl>
+      <div className="flex flex-wrap gap-1.5 px-3 pb-3">
+        <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed border-[#eadfce] bg-white px-2.5 text-[10px] font-bold">
+          Dị ứng <span className="font-normal text-[#866e5a]">—</span>
+        </span>
+        <span className="inline-flex h-6 items-center gap-1.5 rounded-full border border-dashed border-[#eadfce] bg-white px-2.5 text-[10px] font-bold">
+          Cách ly <span className="font-normal text-[#866e5a]">—</span>
+        </span>
+      </div>
+    </article>
+  );
+});

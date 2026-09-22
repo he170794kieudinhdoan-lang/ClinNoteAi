@@ -40,10 +40,12 @@ export function chat(message: string) {
   });
 }
 
-// --- TODO: gắn khi BE có route ---
+// MOCK đang nằm ở lib/mock.ts, lib/draftNote.ts, lib/icdCatalog.ts và hooks/useEncounter.ts.
+// Khi có route thì thay đúng các hàm đó, UI giữ useQuery:
 // GET    /api/v1/encounters
 // POST   /api/v1/encounters
 // GET    /api/v1/encounters/:id
 // POST   /api/v1/encounters/:id/audio
 // POST   /api/v1/encounters/:id/soap
 // POST   /api/v1/encounters/:id/approve
+// GET    /api/v1/icd

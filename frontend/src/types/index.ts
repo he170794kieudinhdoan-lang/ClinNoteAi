@@ -25,6 +25,8 @@ export interface TranscriptLine {
   speaker: Speaker;
   text: string;
   timestampSec: number;
+  /** Có khi STT trả segment start/end. Không có thì chỉ hiện mốc bắt đầu. */
+  endSec?: number;
 }
 
 /** Bản nháp SOAP — AI chỉ draft, bác sĩ sửa + duyệt (HITL). */
@@ -48,6 +50,8 @@ export interface Encounter {
   patient: Patient;
   status: EncounterStatus;
   createdAt: string;
+  /** Có khi bác sĩ bấm Duyệt. Lượt final cũ không có thì dùng createdAt. */
+  approvedAt?: string;
   transcript: TranscriptLine[];
   soap: SoapNote;
   icdSuggestions: IcdSuggestion[];
