@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { syncAuthUser } from "@/lib/syncUser";
 
 /** Chưa có phiên thì về /login. Session nằm trên trình duyệt, không đọc được từ middleware. */
 let signedIn = false;
@@ -27,6 +28,10 @@ export function useRequireAuth() {
         signedIn = true;
         window.clearTimeout(redirectTimer);
         setReady(true);
+        const user = session.user;
+        window.setTimeout(() => {
+          void syncAuthUser(user);
+        }, 0);
         return;
       }
       // Bỏ qua nhịp session=null lúc client chưa đọc xong phiên — nhịp đó đang đẩy về login rồi mới vào trang chủ.

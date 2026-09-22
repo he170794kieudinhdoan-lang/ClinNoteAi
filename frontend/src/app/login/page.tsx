@@ -4,22 +4,11 @@ import { Button, Card, Input, Label } from "neobrutalism-ui-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { syncAuthUser } from "@/lib/syncUser";
 
 type Mode = "login" | "register" | "forgot";
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-function getPasswordStrength(pwd: string): { score: number; label: string; color: string } {
-  if (!pwd) return { score: 0, label: "", color: "" };
-  let score = 0;
-  if (pwd.length >= 8) score++;
-  if (/[0-9]/.test(pwd) && /[a-zA-Z]/.test(pwd)) score++;
-  if (/[^a-zA-Z0-9]/.test(pwd) || pwd.length >= 12) score++;
-  
-  if (score <= 1) return { score: 1, label: "Mức độ: Cơ bản", color: "bg-[#e4d5bc]" };
-  if (score === 2) return { score: 2, label: "Mức độ: Khá tốt", color: "bg-[#c4a15a]" };
-  return { score: 3, label: "Mức độ: Rất an toàn", color: "bg-[#5c4e42]" };
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,9 +27,49 @@ export default function LoginPage() {
   const [notice, setNotice] = useState("");
   const [phase, setPhase] = useState<"form" | "leave">("form");
   const [scene, setScene] = useState(false);
+  const [cover, setCover] = useState<"on" | "out" | "off">("on");
   const sceneRef = useRef(false);
   const mainVideo = useRef<HTMLVideoElement>(null);
   const hoverVideo = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const prevRoot = root.style.overflow;
+    const prevBody = document.body.style.overflow;
+    root.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+    return () => {
+      root.style.overflow = prevRoot;
+      document.body.style.overflow = prevBody;
+    };
+  }, []);
+
+  useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 768px)");
+    if (!desktop.matches) {
+      setCover("off");
+      return;
+    }
+    const clip = mainVideo.current;
+    if (clip && clip.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA) {
+      setCover("out");
+      return;
+    }
+    const cap = window.setTimeout(() => {
+      setCover((current) => (current === "on" ? "out" : current));
+    }, 8000);
+    return () => window.clearTimeout(cap);
+  }, []);
+
+  useEffect(() => {
+    if (cover !== "out") return;
+    const id = window.setTimeout(() => setCover("off"), 520);
+    return () => window.clearTimeout(id);
+  }, [cover]);
+
+  function releaseCover() {
+    setCover((current) => (current === "on" ? "out" : current));
+  }
 
   useEffect(() => {
     const main = mainVideo.current;
@@ -154,17 +183,25 @@ export default function LoginPage() {
           options: { data: { full_name: name.trim() }, emailRedirectTo: redirectTo },
         });
         if (error) throw error;
+        if (data.user) {
+          const syncError = await syncAuthUser(data.user);
+          if (syncError && data.session) throw new Error(syncError);
+        }
         if (!data.session) {
           setNotice("Đã tạo tài khoản. Mở email xác nhận rồi đăng nhập.");
           return;
         }
       } else {
         const outro = playOutro();
-        const { error } = await supabase.auth.signInWithPassword({
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
         });
         if (error) throw error;
+        if (data.user) {
+          const syncError = await syncAuthUser(data.user);
+          if (syncError) throw new Error(syncError);
+        }
         await outro;
       }
 
@@ -191,18 +228,28 @@ export default function LoginPage() {
     await finish("form");
   }
 
-  const strength = mode === "register" ? getPasswordStrength(password) : null;
-
-  if (phase === "leave") return <main className="nb-classic min-h-dvh bg-[#efe6d8]" />;
+  if (phase === "leave") return <main className="nb-classic h-dvh overflow-hidden bg-[#efe6d8]" />;
 
   return (
-    <main className="nb-classic relative flex min-h-screen items-center justify-center p-3 sm:p-6">
+    <main className="nb-classic relative flex h-dvh items-center justify-center overflow-hidden p-3 sm:p-6">
+      {cover !== "off" && (
+        <div
+          className={`fixed inset-0 z-50 hidden place-items-center bg-[#efe6d8] transition-opacity duration-500 md:grid ${
+            cover === "out" ? "pointer-events-none opacity-0" : "opacity-100"
+          }`}
+          role="status"
+          aria-live="polite"
+          aria-label="Đang tải video đăng nhập"
+        >
+          <LoginCover />
+        </div>
+      )}
       <Card
         tone="cream"
         radius="sm"
         shadow="sm"
         border="thin"
-        className="wf-rise relative z-10 flex w-full max-w-[940px] flex-col overflow-hidden !rounded-[22px] !border-[#efe4d4] !bg-[#f6f0e6] !shadow-[0_16px_40px_rgba(62,52,44,0.12)]"
+        className="login-card-bg wf-rise relative z-10 flex max-h-full min-h-0 w-full max-w-[1040px] flex-col overflow-hidden !rounded-[22px] !border-[#efe4d4] !shadow-[0_16px_40px_rgba(62,52,44,0.12)]"
       >
         <header className="flex items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-3">
@@ -228,9 +275,9 @@ export default function LoginPage() {
         </header>
 
         {/* 2-Column Body */}
-        <div className="grid min-h-0 flex-1 md:grid-cols-[280px_1fr]">
-          <aside className="hidden h-full items-start bg-[#F8F0E5] md:flex">
-            <div className="relative w-full">
+        <div className="grid min-h-0 flex-1 md:grid-cols-[320px_1fr]">
+          <aside className="relative z-20 hidden h-[32rem] w-full self-start md:block">
+            <div className="lw-glass absolute top-[9px] right-[9px] bottom-[11px] left-[9px] overflow-hidden">
               <video
                 ref={mainVideo}
                 src="/login.mp4"
@@ -238,7 +285,10 @@ export default function LoginPage() {
                 loop
                 muted
                 playsInline
-                className={`relative z-10 w-full transition-opacity duration-300 ${scene ? "opacity-0" : "opacity-100"}`}
+                preload="auto"
+                onCanPlayThrough={releaseCover}
+                onError={releaseCover}
+                className={`h-full w-full bg-[#e4c9a4] object-cover transition-opacity duration-300 ${scene ? "opacity-0" : "opacity-100"}`}
                 aria-hidden="true"
                 suppressHydrationWarning
               />
@@ -248,35 +298,43 @@ export default function LoginPage() {
                 muted
                 playsInline
                 preload="metadata"
-                className={`pointer-events-none absolute inset-0 z-20 h-full w-full object-contain transition-opacity duration-300 ${scene ? "opacity-100" : "opacity-0"}`}
+                className={`pointer-events-none absolute inset-0 z-20 h-full w-full object-cover transition-opacity duration-300 ${scene ? "opacity-100" : "opacity-0"}`}
                 aria-hidden="true"
                 suppressHydrationWarning
               />
             </div>
+            <div className="lw-jamb lw-jamb-left" aria-hidden="true" />
+            <div className="lw-jamb lw-jamb-right" aria-hidden="true" />
+            <div className="lw-head" aria-hidden="true" />
+            <div className="lw-sill" aria-hidden="true" />
           </aside>
 
-          <section className="flex flex-col justify-start bg-[#F8F0E5] px-5 pt-1 pb-5 sm:px-8 sm:pt-2 sm:pb-6">
+          <section className="no-y-scroll flex min-h-0 flex-col justify-start overflow-y-auto bg-transparent px-5 pt-1 pb-5 sm:px-8 sm:pt-2 sm:pb-6">
             {/* Top switcher & Title */}
-            <div className="mb-4 flex flex-nowrap items-start justify-between gap-3 border-b border-[#eadfce] pb-3">
-              <div key={mode} className="wf-rise min-w-0 flex-1">
-                <h1 className="font-serif text-xl font-bold tracking-tight text-[#5c4e42]">
-                  {mode === "login"
-                    ? "Đăng nhập tài khoản"
-                    : mode === "register"
-                      ? "Tạo tài khoản bác sĩ"
-                      : "Khôi phục mật khẩu"}
-                </h1>
-                <p className="mt-1 text-sm text-[#826e5e]">
-                  {mode === "login"
-                    ? "Chào mừng trở lại! Vui lòng nhập thông tin phiên làm việc."
-                    : mode === "register"
-                      ? "Bắt đầu trải nghiệm trợ lý lâm sàng AI cho phòng khám của bạn."
-                      : "Nhập email đã đăng ký để nhận liên kết khôi phục."}
-                </p>
+            <div className="mb-4 flex flex-nowrap items-start justify-between gap-3 border-b border-[#d4c0a4] pb-3">
+              <div className="relative min-h-[4.75rem] min-w-0 flex-1">
+                {(
+                  [
+                    ["login", "Đăng nhập tài khoản", "Chào mừng trở lại! Vui lòng nhập thông tin phiên làm việc."],
+                    ["register", "Tạo tài khoản bác sĩ", "Bắt đầu trải nghiệm trợ lý lâm sàng AI cho phòng khám của bạn."],
+                    ["forgot", "Khôi phục mật khẩu", "Nhập email đã đăng ký để nhận liên kết khôi phục."],
+                  ] as const
+                ).map(([id, title, body]) => (
+                  <div
+                    key={id}
+                    aria-hidden={mode !== id}
+                    className={`transition-opacity duration-500 ease-out ${
+                      mode === id ? "opacity-100" : "pointer-events-none absolute inset-x-0 top-0 opacity-0"
+                    }`}
+                  >
+                    <h1 className="font-serif text-xl font-bold tracking-tight text-[#3e3228]">{title}</h1>
+                    <p className="mt-1 text-sm text-[#5c4636]">{body}</p>
+                  </div>
+                ))}
               </div>
 
               {/* Segmented Mode Control */}
-              <div className="inline-flex shrink-0 rounded-lg border border-[#eadfce] bg-white p-1 shadow-sm">
+              <div className="inline-flex shrink-0 rounded-lg border border-[#d4c0a4] bg-[#F8F0E5] p-1 shadow-sm">
                 {(
                   [
                     ["login", "Đăng nhập"],
@@ -290,9 +348,9 @@ export default function LoginPage() {
                     radius="sm"
                     shadow="none"
                     border="none"
-                    tone={mode === id ? "yellow" : "cream"}
+                    tone="cream"
                     press="none"
-                    className={`!rounded-md whitespace-nowrap ${mode === id ? "!bg-[#e7d8c0]" : "!bg-transparent !shadow-none"}`}
+                    className={`!rounded-md whitespace-nowrap !border-0 !text-[#3a2e14] transition-colors duration-300 ${mode === id ? "!bg-[#ECD8BC]" : "!bg-transparent !shadow-none"}`}
                     onClick={() => switchMode(id)}
                   >
                     {label}
@@ -303,9 +361,9 @@ export default function LoginPage() {
 
             {/* Form & Dynamic States */}
             <form
-              key={`${mode}-${shake}-${sentTo}`}
+              key={`${shake}-${sentTo}`}
               onSubmit={onSubmit}
-              className={`wf-rise space-y-4 ${shake ? "wf-shake" : ""}`}
+              className={shake ? "wf-shake" : undefined}
               noValidate
             >
               {sentTo ? (
@@ -333,7 +391,7 @@ export default function LoginPage() {
                 </div>
               ) : (
                 <>
-                  {mode === "register" && (
+                  <Reveal show={mode === "register"}>
                     <EnhancedField
                       id="field-name"
                       label="Họ và tên"
@@ -349,8 +407,9 @@ export default function LoginPage() {
                         </svg>
                       }
                     />
-                  )}
+                  </Reveal>
 
+                  <div className="mb-4">
                   <EnhancedField
                     id="field-email"
                     label="Email công tác"
@@ -367,9 +426,10 @@ export default function LoginPage() {
                       </svg>
                     }
                   />
+                  </div>
 
-                  {mode !== "forgot" && (
-                    <div className="space-y-1.5">
+                  <Reveal show={mode !== "forgot"}>
+                    <div>
                       <EnhancedField
                         id="field-password"
                         label="Mật khẩu"
@@ -419,25 +479,10 @@ export default function LoginPage() {
                           </button>
                         }
                       />
-
-                      {/* Password strength indicator for Registration */}
-                      {strength && password.length > 0 && (
-                        <div className="rounded-lg border border-[#eadfce] bg-white px-3 py-2 text-[11px]">
-                          <div className="flex items-center justify-between text-[#7c624e]">
-                            <span>{strength.label}</span>
-                            <span className="font-semibold">{strength.score}/3</span>
-                          </div>
-                          <div className="mt-1.5 flex h-1.5 w-full gap-1.5">
-                            <span className={`h-full flex-1 ${strength.score >= 1 ? strength.color : "bg-[#e7d7b4]"}`} />
-                            <span className={`h-full flex-1 ${strength.score >= 2 ? strength.color : "bg-[#e7d7b4]"}`} />
-                            <span className={`h-full flex-1 ${strength.score >= 3 ? strength.color : "bg-[#e7d7b4]"}`} />
-                          </div>
-                        </div>
-                      )}
                     </div>
-                  )}
+                  </Reveal>
 
-                  {mode === "register" && (
+                  <Reveal show={mode === "register"}>
                     <EnhancedField
                       id="field-confirm"
                       label="Xác nhận mật khẩu"
@@ -475,9 +520,9 @@ export default function LoginPage() {
                         </button>
                       }
                     />
-                  )}
+                  </Reveal>
 
-                  {mode === "login" && (
+                  <Reveal show={mode === "login"}>
                     <div className="flex items-center justify-between pt-1">
                       <label className="flex cursor-pointer select-none items-center gap-2.5 text-xs text-[#5c3e27]">
                         <input
@@ -489,20 +534,20 @@ export default function LoginPage() {
                         <span>Ghi nhớ phiên đăng nhập trên thiết bị này</span>
                       </label>
                     </div>
-                  )}
+                  </Reveal>
 
                   {notice && <p className="text-base text-[#5c4e42]">{notice}</p>}
                   {errors.form && <p className="text-base font-medium text-rose-600">{errors.form}</p>}
 
                   {/* Primary Submit Button */}
-                  <div className="pt-2">
+                  <div>
                     <Button
                       type="submit"
                       disabled={busy !== null}
                       tone="yellow"
                       size="lg"
                       radius="lg"
-                      className="!h-11 !rounded-lg !border-0 !bg-[#ead9c2] !shadow-none hover:!bg-[#e3d0b4]"
+                      className="!h-11 !rounded-lg !border-0 !bg-[#ECD8BC] !text-[#3a2e14] !shadow-none hover:!bg-[#e0c9a8]"
                       shadow="none"
                       border="none"
                       press="none"
@@ -510,7 +555,7 @@ export default function LoginPage() {
                     >
                       {busy === "form" ? (
                         <>
-                          <Spinner />
+                          <Spinner dark />
                           <span>Đang xử lý...</span>
                         </>
                       ) : (
@@ -546,9 +591,9 @@ export default function LoginPage() {
                     <>
                       <div className="relative my-3 flex items-center justify-center">
                         <div className="absolute inset-0 flex items-center">
-                          <div className="w-full border-t border-[#eadfce]" />
+                          <div className="w-full border-t border-[#d4c0a4]" />
                         </div>
-                        <span className="relative bg-[#F8F0E5] px-3 text-[11px] font-medium tracking-wide text-[#948171] uppercase">
+                        <span className="relative bg-[#F8F0E5] px-3 text-[11px] font-medium tracking-wide text-[#6b5646] uppercase">
                           hoặc tiếp tục với
                         </span>
                       </div>
@@ -560,7 +605,7 @@ export default function LoginPage() {
                         tone="cream"
                         size="lg"
                         radius="lg"
-                        className="!h-11 !rounded-lg !border !border-[#eadfce] !bg-white !shadow-none"
+                        className="!h-11 !rounded-lg !border !border-[#d4c0a4] !bg-[#fffdf8] !text-[#3e3228] !shadow-none"
                         shadow="none"
                         border="none"
                         press="none"
@@ -664,6 +709,62 @@ function EnhancedField({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+function Reveal({
+  show,
+  pad = true,
+  children,
+}: {
+  show: boolean;
+  pad?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`grid transition-[grid-template-rows,opacity] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none ${
+        show ? "grid-rows-[1fr] opacity-100" : "pointer-events-none grid-rows-[0fr] opacity-0"
+      }`}
+      inert={show ? undefined : true}
+    >
+      <div className="overflow-hidden">
+        <div
+          className={
+            pad
+              ? `transition-[padding] duration-500 motion-reduce:transition-none ${show ? "pb-4" : "pb-0"}`
+              : undefined
+          }
+        >
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoginCover() {
+  return (
+    <div className="flex flex-col items-center gap-5">
+      <div className="relative grid h-16 w-16 place-items-center">
+        <span className="wf-cover-breathe absolute inset-0 rounded-full border border-[#c4a15a]" />
+        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#efe3d0] text-[#5c4e42]">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M4.5 3v5a4 4 0 0 0 8 0V3" />
+            <path d="M8.5 12v3a4 4 0 0 0 4 4h1a4 4 0 0 0 4-4v-3" />
+            <circle cx="17.5" cy="11.5" r="1.5" />
+            <path d="M12.5 19v2" />
+          </svg>
+        </span>
+      </div>
+      <div className="text-center">
+        <p className="text-sm font-bold tracking-tight text-[#5c4e42]">ClinNote AI</p>
+        <p className="mt-1 text-xs text-[#866e5a]">Đang mở phòng khám</p>
+      </div>
+      <div className="h-1 w-36 overflow-hidden rounded-full bg-[#eadfce]">
+        <span className="wf-cover-sweep block h-full w-1/3 rounded-full bg-[#c4a15a]" />
+      </div>
     </div>
   );
 }
