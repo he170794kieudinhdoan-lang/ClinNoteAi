@@ -20,9 +20,14 @@ export default function DashboardPage() {
     <main className="mx-auto max-w-3xl p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Dashboard</h1>
-        <button type="button" className="underline" onClick={() => setOpen(true)}>
-          Thêm bệnh nhân
-        </button>
+        <div className="flex items-center gap-4">
+          <Link href="/login" className="underline">
+            Đăng nhập
+          </Link>
+          <button type="button" className="underline" onClick={() => setOpen(true)}>
+            Thêm bệnh nhân
+          </button>
+        </div>
       </div>
 
       <ul className="mt-6 space-y-2">
