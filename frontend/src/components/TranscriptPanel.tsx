@@ -6,6 +6,7 @@
  */
 
 import { useState } from "react";
+import { updateTranscriptSegment } from "@/lib/api";
 import type { TranscriptLine } from "@/types";
 
 function clock(total: number) {
@@ -35,14 +36,82 @@ export default function TranscriptPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [draftTexts, setDraftTexts] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState("");
 
   function close() {
+    if (isSaving) return;
     setEditing(false);
+    setDraftTexts({});
+    setEditError("");
     setOpen(false);
   }
 
-  function update(id: string, text: string) {
-    onChange?.(lines.map((line) => (line.id === id ? { ...line, text } : line)));
+  function startEditing() {
+    const initial: Record<string, string> = {};
+    for (const line of lines) {
+      initial[line.id] = line.text;
+    }
+    setDraftTexts(initial);
+    setEditError("");
+    setEditing(true);
+  }
+
+  function cancelEditing() {
+    setDraftTexts({});
+    setEditError("");
+    setEditing(false);
+  }
+
+  function handleTextChange(id: string, text: string) {
+    setDraftTexts((prev) => ({ ...prev, [id]: text }));
+    if (editError) setEditError("");
+  }
+
+  async function saveEdits() {
+    // 1. Validation: Không cho phép content rỗng hoặc chỉ có khoảng trắng
+    for (const line of lines) {
+      const val = draftTexts[line.id] ?? line.text;
+      if (!val || !val.trim()) {
+        setEditError("Nội dung lời thoại không được để rỗng hoặc chỉ chứa khoảng trắng.");
+        return;
+      }
+    }
+
+    // 2. Tìm các segment có chỉnh sửa thực tế
+    const changedLines = lines.filter((line) => {
+      const currentVal = draftTexts[line.id];
+      return currentVal !== undefined && currentVal !== line.text;
+    });
+
+    if (changedLines.length === 0) {
+      setEditing(false);
+      return;
+    }
+
+    setIsSaving(true);
+    setEditError("");
+
+    try {
+      // 3. Gọi PATCH API cho từng segment thay đổi
+      await Promise.all(
+        changedLines.map((line) => updateTranscriptSegment(line.id, draftTexts[line.id]))
+      );
+
+      // 4. Cập nhật state lines
+      const updatedLines = lines.map((line) => {
+        const text = draftTexts[line.id];
+        return text !== undefined ? { ...line, text } : line;
+      });
+
+      onChange?.(updatedLines);
+      setEditing(false);
+    } catch (err: any) {
+      setEditError(err.message || "Lưu chỉnh sửa thất bại. Vui lòng thử lại.");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   return (
@@ -78,7 +147,7 @@ export default function TranscriptPanel({
             <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-3">
               <h2 className="font-serif text-lg font-bold text-[#3e342c]">Bản ghi</h2>
               <div className="flex items-center gap-2">
-                {!locked && onRegen && (
+                {!editing && !locked && onRegen && (
                   <button
                     type="button"
                     onClick={onRegen}
@@ -88,27 +157,53 @@ export default function TranscriptPanel({
                     Sinh lại SOAP
                   </button>
                 )}
-                {!locked && onChange && (
+                {!locked && onChange && !editing && (
                   <button
                     type="button"
-                    onClick={() => setEditing((value) => !value)}
-                    className={`h-8 rounded-full px-3 text-xs font-semibold ${
-                      editing ? "bg-[#ead9c2]" : "border border-[#eadfce] bg-white"
-                    }`}
+                    onClick={startEditing}
+                    className="h-8 rounded-full border border-[#eadfce] bg-white px-3 text-xs font-semibold hover:bg-[#f6f0e6]"
                   >
-                    {editing ? "Xong" : "Chỉnh sửa"}
+                    Chỉnh sửa
                   </button>
+                )}
+                {editing && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={cancelEditing}
+                      disabled={isSaving}
+                      className="h-8 rounded-full border border-[#eadfce] bg-white px-3 text-xs font-semibold disabled:opacity-50 hover:bg-[#f6f0e6]"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={saveEdits}
+                      disabled={isSaving}
+                      className="h-8 rounded-full bg-[#ead9c2] px-4 text-xs font-semibold disabled:opacity-50 hover:bg-[#e3d0b4]"
+                    >
+                      {isSaving ? "Đang lưu..." : "Lưu"}
+                    </button>
+                  </>
                 )}
                 <button
                   type="button"
                   onClick={close}
+                  disabled={isSaving}
                   aria-label="Đóng"
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#eadfce] bg-white text-sm"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#eadfce] bg-white text-sm disabled:opacity-50"
                 >
                   ✕
                 </button>
               </div>
             </header>
+
+            {editError && (
+              <div className="mx-4 mb-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+                ❌ {editError}
+              </div>
+            )}
+
             <ul className="min-h-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto px-4 pb-4">
               {lines.map((line) => (
                 <li key={line.id} className={`rounded-xl px-3 py-2.5 ${line.speaker === "doctor" ? "bg-white" : "bg-[#efe4d4]"}`}>
@@ -120,10 +215,11 @@ export default function TranscriptPanel({
                   </div>
                   {editing ? (
                     <textarea
-                      value={line.text}
+                      value={draftTexts[line.id] ?? line.text}
                       aria-label={`Lời ${line.speaker === "doctor" ? "bác sĩ" : "bệnh nhân"}`}
-                      onChange={(event) => update(line.id, event.target.value)}
-                      className="mt-2 min-h-16 w-full resize-y rounded-lg border border-[#eadfce] bg-white px-2.5 py-2 text-sm leading-relaxed text-[#3e342c] outline-none"
+                      onChange={(event) => handleTextChange(line.id, event.target.value)}
+                      disabled={isSaving}
+                      className="mt-2 min-h-16 w-full resize-y rounded-lg border border-[#eadfce] bg-white px-2.5 py-2 text-sm leading-relaxed text-[#3e342c] outline-none disabled:opacity-60"
                     />
                   ) : (
                     <p className="mt-1.5 text-sm leading-relaxed text-[#3e342c]">{line.text}</p>
@@ -137,3 +233,4 @@ export default function TranscriptPanel({
     </>
   );
 }
+

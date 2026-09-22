@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useRef, useState } from "react";
 import { saveEncounter } from "@/hooks/useEncounter";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { createPatient } from "@/lib/api";
+import { getSupabase } from "@/lib/supabase";
 import type { Encounter, Gender } from "@/types";
 
 const GENDERS: Gender[] = ["Nam", "Nữ", "Khác"];
@@ -50,6 +52,7 @@ export default function AddPatientPage() {
   const yearRef = useRef<HTMLInputElement>(null);
   const [gender, setGender] = useState<Gender | "">("");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [apiError, setApiError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const age = ageFromParts(day, month, year);
@@ -65,34 +68,74 @@ export default function AddPatientPage() {
     return next;
   }
 
-  function onSubmit(event: FormEvent) {
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    setApiError("");
     const next = validate();
     setErrors(next);
     if (Object.keys(next).length || !code) return;
 
     setBusy(true);
-    const dob = age === null ? undefined : `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-    const encounter: Encounter = {
-      id: crypto.randomUUID(),
-      patient: {
-        name: name.trim(),
-        age: age ?? 0,
-        gender: gender || undefined,
-        reason: "",
-        code: code.trim(),
-        dob,
-      },
-      status: "empty",
-      createdAt: new Date().toISOString(),
-      transcript: [],
-      soap: { subjective: "", objective: "", assessment: "", plan: "" },
-      icdSuggestions: [],
-      missingFields: ["Audio / transcript"],
-    };
-    // MOCK: chưa có POST /api/v1/encounters — saveEncounter giữ trên tab này tới khi có API.
-    saveEncounter(encounter);
-    router.push(`/encounters/${encounter.id}`);
+
+    try {
+      // 1. Get logged in doctor_id from Supabase auth session
+      const supabase = getSupabase();
+      if (!supabase) {
+        throw new Error("Supabase client chưa được khởi tạo.");
+      }
+      const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+      const doctorId = sessionData.session?.user?.id;
+      if (sessionErr || !doctorId) {
+        throw new Error("Chưa đăng nhập bác sĩ hoặc phiên làm việc đã hết hạn. Vui lòng đăng nhập lại.");
+      }
+
+      // 2. Map gender to sex
+      const sexMap: Record<string, string> = {
+        Nam: "MALE",
+        Nữ: "FEMALE",
+        Khác: "OTHER",
+      };
+      const dob = age === null ? undefined : `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+
+      // 3. POST /api/v1/patients -> get REAL patient_id from DB
+      const patientRes = await createPatient({
+        patient_code: code.trim(),
+        full_name: name.trim(),
+        date_of_birth: dob ?? null,
+        sex: gender ? sexMap[gender] || gender : null,
+      });
+
+      const realPatientId = patientRes.id;
+
+      // 4. Save encounter with real patientId and doctorId
+      const encounter: Encounter = {
+        id: crypto.randomUUID(), // FE route ID
+        patientId: realPatientId, // REAL patients.id from DB
+        doctorId: doctorId,       // Supabase auth user.id
+        patient: {
+          id: realPatientId,
+          name: name.trim(),
+          age: age ?? 0,
+          gender: gender || undefined,
+          reason: "",
+          code: code.trim(),
+          dob,
+        },
+        status: "empty",
+        createdAt: new Date().toISOString(),
+        transcript: [],
+        soap: { subjective: "", objective: "", assessment: "", plan: "" },
+        icdSuggestions: [],
+        missingFields: ["Audio / transcript"],
+      };
+
+      saveEncounter(encounter);
+      router.push(`/encounters/${encounter.id}`);
+    } catch (err: any) {
+      setApiError(err.message || "Tạo bệnh nhân thất bại.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!authed) return <main className="nb-classic min-h-dvh bg-[#efe6d8]" />;
@@ -230,6 +273,11 @@ export default function AddPatientPage() {
           </aside>
         </div>
 
+        {apiError && (
+          <div className="px-5 py-2 text-sm font-medium text-rose-700 bg-rose-50 border-t border-rose-200">
+            ❌ {apiError}
+          </div>
+        )}
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#d9cbb8] px-5 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <Step n="1" active>

@@ -28,6 +28,8 @@ function AudioRecorder({
   audioUrl,
   lines,
   locked,
+  isUploading,
+  uploadError,
   onFile,
   onClear,
   onLines,
@@ -39,6 +41,8 @@ function AudioRecorder({
   audioUrl: string | null;
   lines: TranscriptLine[];
   locked?: boolean;
+  isUploading?: boolean;
+  uploadError?: string;
   onFile: (file: File) => void;
   onClear: () => void;
   onLines?: (lines: TranscriptLine[]) => void;
@@ -61,7 +65,7 @@ function AudioRecorder({
   }, [tab]);
 
   function pick(file: File | undefined) {
-    if (!file || locked) return;
+    if (!file || locked || isUploading) return;
     if (!isAudio(file)) {
       setError("Chọn file âm thanh.");
       return;
@@ -106,6 +110,12 @@ function AudioRecorder({
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
           <p className="text-sm font-bold">Ghi âm</p>
           <p className="max-w-56 text-sm text-[#866e5a]">Màn ghi âm trực tiếp ở bước sau. Dùng Tải lên để đưa file vào lượt khám.</p>
+        </div>
+      ) : isUploading ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#5c4e42] border-t-transparent" />
+          <p className="text-sm font-bold">Đang xử lý âm thanh...</p>
+          <p className="max-w-64 text-xs text-[#866e5a]">Đang nhận diện giọng nói (Blaze STT) và phân vai bác sĩ / bệnh nhân (Qwen)...</p>
         </div>
       ) : uploaded ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-3.5">
@@ -204,7 +214,7 @@ function AudioRecorder({
               Chọn file
             </span>
           </label>
-          {error && <p className="pt-2 text-sm text-rose-700">{error}</p>}
+          {(uploadError || error) && <p className="pt-2 text-sm text-rose-700">{uploadError || error}</p>}
         </div>
       )}
     </section>

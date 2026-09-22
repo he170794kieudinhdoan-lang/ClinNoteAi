@@ -18,6 +18,7 @@ export interface Patient {
   reason: string; // lý do khám
   code?: string;
   dob?: string;
+  id?: string;
 }
 
 export interface TranscriptLine {
@@ -59,4 +60,8 @@ export interface Encounter {
   selectedIcd?: string;
   missingFields: string[]; // cảnh báo thiếu / chưa grounded
   audioFileName?: string;
+  consultationId?: string;
+  patientId?: string;
+  doctorId?: string;
 }
+
