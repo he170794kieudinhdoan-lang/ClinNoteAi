@@ -9,12 +9,20 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import AddPatientModal from "@/components/AddPatientModal";
 import { useEncounterList } from "@/hooks/useEncounter";
+import { getSupabase } from "@/lib/supabase";
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { encounters } = useEncounterList();
   const [open, setOpen] = useState(false);
+
+  async function logout() {
+    await getSupabase()?.auth.signOut();
+    router.push("/login");
+  }
 
   return (
     <main className="mx-auto max-w-3xl p-6">
@@ -24,6 +32,9 @@ export default function DashboardPage() {
           <Link href="/login" className="underline">
             Đăng nhập
           </Link>
+          <button type="button" className="underline" onClick={logout}>
+            Đăng xuất
+          </button>
           <button type="button" className="underline" onClick={() => setOpen(true)}>
             Thêm bệnh nhân
           </button>

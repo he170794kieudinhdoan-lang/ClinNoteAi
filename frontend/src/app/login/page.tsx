@@ -3,7 +3,8 @@
 import { Button, Card, Input, Label } from "neobrutalism-ui-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { getSupabase } from "@/lib/supabase";
 
 type Mode = "login" | "register" | "forgot";
 
@@ -35,11 +36,22 @@ export default function LoginPage() {
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState<"form" | "google" | null>(null);
   const [sentTo, setSentTo] = useState("");
+  const [notice, setNotice] = useState("");
+
+  useEffect(() => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+    const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) router.replace("/");
+    });
+    return () => data.subscription.unsubscribe();
+  }, [router]);
 
   function switchMode(next: Mode) {
     setMode(next);
     setErrors({});
     setSentTo("");
+    setNotice("");
     setShowPassword(false);
     setShowConfirmPassword(false);
   }
@@ -62,19 +74,60 @@ export default function LoginPage() {
   }
 
   async function finish(kind: "form" | "google") {
+    const supabase = getSupabase();
+    if (!supabase) {
+      setErrors({ form: "Chưa cấu hình Supabase (URL và anon key)." });
+      setShake((n) => n + 1);
+      return;
+    }
+
     setBusy(kind);
-    await new Promise((resolve) => setTimeout(resolve, 750));
-    sessionStorage.setItem(
-      "clinnote-session",
-      JSON.stringify({
-        email: email.trim() || (kind === "google" ? "bacsi.google@clinnote.ai" : "bacsi@clinnote.ai"),
-        name: name.trim() || (kind === "google" ? "Bác sĩ Google" : "Bác sĩ ClinNote"),
-        remember,
-        via: kind,
-        timestamp: new Date().toISOString(),
-      }),
-    );
-    router.push("/");
+    setNotice("");
+    const redirectTo = `${window.location.origin}/login`;
+
+    try {
+      if (kind === "google") {
+        const { error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: { redirectTo },
+        });
+        if (error) throw error;
+        return;
+      }
+
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+        if (error) throw error;
+        setSentTo(email.trim());
+        return;
+      }
+
+      if (mode === "register") {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { data: { full_name: name.trim() }, emailRedirectTo: redirectTo },
+        });
+        if (error) throw error;
+        if (!data.session) {
+          setNotice("Đã tạo tài khoản. Mở email xác nhận rồi đăng nhập.");
+          return;
+        }
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (error) throw error;
+      }
+
+      router.push("/");
+    } catch (err) {
+      setErrors({ form: err instanceof Error ? err.message : "Không đăng nhập được." });
+      setShake((n) => n + 1);
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function onSubmit(event: FormEvent) {
@@ -83,13 +136,6 @@ export default function LoginPage() {
     setErrors(next);
     if (Object.keys(next).length) {
       setShake((n) => n + 1);
-      return;
-    }
-    if (mode === "forgot") {
-      setBusy("form");
-      await new Promise((resolve) => setTimeout(resolve, 700));
-      setBusy(null);
-      setSentTo(email.trim());
       return;
     }
     await finish("form");
@@ -389,6 +435,9 @@ export default function LoginPage() {
                       </label>
                     </div>
                   )}
+
+                  {notice && <p className="text-base text-[#5c4e42]">{notice}</p>}
+                  {errors.form && <p className="text-base font-medium text-rose-600">{errors.form}</p>}
 
                   {/* Primary Submit Button */}
                   <div className="pt-2">
