@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="360" viewBox="0 0 360 360" fill="none">
+  <g fill="none" stroke="#7c6856" stroke-opacity="0.42" stroke-width="0.9" stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(28 36) scale(2)">
+      <path d="M6 1c0 5 2 7 2 12"/>
+      <path d="M16 1c0 5-2 7-2 12"/>
+      <path d="M8 13h4"/>
+      <path d="M10 13c.6 6 4 8 6.5 12"/>
+      <circle cx="17.5" cy="27" r="2.5"/>
+    </g>
+    <g transform="translate(210 48) scale(2)">
+      <rect x="2" y="4" width="16" height="20" rx="1.5"/>
+      <rect x="6" y="1" width="8" height="5" rx="1"/>
+      <path d="M5 10h10M5 14h10M5 18h7"/>
+    </g>
+    <g transform="translate(118 150) scale(2)">
+      <path d="M8 13S2 9 2 5.6A3 3 0 0 1 8 4a3 3 0 0 1 6 1.6C14 9 8 13 8 13z"/>
+    </g>
+    <g transform="translate(292 168) scale(2)">
+      <rect x="3" y="0" width="4.5" height="16" rx="2"/>
+      <circle cx="5.2" cy="20" r="4"/>
+      <path d="M5.2 18V8"/>
+    </g>
+    <g transform="translate(46 250) scale(2)">
+      <path d="M6 5V3a3 3 0 0 1 6 0v2"/>
+      <rect x="2" y="5" width="14" height="11" rx="2"/>
+      <path d="M7 10h4M9 8v4"/>
+    </g>
+  </g>
+</svg>
