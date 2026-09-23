@@ -20,10 +20,18 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     cors_origins: str = "http://localhost:3000"
 
+    # LLM Provider selection: "9router" or "ollama" or "openai"
+    llm_provider: Literal["9router", "ollama", "openai"] = "9router"
+
     # OpenAI - dùng cho clinical/LLM flow sau này
     openai_api_key: str = ""
     model_name: str = "gpt-4o-mini"
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
+
+    # 9Router configuration
+    ninerouter_base_url: str = "http://localhost:20128/v1"
+    ninerouter_api_key: str = ""
+    ninerouter_model: str = "ag/gemini-3.8-flash"
 
     # Database
     database_url: str = "sqlite:///./data/app.db"

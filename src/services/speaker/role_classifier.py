@@ -15,8 +15,12 @@ class SpeakerRoleError(Exception):
 class SpeakerRoleClassifier:
     def __init__(self) -> None:
         settings = get_settings()
-        self.base_url = settings.ollama_base_url.rstrip("/")
-        self.model = settings.ollama_model
+        self.provider = settings.llm_provider
+        self.ollama_base_url = settings.ollama_base_url.rstrip("/")
+        self.ollama_model = settings.ollama_model
+        self.ninerouter_base_url = settings.ninerouter_base_url.rstrip("/")
+        self.ninerouter_api_key = settings.ninerouter_api_key
+        self.ninerouter_model = settings.ninerouter_model
 
     async def classify(
         self,
@@ -105,8 +109,76 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
 {conversation}
 """
 
+        if self.provider == "9router":
+            result = await self._classify_9router(system_prompt, user_prompt)
+        else:
+            result = await self._classify_ollama(system_prompt, user_prompt)
+
+        self._validate_result(result)
+
+        return result
+
+    async def _classify_9router(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> dict[str, Any]:
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.ninerouter_api_key}",
+        }
         payload = {
-            "model": self.model,
+            "model": self.ninerouter_model,
+            "messages": [
+                {"role": "system", "content": system_prompt.strip()},
+                {"role": "user", "content": user_prompt.strip()},
+            ],
+            "response_format": {"type": "json_object"},
+            "stream": False,
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{self.ninerouter_base_url}/chat/completions",
+                    json=payload,
+                    headers=headers,
+                )
+
+            response.raise_for_status()
+
+        except httpx.TimeoutException as exc:
+            raise SpeakerRoleError(
+                "9Router role classification request timed out"
+            ) from exc
+
+        except httpx.HTTPStatusError as exc:
+            raise SpeakerRoleError(
+                f"9Router returned HTTP {exc.response.status_code}: {exc.response.text}"
+            ) from exc
+
+        except httpx.HTTPError as exc:
+            raise SpeakerRoleError(
+                f"9Router request failed: {exc}"
+            ) from exc
+
+        try:
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            return self._extract_json(content)
+
+        except (ValueError, KeyError, TypeError, IndexError) as exc:
+            raise SpeakerRoleError(
+                "9Router returned invalid role classification JSON"
+            ) from exc
+
+    async def _classify_ollama(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> dict[str, Any]:
+        payload = {
+            "model": self.ollama_model,
             "messages": [
                 {
                     "role": "system",
@@ -124,7 +196,7 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
-                    f"{self.base_url}/api/chat",
+                    f"{self.ollama_base_url}/api/chat",
                     json=payload,
                 )
 
@@ -149,16 +221,24 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
         try:
             data = response.json()
             content = data["message"]["content"]
-            result = json.loads(content)
+            return self._extract_json(content)
 
         except (ValueError, KeyError, TypeError) as exc:
             raise SpeakerRoleError(
                 "Ollama returned invalid role classification JSON"
             ) from exc
 
-        self._validate_result(result)
-
-        return result
+    @staticmethod
+    def _extract_json(content: str) -> dict[str, Any]:
+        text = content.strip()
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+        return json.loads(text)
 
     @staticmethod
     def _build_conversation(
