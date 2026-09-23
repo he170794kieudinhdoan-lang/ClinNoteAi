@@ -14,6 +14,9 @@ class SpeakerRoleError(Exception):
 
 class SpeakerRoleClassifier:
     def __init__(self) -> None:
+        self._load_settings()
+
+    def _load_settings(self) -> None:
         settings = get_settings()
         self.provider = settings.llm_provider
         self.ollama_base_url = settings.ollama_base_url.rstrip("/")
@@ -21,11 +24,15 @@ class SpeakerRoleClassifier:
         self.ninerouter_base_url = settings.ninerouter_base_url.rstrip("/")
         self.ninerouter_api_key = settings.ninerouter_api_key
         self.ninerouter_model = settings.ninerouter_model
+        self.openai_api_key = settings.openai_api_key
+        self.model_name = settings.model_name
 
     async def classify(
         self,
         segments: list[dict[str, Any]],
     ) -> dict[str, Any]:
+        self._load_settings()
+
         if not segments:
             raise SpeakerRoleError("No transcript segments provided")
 
@@ -109,10 +116,17 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
 {conversation}
 """
 
-        if self.provider == "9router":
-            result = await self._classify_9router(system_prompt, user_prompt)
-        else:
+        if self.provider == "ollama":
             result = await self._classify_ollama(system_prompt, user_prompt)
+        elif self.provider == "9router":
+            result = await self._classify_9router(system_prompt, user_prompt)
+        elif self.provider == "openai":
+            result = await self._classify_openai(system_prompt, user_prompt)
+        else:
+            raise SpeakerRoleError(
+                f"Unsupported LLM provider: '{self.provider}'. "
+                f"Supported providers are 'ollama', '9router', 'openai'."
+            )
 
         self._validate_result(result)
 
@@ -123,10 +137,17 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
         system_prompt: str,
         user_prompt: str,
     ) -> dict[str, Any]:
+        if not self.ninerouter_base_url:
+            raise SpeakerRoleError(
+                "9Router LLM provider selected, but NINEROUTER_BASE_URL is not configured"
+            )
+
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {self.ninerouter_api_key}",
         }
+        if self.ninerouter_api_key:
+            headers["Authorization"] = f"Bearer {self.ninerouter_api_key}"
+
         payload = {
             "model": self.ninerouter_model,
             "messages": [
@@ -137,10 +158,12 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
             "stream": False,
         }
 
+        url = f"{self.ninerouter_base_url}/chat/completions"
+
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
-                    f"{self.ninerouter_base_url}/chat/completions",
+                    url,
                     json=payload,
                     headers=headers,
                 )
@@ -149,17 +172,17 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
 
         except httpx.TimeoutException as exc:
             raise SpeakerRoleError(
-                "9Router role classification request timed out"
+                f"9Router role classification request timed out (Base URL: {self.ninerouter_base_url})"
             ) from exc
 
         except httpx.HTTPStatusError as exc:
             raise SpeakerRoleError(
-                f"9Router returned HTTP {exc.response.status_code}: {exc.response.text}"
+                f"9Router returned HTTP {exc.response.status_code} (Base URL: {self.ninerouter_base_url}): {exc.response.text}"
             ) from exc
 
         except httpx.HTTPError as exc:
             raise SpeakerRoleError(
-                f"9Router request failed: {exc}"
+                f"9Router request failed at {self.ninerouter_base_url}: {exc}"
             ) from exc
 
         try:
@@ -177,6 +200,11 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
         system_prompt: str,
         user_prompt: str,
     ) -> dict[str, Any]:
+        if not self.ollama_base_url:
+            raise SpeakerRoleError(
+                "Ollama LLM provider selected, but OLLAMA_BASE_URL is not configured"
+            )
+
         payload = {
             "model": self.ollama_model,
             "messages": [
@@ -193,10 +221,12 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
             "format": "json",
         }
 
+        url = f"{self.ollama_base_url}/api/chat"
+
         try:
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
-                    f"{self.ollama_base_url}/api/chat",
+                    url,
                     json=payload,
                 )
 
@@ -204,18 +234,17 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
 
         except httpx.TimeoutException as exc:
             raise SpeakerRoleError(
-                "Ollama role classification request timed out"
+                f"Ollama role classification request timed out (Base URL: {self.ollama_base_url})"
             ) from exc
 
         except httpx.HTTPStatusError as exc:
             raise SpeakerRoleError(
-                f"Ollama returned HTTP {exc.response.status_code}: "
-                f"{exc.response.text}"
+                f"Ollama returned HTTP {exc.response.status_code} (Base URL: {self.ollama_base_url}): {exc.response.text}"
             ) from exc
 
         except httpx.HTTPError as exc:
             raise SpeakerRoleError(
-                f"Ollama request failed: {exc}"
+                f"Ollama request failed at {self.ollama_base_url}: {exc}"
             ) from exc
 
         try:
@@ -226,6 +255,66 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
         except (ValueError, KeyError, TypeError) as exc:
             raise SpeakerRoleError(
                 "Ollama returned invalid role classification JSON"
+            ) from exc
+
+    async def _classify_openai(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+    ) -> dict[str, Any]:
+        if not self.openai_api_key:
+            raise SpeakerRoleError(
+                "OpenAI LLM provider selected, but OPENAI_API_KEY is not configured"
+            )
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.openai_api_key}",
+        }
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt.strip()},
+                {"role": "user", "content": user_prompt.strip()},
+            ],
+            "response_format": {"type": "json_object"},
+        }
+
+        url = "https://api.openai.com/v1/chat/completions"
+
+        try:
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    url,
+                    json=payload,
+                    headers=headers,
+                )
+
+            response.raise_for_status()
+
+        except httpx.TimeoutException as exc:
+            raise SpeakerRoleError(
+                "OpenAI role classification request timed out"
+            ) from exc
+
+        except httpx.HTTPStatusError as exc:
+            raise SpeakerRoleError(
+                f"OpenAI returned HTTP {exc.response.status_code}: {exc.response.text}"
+            ) from exc
+
+        except httpx.HTTPError as exc:
+            raise SpeakerRoleError(
+                f"OpenAI request failed: {exc}"
+            ) from exc
+
+        try:
+            data = response.json()
+            content = data["choices"][0]["message"]["content"]
+            return self._extract_json(content)
+
+        except (ValueError, KeyError, TypeError, IndexError) as exc:
+            raise SpeakerRoleError(
+                "OpenAI returned invalid role classification JSON"
             ) from exc
 
     @staticmethod
