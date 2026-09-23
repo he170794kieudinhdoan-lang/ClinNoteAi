@@ -11,6 +11,14 @@ from src.config import get_settings
 async def lifespan(app: FastAPI):
     settings = get_settings()
     print(f"Starting {settings.app_name} in {settings.app_env} mode")
+    try:
+        import src.models  # noqa: F401
+        from src.database import engine
+        from src.models.base import Base
+
+        Base.metadata.create_all(bind=engine)
+    except Exception as exc:
+        print(f"Warning: Failed to ensure database tables: {exc}")
     yield
     print("Shutting down...")
 
