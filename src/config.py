@@ -45,6 +45,17 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "kamekichi128/qwen3-4b-instruct-2507:latest"
 
+    # Local, single-process SOAP demonstration
+    soap_enabled: bool = False
+    db_auto_create_tables: bool = True
+    soap_data_dir: str = "./data/soap_mvp"
+    soap_max_turns: int = Field(default=200, ge=1)
+    soap_max_chars: int = Field(default=30_000, ge=1)
+    soap_max_input_bytes: int = Field(default=1_000_000, ge=1)
+    soap_llm_timeout: float = Field(default=45.0, gt=0)
+    soap_llm_model: str = ""
+    soap_llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
+
 
 @lru_cache
 def get_settings() -> Settings:

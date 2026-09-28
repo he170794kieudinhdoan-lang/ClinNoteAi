@@ -61,7 +61,12 @@ export interface Encounter {
   missingFields: string[]; // cảnh báo thiếu / chưa grounded
   audioFileName?: string;
   consultationId?: string;
+  /** Link to the separately stored CAP/SOAP run; the run itself lives on the backend. */
+  soapRunId?: string;
+  /** Separate JSON test run; never treated as this consultation's clinical record. */
+  soapTestRunId?: string;
+  soapActiveSource?: "consultation" | "test";
+  soapRunOutdated?: boolean;
   patientId?: string;
   doctorId?: string;
 }
-

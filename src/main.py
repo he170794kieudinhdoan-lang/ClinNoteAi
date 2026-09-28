@@ -11,14 +11,15 @@ from src.config import get_settings
 async def lifespan(app: FastAPI):
     settings = get_settings()
     print(f"Starting {settings.app_name} in {settings.app_env} mode")
-    try:
-        import src.models  # noqa: F401
-        from src.database import engine
-        from src.models.base import Base
+    if settings.db_auto_create_tables:
+        try:
+            import src.models  # noqa: F401
+            from src.database import engine
+            from src.models.base import Base
 
-        Base.metadata.create_all(bind=engine)
-    except Exception as exc:
-        print(f"Warning: Failed to ensure database tables: {exc}")
+            Base.metadata.create_all(bind=engine)
+        except Exception as exc:
+            print(f"Warning: Failed to ensure database tables: {exc}")
     yield
     print("Shutting down...")
 
@@ -40,6 +41,10 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+if settings.soap_enabled and settings.app_env in {"development", "test"}:
+    from src.api.soap_routes import soap_router
+
+    app.include_router(soap_router, prefix="/api/v1/soap")
 
 
 @app.get("/health")

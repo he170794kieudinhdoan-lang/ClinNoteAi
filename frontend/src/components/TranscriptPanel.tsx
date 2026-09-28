@@ -107,8 +107,8 @@ export default function TranscriptPanel({
 
       onChange?.(updatedLines);
       setEditing(false);
-    } catch (err: any) {
-      setEditError(err.message || "Lưu chỉnh sửa thất bại. Vui lòng thử lại.");
+    } catch (err: unknown) {
+      setEditError(err instanceof Error ? err.message : "Lưu chỉnh sửa thất bại. Vui lòng thử lại.");
     } finally {
       setIsSaving(false);
     }
@@ -154,7 +154,7 @@ export default function TranscriptPanel({
                     disabled={lines.length === 0}
                     className="h-8 rounded-full bg-[#ead9c2] px-3 text-xs font-semibold disabled:opacity-50"
                   >
-                    Sinh lại SOAP
+                    Sinh lại nháp nhanh
                   </button>
                 )}
                 {!locked && onChange && !editing && (
@@ -233,4 +233,3 @@ export default function TranscriptPanel({
     </>
   );
 }
-

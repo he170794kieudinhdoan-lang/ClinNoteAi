@@ -1,0 +1,205 @@
+{
+  "schema_version": "soap-eval-cases/1.0",
+  "notice": "Toàn bộ hội thoại và facts trong file này là dữ liệu tổng hợp (synthetic fixture) để đánh giá phần mềm; không phải hồ sơ bệnh nhân thật.",
+  "input_format": "canonical",
+  "cases": [
+    {
+      "case_id": "synthetic_complete_visit",
+      "purpose": "Co du S/O/A/P; giu chan doan chua chac chan va ke hoach co dieu kien.",
+      "transcript": {
+        "schema_version": "1.0",
+        "language": "vi",
+        "source_metadata": {"kind": "synthetic_fixture", "case_id": "synthetic_complete_visit"},
+        "turns": [
+          {"turn_id": "T01", "source_segment_id": "syn-complete-01", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Tôi đau cổ tay phải khoảng hai ngày."},
+          {"turn_id": "T02", "source_segment_id": "syn-complete-02", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Đau tăng khi tôi xoay cổ tay."},
+          {"turn_id": "T03", "source_segment_id": "syn-complete-03", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Khi khám, cổ tay phải không sưng và vận động đủ tầm."},
+          {"turn_id": "T04", "source_segment_id": "syn-complete-04", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Có thể là căng cơ nhẹ, nhưng hiện chưa đủ căn cứ để kết luận."},
+          {"turn_id": "T05", "source_segment_id": "syn-complete-05", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Tạm nghỉ các động tác gây đau và chườm lạnh. Nếu đau tăng hoặc không giảm sau vài ngày, quay lại khám."}
+        ]
+      },
+      "expected": {
+        "section_policy": {"S": "required", "O": "required", "A": "required", "P": "required"},
+        "facts": [
+          {"fact_id": "c1", "section": "S", "canonical_concept": "right wrist pain", "assertion": "Bệnh nhân báo đau cổ tay phải.", "evidence": [{"turn_id": "T01", "quote": "Tôi đau cổ tay phải khoảng hai ngày.", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "c2", "section": "S", "canonical_concept": "pain duration", "assertion": "Đau khoảng hai ngày.", "evidence": [{"turn_id": "T01", "quote": "Tôi đau cổ tay phải khoảng hai ngày.", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "c3", "section": "S", "canonical_concept": "pain worsens with wrist rotation", "assertion": "Đau tăng khi xoay cổ tay.", "evidence": [{"turn_id": "T02", "quote": "Đau tăng khi tôi xoay cổ tay.", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "c4", "section": "O", "canonical_concept": "no right wrist swelling on exam", "assertion": "Khám không thấy cổ tay phải sưng.", "evidence": [{"turn_id": "T03", "quote": "Khi khám, cổ tay phải không sưng", "speaker": "clinician"}], "status": {"verification_status": "negated", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "c5", "section": "O", "canonical_concept": "full wrist range of motion on exam", "assertion": "Cổ tay vận động đủ tầm khi khám.", "evidence": [{"turn_id": "T03", "quote": "vận động đủ tầm", "speaker": "clinician"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "c6", "section": "A", "canonical_concept": "possible mild muscle strain", "assertion": "Bác sĩ nêu khả năng căng cơ nhẹ nhưng chưa kết luận.", "evidence": [{"turn_id": "T04", "quote": "Có thể là căng cơ nhẹ, nhưng hiện chưa đủ căn cứ để kết luận.", "speaker": "clinician"}], "status": {"verification_status": "uncertain", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "c7", "section": "P", "canonical_concept": "rest and cold compress", "assertion": "Bác sĩ khuyên nghỉ các động tác gây đau và chườm lạnh.", "evidence": [{"turn_id": "T05", "quote": "Tạm nghỉ các động tác gây đau và chườm lạnh.", "speaker": "clinician"}], "status": {"verification_status": "affirmed", "temporality": "future", "clinical_status": "planned", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "c8", "section": "P", "canonical_concept": "conditional follow-up", "assertion": "Quay lại khám nếu đau tăng hoặc không giảm sau vài ngày.", "evidence": [{"turn_id": "T05", "quote": "Nếu đau tăng hoặc không giảm sau vài ngày, quay lại khám.", "speaker": "clinician"}], "status": {"verification_status": "affirmed", "temporality": "future", "clinical_status": "planned", "resolution_status": "current"}, "required_in_soap": true}
+        ],
+        "forbidden_additions": ["gãy xương", "viêm khớp", "kết quả X-quang", "đã khỏi", "đã chườm lạnh"],
+        "allowed_missing_sections": []
+      }
+    },
+    {
+      "case_id": "synthetic_missing_exam_assessment",
+      "purpose": "Chỉ có triệu chứng và hướng dẫn; O/A phải được để thiếu.",
+      "transcript": {
+        "schema_version": "1.0",
+        "language": "vi",
+        "source_metadata": {"kind": "synthetic_fixture", "case_id": "synthetic_missing_exam_assessment"},
+        "turns": [
+          {"turn_id": "T01", "source_segment_id": "syn-missing-01", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Tôi bị nhức đầu từ sáng nay."},
+          {"turn_id": "T02", "source_segment_id": "syn-missing-02", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Hôm nay tôi chưa thăm khám trực tiếp và chưa đưa ra nhận định. Nếu ngày mai vẫn không đỡ, hãy liên hệ lại."}
+        ]
+      },
+      "expected": {
+        "section_policy": {"S": "required", "O": "may_be_missing", "A": "may_be_missing", "P": "required"},
+        "facts": [
+          {"fact_id": "m1", "section": "S", "canonical_concept": "headache", "assertion": "Bệnh nhân báo nhức đầu bắt đầu từ sáng nay.", "evidence": [{"turn_id": "T01", "quote": "Tôi bị nhức đầu từ sáng nay.", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "m2", "section": "P", "canonical_concept": "conditional contact tomorrow", "assertion": "Liên hệ lại nếu ngày mai triệu chứng chưa đỡ.", "evidence": [{"turn_id": "T02", "quote": "Nếu ngày mai vẫn không đỡ, hãy liên hệ lại.", "speaker": "clinician"}], "status": {"verification_status": "affirmed", "temporality": "future", "clinical_status": "planned", "resolution_status": "current"}, "required_in_soap": true}
+        ],
+        "forbidden_additions": ["sốt", "khám thần kinh bình thường", "đau nửa đầu", "chẩn đoán xác định"],
+        "allowed_missing_sections": ["O", "A"]
+      }
+    },
+    {
+      "case_id": "synthetic_negated_symptoms",
+      "purpose": "Giữ nguyên hai triệu chứng được phủ định.",
+      "transcript": {
+        "schema_version": "1.0",
+        "language": "vi",
+        "source_metadata": {"kind": "synthetic_fixture", "case_id": "synthetic_negated_symptoms"},
+        "turns": [
+          {"turn_id": "T01", "source_segment_id": "syn-negation-01", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Tôi đau họng từ tối qua."},
+          {"turn_id": "T02", "source_segment_id": "syn-negation-02", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Bác có sốt hoặc khó thở không?"},
+          {"turn_id": "T03", "source_segment_id": "syn-negation-03", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Không sốt, cũng không khó thở."}
+        ]
+      },
+      "expected": {
+        "section_policy": {"S": "required", "O": "may_be_missing", "A": "may_be_missing", "P": "may_be_missing"},
+        "facts": [
+          {"fact_id": "n1", "section": "S", "canonical_concept": "sore throat", "assertion": "Bệnh nhân báo đau họng từ tối qua.", "evidence": [{"turn_id": "T01", "quote": "Tôi đau họng từ tối qua.", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "n2", "section": "S", "canonical_concept": "fever", "assertion": "Bệnh nhân phủ nhận sốt.", "evidence": [{"turn_id": "T02", "quote": "Bác có sốt hoặc khó thở không?", "speaker": "clinician"}, {"turn_id": "T03", "quote": "Không sốt, cũng không khó thở.", "speaker": "patient"}], "status": {"verification_status": "negated", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "n3", "section": "S", "canonical_concept": "dyspnea", "assertion": "Bệnh nhân phủ nhận khó thở.", "evidence": [{"turn_id": "T02", "quote": "Bác có sốt hoặc khó thở không?", "speaker": "clinician"}, {"turn_id": "T03", "quote": "Không sốt, cũng không khó thở.", "speaker": "patient"}], "status": {"verification_status": "negated", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true}
+        ],
+        "forbidden_additions": ["sốt", "khó thở", "giảm oxy máu", "viêm họng do vi khuẩn"],
+        "allowed_missing_sections": ["O", "A", "P"]
+      }
+    },
+    {
+      "case_id": "synthetic_uncertain_assessment",
+      "purpose": "Giữ liên hệ thời gian như lời kể, không nâng thành quan hệ nhân quả hay chẩn đoán chắc chắn.",
+      "transcript": {
+        "schema_version": "1.0",
+        "language": "vi",
+        "source_metadata": {"kind": "synthetic_fixture", "case_id": "synthetic_uncertain_assessment"},
+        "turns": [
+          {"turn_id": "T01", "source_segment_id": "syn-uncertain-01", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Tôi ngứa hai cẳng tay sau khi đổi loại xà phòng hôm qua."},
+          {"turn_id": "T02", "source_segment_id": "syn-uncertain-02", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Có thể là kích ứng da do tiếp xúc, nhưng hiện chưa thể khẳng định nguyên nhân."},
+          {"turn_id": "T03", "source_segment_id": "syn-uncertain-03", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Tạm ngừng dùng loại xà phòng mới và theo dõi; nếu nổi mẩn lan rộng thì đi khám."}
+        ]
+      },
+      "expected": {
+        "section_policy": {"S": "required", "O": "may_be_missing", "A": "required", "P": "required"},
+        "facts": [
+          {"fact_id": "u1", "section": "S", "canonical_concept": "itching on both forearms", "assertion": "Bệnh nhân báo ngứa hai cẳng tay.", "evidence": [{"turn_id": "T01", "quote": "Tôi ngứa hai cẳng tay", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "u2", "section": "S", "canonical_concept": "new soap used yesterday", "assertion": "Bệnh nhân đổi xà phòng hôm qua trước khi nhận thấy ngứa; chưa xác lập quan hệ nhân quả.", "evidence": [{"turn_id": "T01", "quote": "sau khi đổi loại xà phòng hôm qua", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "past", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "u3", "section": "A", "canonical_concept": "possible contact skin irritation", "assertion": "Bác sĩ nêu kích ứng da do tiếp xúc là khả năng, chưa khẳng định nguyên nhân.", "evidence": [{"turn_id": "T02", "quote": "Có thể là kích ứng da do tiếp xúc, nhưng hiện chưa thể khẳng định nguyên nhân.", "speaker": "clinician"}], "status": {"verification_status": "uncertain", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "u4", "section": "P", "canonical_concept": "stop new soap and monitor", "assertion": "Bác sĩ khuyên tạm ngừng xà phòng mới và theo dõi.", "evidence": [{"turn_id": "T03", "quote": "Tạm ngừng dùng loại xà phòng mới và theo dõi", "speaker": "clinician"}], "status": {"verification_status": "affirmed", "temporality": "future", "clinical_status": "planned", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "u5", "section": "P", "canonical_concept": "conditional visit for spreading rash", "assertion": "Đi khám nếu nổi mẩn lan rộng.", "evidence": [{"turn_id": "T03", "quote": "nếu nổi mẩn lan rộng thì đi khám.", "speaker": "clinician"}], "status": {"verification_status": "affirmed", "temporality": "future", "clinical_status": "planned", "resolution_status": "current"}, "required_in_soap": true}
+        ],
+        "forbidden_additions": ["dị ứng xà phòng đã xác định", "viêm da tiếp xúc xác định", "đã nổi mẩn lan rộng", "đã ngừng xà phòng"],
+        "allowed_missing_sections": ["O"]
+      }
+    },
+    {
+      "case_id": "synthetic_medication_correction",
+      "purpose": "Giữ phát biểu cũ để truy vết nhưng dùng thông tin được đính chính làm trạng thái hiện tại.",
+      "transcript": {
+        "schema_version": "1.0",
+        "language": "vi",
+        "source_metadata": {"kind": "synthetic_fixture", "case_id": "synthetic_medication_correction"},
+        "turns": [
+          {"turn_id": "T01", "source_segment_id": "syn-med-correction-01", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Tôi đang dùng thuốc giảm đau vào mỗi tối."},
+          {"turn_id": "T02", "source_segment_id": "syn-med-correction-02", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Tôi xin đính chính: tôi đã ngừng loại thuốc đó từ tối qua, hiện giờ không uống nữa."}
+        ]
+      },
+      "expected": {
+        "section_policy": {"S": "required", "O": "may_be_missing", "A": "may_be_missing", "P": "may_be_missing"},
+        "facts": [
+          {"fact_id": "mc1", "section": "S", "canonical_concept": "previous current analgesic use claim", "assertion": "Phát biểu ban đầu: bệnh nhân nói đang dùng thuốc giảm đau mỗi tối.", "evidence": [{"turn_id": "T01", "quote": "Tôi đang dùng thuốc giảm đau vào mỗi tối.", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "medication_state": "taking", "resolution_status": "superseded"}, "superseded_by": "mc2", "required_in_soap": false},
+          {"fact_id": "mc2", "section": "S", "canonical_concept": "currently stopped analgesic", "assertion": "Bệnh nhân đính chính rằng đã ngừng thuốc giảm đau từ tối qua và hiện không dùng.", "evidence": [{"turn_id": "T01", "quote": "Tôi đang dùng thuốc giảm đau vào mỗi tối.", "speaker": "patient"}, {"turn_id": "T02", "quote": "Tôi xin đính chính: tôi đã ngừng loại thuốc đó từ tối qua, hiện giờ không uống nữa.", "speaker": "patient"}], "status": {"verification_status": "negated", "temporality": "current", "clinical_status": "resolved", "medication_state": "not_taking", "resolution_status": "current"}, "supersedes": ["mc1"], "required_in_soap": true}
+        ],
+        "forbidden_additions": ["tên thuốc cụ thể", "liều lượng", "lý do ngừng thuốc", "thuốc mới được kê"],
+        "allowed_missing_sections": ["O", "A", "P"]
+      }
+    },
+    {
+      "case_id": "synthetic_unresolved_medication_conflict",
+      "purpose": "Giữ hai thông tin dùng thuốc chưa thống nhất và đánh dấu cần review; không chọn câu nói sau làm đáp án.",
+      "transcript": {
+        "schema_version": "1.0",
+        "language": "vi",
+        "source_metadata": {"kind": "synthetic_fixture", "case_id": "synthetic_unresolved_medication_conflict"},
+        "turns": [
+          {"turn_id": "T01", "source_segment_id": "syn-med-conflict-01", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Tôi không dùng thuốc hỗ trợ giấc ngủ."},
+          {"turn_id": "T02", "source_segment_id": "syn-med-conflict-02", "source_speaker_id": "patient-1", "speaker": "patient", "text": "À, tôi cũng đang uống viên hỗ trợ giấc ngủ mỗi tối, nhưng không nhớ tên."},
+          {"turn_id": "T03", "source_segment_id": "syn-med-conflict-03", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Bác có chắc hai câu vừa nói là về cùng một loại thuốc và cùng thời điểm không?"},
+          {"turn_id": "T04", "source_segment_id": "syn-med-conflict-04", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Tôi không chắc nữa; có thể câu đầu là loại khác."}
+        ]
+      },
+      "expected": {
+        "section_policy": {"S": "required", "O": "may_be_missing", "A": "may_be_missing", "P": "may_be_missing"},
+        "facts": [
+          {"fact_id": "cf1", "section": "S", "canonical_concept": "sleep aid use", "assertion": "Bệnh nhân ban đầu nói không dùng thuốc hỗ trợ giấc ngủ.", "evidence": [{"turn_id": "T01", "quote": "Tôi không dùng thuốc hỗ trợ giấc ngủ.", "speaker": "patient"}], "status": {"verification_status": "negated", "temporality": "current", "clinical_status": "active", "medication_state": "not_taking", "resolution_status": "needs_review"}, "required_in_soap": false},
+          {"fact_id": "cf2", "section": "S", "canonical_concept": "sleep aid use", "assertion": "Bệnh nhân sau đó nói đang uống viên hỗ trợ giấc ngủ mỗi tối nhưng không nhớ tên.", "evidence": [{"turn_id": "T02", "quote": "tôi cũng đang uống viên hỗ trợ giấc ngủ mỗi tối, nhưng không nhớ tên.", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "medication_state": "taking", "resolution_status": "needs_review"}, "required_in_soap": false},
+          {"fact_id": "cf3", "section": "S", "canonical_concept": "medication identity or referent uncertain", "assertion": "Bệnh nhân không chắc hai phát biểu cùng nói về một loại thuốc.", "evidence": [{"turn_id": "T03", "quote": "Bác có chắc hai câu vừa nói là về cùng một loại thuốc và cùng thời điểm không?", "speaker": "clinician"}, {"turn_id": "T04", "quote": "Tôi không chắc nữa; có thể câu đầu là loại khác.", "speaker": "patient"}], "status": {"verification_status": "uncertain", "temporality": "current", "clinical_status": "unknown", "resolution_status": "needs_review"}, "required_in_soap": false},
+          {"fact_id": "cf4", "section": "S", "canonical_concept": "unresolved conflicting sleep aid reports", "assertion": "Bệnh nhân đưa ra thông tin chưa thống nhất về việc dùng thuốc hỗ trợ giấc ngủ; cần xác minh lại.", "evidence": [{"turn_id": "T01", "quote": "Tôi không dùng thuốc hỗ trợ giấc ngủ.", "speaker": "patient"}, {"turn_id": "T02", "quote": "tôi cũng đang uống viên hỗ trợ giấc ngủ mỗi tối, nhưng không nhớ tên.", "speaker": "patient"}, {"turn_id": "T03", "quote": "Bác có chắc hai câu vừa nói là về cùng một loại thuốc và cùng thời điểm không?", "speaker": "clinician"}, {"turn_id": "T04", "quote": "Tôi không chắc nữa; có thể câu đầu là loại khác.", "speaker": "patient"}], "status": {"verification_status": "uncertain", "temporality": "current", "clinical_status": "unknown", "resolution_status": "needs_review"}, "required_in_soap": true}
+        ],
+        "expected_final_status": "needs_review",
+        "forbidden_additions": ["khẳng định hiện đang dùng", "khẳng định hiện không dùng", "tên thuốc", "liều lượng", "tự tạo quan hệ đính chính"],
+        "allowed_missing_sections": ["O", "A", "P"]
+      }
+    },
+    {
+      "case_id": "synthetic_future_conditional_imaging",
+      "purpose": "Phân biệt chỉ định tương lai, lựa chọn có điều kiện và kết quả đã thực hiện.",
+      "transcript": {
+        "schema_version": "1.0",
+        "language": "vi",
+        "source_metadata": {"kind": "synthetic_fixture", "case_id": "synthetic_future_conditional_imaging"},
+        "turns": [
+          {"turn_id": "T01", "source_segment_id": "syn-imaging-01", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Gần đây tôi đau vai trái khi với tay lên cao."},
+          {"turn_id": "T02", "source_segment_id": "syn-imaging-02", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Tôi sẽ cho chụp X-quang vai trái vào tuần tới. Nếu phim chưa giải thích được cơn đau, khi đó mới cân nhắc MRI."}
+        ]
+      },
+      "expected": {
+        "section_policy": {"S": "required", "O": "may_be_missing", "A": "may_be_missing", "P": "required"},
+        "facts": [
+          {"fact_id": "fi1", "section": "S", "canonical_concept": "left shoulder pain with reaching up", "assertion": "Bệnh nhân báo đau vai trái khi với tay lên cao.", "evidence": [{"turn_id": "T01", "quote": "Gần đây tôi đau vai trái khi với tay lên cao.", "speaker": "patient"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "fi2", "section": "P", "canonical_concept": "left shoulder x-ray planned next week", "assertion": "Bác sĩ dự định chụp X-quang vai trái vào tuần tới.", "evidence": [{"turn_id": "T02", "quote": "Tôi sẽ cho chụp X-quang vai trái vào tuần tới.", "speaker": "clinician"}], "status": {"verification_status": "affirmed", "temporality": "future", "clinical_status": "planned", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "fi3", "section": "P", "canonical_concept": "conditional MRI consideration", "assertion": "Chỉ cân nhắc MRI nếu phim X-quang chưa giải thích được cơn đau.", "evidence": [{"turn_id": "T02", "quote": "Nếu phim chưa giải thích được cơn đau, khi đó mới cân nhắc MRI.", "speaker": "clinician"}], "status": {"verification_status": "affirmed", "temporality": "future", "clinical_status": "planned", "resolution_status": "current"}, "required_in_soap": true}
+        ],
+        "forbidden_additions": ["X-quang đã chụp", "MRI đã chụp", "MRI đã được chỉ định vô điều kiện", "kết quả hình ảnh", "gãy xương"],
+        "allowed_missing_sections": ["O", "A"]
+      }
+    },
+    {
+      "case_id": "synthetic_report_vs_exam",
+      "purpose": "Tách lời bệnh nhân tự nhận thấy khỏi dấu hiệu bác sĩ quan sát khi khám.",
+      "transcript": {
+        "schema_version": "1.0",
+        "language": "vi",
+        "source_metadata": {"kind": "synthetic_fixture", "case_id": "synthetic_report_vs_exam"},
+        "turns": [
+          {"turn_id": "T01", "source_segment_id": "syn-source-kind-01", "source_speaker_id": "patient-1", "speaker": "patient", "text": "Tôi thấy mắt cá chân trái như bị sưng sau khi đi bộ."},
+          {"turn_id": "T02", "source_segment_id": "syn-source-kind-02", "source_speaker_id": "clinician-1", "speaker": "clinician", "text": "Khám hôm nay, mắt cá chân trái không sưng; có vết bầm nhỏ ở mặt ngoài."}
+        ]
+      },
+      "expected": {
+        "section_policy": {"S": "required", "O": "required", "A": "may_be_missing", "P": "may_be_missing"},
+        "facts": [
+          {"fact_id": "se1", "section": "S", "canonical_concept": "patient perceives left ankle swelling", "assertion": "Bệnh nhân tự nhận thấy mắt cá chân trái có vẻ sưng sau khi đi bộ.", "evidence": [{"turn_id": "T01", "quote": "Tôi thấy mắt cá chân trái như bị sưng sau khi đi bộ.", "speaker": "patient"}], "status": {"verification_status": "uncertain", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "se2", "section": "O", "canonical_concept": "no left ankle swelling on exam", "assertion": "Bác sĩ không quan sát thấy sưng mắt cá chân trái khi khám.", "evidence": [{"turn_id": "T02", "quote": "Khám hôm nay, mắt cá chân trái không sưng", "speaker": "clinician"}], "status": {"verification_status": "negated", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true},
+          {"fact_id": "se3", "section": "O", "canonical_concept": "small lateral left ankle bruise", "assertion": "Bác sĩ quan sát một vết bầm nhỏ ở mặt ngoài mắt cá chân trái.", "evidence": [{"turn_id": "T02", "quote": "có vết bầm nhỏ ở mặt ngoài.", "speaker": "clinician"}], "status": {"verification_status": "affirmed", "temporality": "current", "clinical_status": "active", "resolution_status": "current"}, "required_in_soap": true}
+        ],
+        "forbidden_additions": ["sưng được bác sĩ xác nhận", "gãy xương", "đau khi ấn", "tổn thương dây chằng", "phù nề"],
+        "allowed_missing_sections": ["A", "P"]
+      }
+    }
+  ]
+}

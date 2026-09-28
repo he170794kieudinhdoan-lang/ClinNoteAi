@@ -19,3 +19,32 @@ def get_llm() -> ChatOpenAI:
         api_key=settings.openai_api_key,
         temperature=settings.llm_temperature,
     )
+
+
+def get_soap_llm() -> ChatOpenAI:
+    """One call per graph attempt; LangGraph owns the single repair attempt."""
+    settings = get_settings()
+    common = {
+        "temperature": settings.soap_llm_temperature,
+        "timeout": settings.soap_llm_timeout,
+        "max_retries": 0,
+    }
+    if settings.llm_provider == "9router":
+        return ChatOpenAI(
+            model=settings.soap_llm_model or settings.ninerouter_model,
+            base_url=settings.ninerouter_base_url,
+            api_key=settings.ninerouter_api_key,
+            **common,
+        )
+    if settings.llm_provider == "ollama":
+        return ChatOpenAI(
+            model=settings.soap_llm_model or settings.ollama_model,
+            base_url=settings.ollama_base_url.rstrip("/") + "/v1",
+            api_key="ollama",
+            **common,
+        )
+    return ChatOpenAI(
+        model=settings.soap_llm_model or settings.model_name,
+        api_key=settings.openai_api_key,
+        **common,
+    )

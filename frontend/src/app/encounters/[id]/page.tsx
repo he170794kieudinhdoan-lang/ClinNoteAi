@@ -12,6 +12,7 @@ import AudioRecorder from "@/components/AudioRecorder";
 import AccountMenu from "@/components/AccountMenu";
 import FinalNote from "@/components/FinalNote";
 import SoapEditor from "@/components/SoapEditor";
+import SoapWorkspace from "@/components/soap/SoapWorkspace";
 import { removeEncounter, saveEncounter, useEncounter } from "@/hooks/useEncounter";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { draftFromTranscript } from "@/lib/draftNote";
@@ -22,7 +23,10 @@ import {
   uploadConsultationAudio,
 } from "@/lib/api";
 import { getSupabase } from "@/lib/supabase";
+import { extractCaps, generateSoap } from "@/lib/soapApi";
+import { soapTranscriptFromConsultation } from "@/lib/soapTranscript";
 import type { Encounter, Patient } from "@/types";
+import type { SoapInputFormat } from "@/types/soap";
 
 const EMPTY_SOAP = { subjective: "", objective: "", assessment: "", plan: "" };
 
@@ -53,6 +57,7 @@ function withoutAudio(current: Encounter): Encounter {
     icdSuggestions: [],
     selectedIcd: undefined,
     missingFields: ["Audio / transcript"],
+    soapRunOutdated: Boolean(current.soapRunId),
   };
 }
 
@@ -62,16 +67,23 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const authed = useRequireAuth();
   const { encounter, ready } = useEncounter(id);
   const [draft, setDraft] = useState<Encounter | null>(null);
-  const [tab, setTab] = useState<"upload" | "record">("upload");
+  const [tab, setTab] = useState<"upload" | "record" | "test">("upload");
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [soapBusy, setSoapBusy] = useState(false);
+  const [soapError, setSoapError] = useState("");
+  const [jsonBusy, setJsonBusy] = useState(false);
+  const [showLegacyFinal, setShowLegacyFinal] = useState(false);
   const audioUrlRef = useRef<string | null>(null);
   const seen = useRef<string | null>(null);
   const leaveRef = useRef(false);
   const draftRef = useRef(draft);
-  draftRef.current = draft;
   const loadedId = useRef<string | null>(null);
+
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
 
   useEffect(() => {
     if (!encounter || encounter.id !== id || loadedId.current === id) return;
@@ -208,7 +220,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
         if (transcriptRes.segments && transcriptRes.segments.length > 0) {
           lines = transcriptRes.segments.map(mapSegmentToTranscriptLine);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.warn("Không lấy được transcript qua GET API, dùng kết quả từ upload response:", err);
       }
 
@@ -225,10 +237,12 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           icdSuggestions: nextSoap.icdSuggestions || current.icdSuggestions,
           selectedIcd: current.selectedIcd || nextSoap.selectedIcd,
           missingFields: [],
+          soapActiveSource: "consultation",
+          soapRunOutdated: Boolean(current.soapRunId),
         };
       });
-    } catch (err: any) {
-      setUploadError(err.message || "Xử lý âm thanh thất bại.");
+    } catch (err: unknown) {
+      setUploadError(err instanceof Error ? err.message : "Xử lý âm thanh thất bại.");
     } finally {
       setIsUploading(false);
     }
@@ -242,8 +256,85 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   }, []);
 
   const onLines = useCallback((transcript: Encounter["transcript"]) => {
-    setDraft((current) => (current ? { ...current, transcript } : current));
+    setDraft((current) => (current ? { ...current, transcript, soapRunOutdated: Boolean(current.soapRunId) } : current));
   }, []);
+
+  async function importTranscriptJson(file: File) {
+    if (jsonBusy || soapBusy || isUploading) return;
+    setJsonBusy(true);
+    setUploadError("");
+    let runId: string | null = null;
+    try {
+      const content = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        throw new Error("File transcript không phải JSON hợp lệ.");
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("JSON transcript phải là một object.");
+      }
+      const source = parsed as Record<string, unknown>;
+      let inputFormat: SoapInputFormat;
+      if (Array.isArray(source.segments) && source.speaker_roles && typeof source.speaker_roles === "object") {
+        inputFormat = "qwen_role_result";
+        if (source.segments.length === 0) throw new Error("JSON Qwen không có đoạn hội thoại.");
+      } else if (Array.isArray(source.turns)) {
+        inputFormat = "canonical";
+        if (source.turns.length === 0) throw new Error("JSON transcript không có lượt nói.");
+      } else {
+        throw new Error("JSON cần có segments và speaker_roles như mẫu Qwen, hoặc turns của transcript chuẩn.");
+      }
+      const extracted = await extractCaps({ input_format: inputFormat, content });
+      runId = extracted.run_id;
+      const current = draftRef.current;
+      if (current) {
+        const next: Encounter = { ...current, soapTestRunId: runId, soapActiveSource: "test" };
+        draftRef.current = next;
+        setDraft(next);
+        saveEncounter(next);
+      }
+      await generateSoap(runId, 0);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Không xử lý được transcript JSON.";
+      setUploadError(runId ? `CAP đã lưu ở run ${runId}, nhưng chưa tạo được SOAP: ${message}` : message);
+    } finally {
+      setJsonBusy(false);
+    }
+  }
+
+  async function createGroundedSoap() {
+    const consultationId = draftRef.current?.consultationId;
+    if (!consultationId || soapBusy || isUploading || jsonBusy) return;
+    if (!isUUID(consultationId)) {
+      setSoapError("Mã lượt khám không hợp lệ; không thể đọc transcript đã lưu.");
+      return;
+    }
+    setSoapBusy(true);
+    setSoapError("");
+    let runId: string | null = null;
+    try {
+      const transcriptResponse = await getConsultationTranscript(consultationId);
+      const transcript = soapTranscriptFromConsultation(transcriptResponse);
+      const extracted = await extractCaps({ input_format: "canonical", content: JSON.stringify(transcript) });
+      runId = extracted.run_id;
+      setShowLegacyFinal(false);
+      const current = draftRef.current;
+      if (current) {
+        const next: Encounter = { ...current, soapRunId: runId, soapActiveSource: "consultation", soapRunOutdated: false };
+        draftRef.current = next;
+        setDraft(next);
+        saveEncounter(next);
+      }
+      await generateSoap(runId, 0);
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : "Không tạo được CAP và SOAP.";
+      setSoapError(runId ? `CAP đã được lưu trong run ${runId}, nhưng chưa tạo được SOAP: ${message}` : message);
+    } finally {
+      setSoapBusy(false);
+    }
+  }
 
   const regen = useCallback(() => {
     setDraft((current) => {
@@ -271,6 +362,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   }
 
   const locked = draft.status === "final";
+  const activeRunId = draft.soapActiveSource === "test" ? draft.soapTestRunId : draft.soapRunId;
   const encounterId = draft.id;
   const canApprove = !locked && (["subjective", "objective", "assessment", "plan"] as const).every((key) => draft.soap[key].trim());
 
@@ -312,7 +404,26 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
         </div>
       </header>
 
-      {locked ? (
+      {(draft.transcript.length > 0 || activeRunId) && (
+        <section className="mx-3.5 mb-2 rounded-xl border border-[#d9c8ab] bg-[#fffaf0] px-4 py-3 text-xs text-[#5c4e42]" aria-label="Tạo CAP và SOAP có dẫn nguồn">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-semibold">{activeRunId ? "Đang xem SOAP có dẫn nguồn." : "Transcript đã sẵn sàng để tạo CAP và SOAP có dẫn nguồn."}</p>
+              {draft.soapRunOutdated && draft.soapActiveSource !== "test" && <p className="mt-1 text-[#99623b]">Transcript đã thay đổi sau run trước. Hãy tạo run mới để dùng nội dung hiện tại.</p>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {draft.soapRunId && <button type="button" disabled={soapBusy || jsonBusy} onClick={() => { setDraft((current) => current ? { ...current, soapActiveSource: "consultation" } : current); setShowLegacyFinal(false); }} className="h-9 rounded-lg border border-[#d9c8ab] bg-white px-3 font-semibold disabled:opacity-45">Xem SOAP từ audio</button>}
+              {draft.soapTestRunId && <button type="button" disabled={soapBusy || jsonBusy} onClick={() => { setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current); setShowLegacyFinal(false); }} className="h-9 rounded-lg border border-[#d9c8ab] bg-white px-3 font-semibold disabled:opacity-45">Xem run JSON</button>}
+              {locked && activeRunId && <button type="button" onClick={() => setShowLegacyFinal((current) => !current)} className="h-9 rounded-lg border border-[#d9c8ab] bg-white px-3 font-semibold">{showLegacyFinal ? "Xem SOAP có CAP" : "Xem phiếu cũ"}</button>}
+              <button type="button" onClick={() => void createGroundedSoap()} disabled={soapBusy || jsonBusy || isUploading || !draft.consultationId || draft.transcript.length === 0} className="h-9 rounded-lg bg-[#3e342c] px-3 font-semibold text-white disabled:opacity-45">
+                {soapBusy ? "Đang tạo CAP và SOAP…" : "Tạo CAP và SOAP có dẫn nguồn"}
+              </button>
+            </div>
+          </div>
+          {soapError && <p role="alert" className="mt-2 text-[#9b4236]">{soapError}</p>}
+        </section>
+      )}
+      {locked && (!activeRunId || showLegacyFinal) ? (
         <FinalNote encounter={draft}>
           <PatientCard patient={draft.patient} locked />
         </FinalNote>
@@ -320,25 +431,36 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       <>
       <div className="grid min-h-0 flex-1 lg:grid-cols-[20.5rem_minmax(0,1fr)]">
         <aside className="flex min-h-0 flex-col gap-3.5 p-3.5 lg:overflow-hidden lg:border-r lg:border-[#eadfce]">
-          <PatientCard patient={draft.patient} locked={false} />
+          <PatientCard patient={draft.patient} locked={locked} />
 
-          <AudioRecorder
+          {!locked && <AudioRecorder
             tab={tab}
-            onTab={setTab}
+            onTab={(next) => { setTab(next); setUploadError(""); }}
             fileName={draft.audioFileName}
             audioUrl={audioUrl}
             lines={draft.transcript}
             locked={locked}
             isUploading={isUploading}
+            isProcessingTranscript={jsonBusy}
             uploadError={uploadError}
             onFile={takeFile}
+            onTranscriptJson={(file) => void importTranscriptJson(file)}
+            transcriptRunId={draft.soapTestRunId}
+            onOpenTranscriptRun={() => setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current)}
             onClear={clearFile}
             onLines={onLines}
             onRegen={regen}
-          />
+          />}
+          {locked && <p className="rounded-xl border border-[#eadfce] bg-white p-3 text-xs text-[#72563d]">Phiếu cũ đã duyệt. Run SOAP có CAP được xem và review riêng ở bên phải.</p>}
         </aside>
 
-        <div className="flex min-h-[28rem] overflow-auto p-3.5 lg:min-h-0">
+        <div id="encounter-soap-workspace" className="flex min-h-[28rem] overflow-auto p-3.5 lg:min-h-0">
+          {activeRunId ? (soapBusy || jsonBusy ? (
+            <div role="status" className="flex w-full items-center justify-center rounded-2xl border border-[#eadfce] bg-white p-6 text-sm">Đang tạo CAP và SOAP…</div>
+          ) : (
+            <SoapWorkspace key={activeRunId} embedded embeddedRunId={activeRunId} runSource={draft.soapActiveSource} />
+          )) : <div className="flex min-h-0 w-full flex-col gap-2">
+          <p className="rounded-lg border border-[#ead29f] bg-[#fff9e8] px-3 py-2 text-xs text-[#72563d]">Đây là nháp nhanh cũ, chưa có CAP hoặc dẫn nguồn. Dùng nút tạo CAP/SOAP ở trên để mở bản có thể review.</p>
           <SoapEditor
             soap={draft.soap}
             suggestions={draft.icdSuggestions}
@@ -350,10 +472,11 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
             onSuggestions={(icdSuggestions) => setDraft((current) => (current ? { ...current, icdSuggestions } : current))}
             onRegen={regen}
           />
+          </div>}
         </div>
       </div>
 
-      <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-[#eadfce] px-4 py-3 sm:px-5">
+      {!activeRunId && <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-[#eadfce] px-4 py-3 sm:px-5">
         <div className="flex gap-2.5">
           <button type="button" onClick={() => leave(null)} className="h-9 rounded-lg border border-[#eadfce] bg-white px-4 text-sm shadow-sm hover:bg-[#f6f0e6]">
             Hủy lượt khám
@@ -369,7 +492,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
             {locked ? "Đã duyệt" : "Duyệt"}
           </button>
         </div>
-      </footer>
+      </footer>}
       </>
       )}
     </main>

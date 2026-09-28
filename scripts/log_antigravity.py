@@ -68,8 +68,9 @@ if sys.platform == "win32":
 VN_TZ = timezone(timedelta(hours=7))
 GEMINI_HOME = Path.home() / ".gemini"
 
-# Antigravity has shipped under two folder names; prefer the newer IDE one.
+# Antigravity has shipped under multiple folder names (CLI / IDE).
 BRAIN_CANDIDATES = (
+    GEMINI_HOME / "antigravity-cli" / "brain",
     GEMINI_HOME / "antigravity-ide" / "brain",
     GEMINI_HOME / "antigravity" / "brain",
 )
@@ -120,7 +121,7 @@ def get_brain_dirs() -> list[Path]:
     """Brain directories to scan, newest layout first."""
     env = os.environ.get("ANTIGRAVITY_BRAIN_DIR")
     if env:
-        p = Path(env)
+        p = Path(env).expanduser()
         return [p] if p.exists() else []
     return [p for p in BRAIN_CANDIDATES if p.exists()]
 

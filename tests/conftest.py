@@ -1,10 +1,20 @@
+import os
 from unittest.mock import AsyncMock
+
+# Set isolated test configuration before importing the app or its database routes.
+os.environ["APP_ENV"] = "test"
+os.environ["SOAP_ENABLED"] = "true"
+os.environ["DB_AUTO_CREATE_TABLES"] = "false"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from src.main import app
+from src.config import get_settings
+
+get_settings.cache_clear()
+from src.main import app  # noqa: E402
 
 
 @pytest_asyncio.fixture
