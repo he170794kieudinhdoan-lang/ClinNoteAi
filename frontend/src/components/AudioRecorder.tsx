@@ -39,6 +39,7 @@ function AudioRecorder({
   onClear,
   onLines,
   onRegen,
+  showTranscript = true,
 }: {
   tab: "upload" | "record" | "test";
   onTab: (tab: "upload" | "record" | "test") => void;
@@ -56,6 +57,7 @@ function AudioRecorder({
   onClear: () => void;
   onLines?: (lines: TranscriptLine[]) => void;
   onRegen?: () => void;
+  showTranscript?: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [over, setOver] = useState(false);
@@ -107,16 +109,16 @@ function AudioRecorder({
   }
 
   return (
-    <section className="flex min-h-72 flex-1 flex-col overflow-hidden rounded-2xl border border-[#efe4d4] bg-[#fffdf9] shadow-sm lg:min-h-0">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-[#f3eadf] px-3.5 py-2">
-        <h2 className="text-sm font-bold">Âm thanh</h2>
-        <div role="group" aria-label="Nguồn hội thoại" className="flex h-8 overflow-hidden rounded-lg border border-[#eadfce] text-[11px]">
+    <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+      <header className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2">
+        <h2 className="text-[11px] font-bold tracking-[0.08em] text-faint uppercase">Voice</h2>
+        <div role="group" aria-label="Nguồn hội thoại" className="flex h-8 overflow-hidden rounded-lg border border-line text-[11px]">
           <button
             type="button"
             aria-pressed={tab === "upload"}
             disabled={isUploading || isProcessingTranscript}
             onClick={() => switchTab("upload")}
-            className={`px-2.5 disabled:opacity-50 ${tab === "upload" ? "bg-[#e7d8c0] font-semibold text-[#3e342c]" : "bg-white text-[#866e5a]"}`}
+            className={`px-2.5 disabled:opacity-50 ${tab === "upload" ? "bg-subtle font-semibold text-ink" : "bg-white text-muted"}`}
           >
             Tải lên
           </button>
@@ -125,7 +127,7 @@ function AudioRecorder({
             aria-pressed={tab === "record"}
             disabled={isUploading || isProcessingTranscript}
             onClick={() => switchTab("record")}
-            className={`border-l border-[#eadfce] px-2.5 disabled:opacity-50 ${tab === "record" ? "bg-[#e7d8c0] font-semibold text-[#3e342c]" : "bg-white text-[#866e5a]"}`}
+            className={`border-l border-line px-2.5 disabled:opacity-50 ${tab === "record" ? "bg-subtle font-semibold text-ink" : "bg-white text-muted"}`}
           >
             Ghi âm
           </button>
@@ -134,7 +136,7 @@ function AudioRecorder({
             aria-pressed={tab === "test"}
             disabled={isUploading || isProcessingTranscript}
             onClick={() => switchTab("test")}
-            className={`border-l border-[#eadfce] px-2.5 disabled:opacity-50 ${tab === "test" ? "bg-[#e7d8c0] font-semibold text-[#3e342c]" : "bg-white text-[#866e5a]"}`}
+            className={`border-l border-line px-2.5 disabled:opacity-50 ${tab === "test" ? "bg-subtle font-semibold text-ink" : "bg-white text-muted"}`}
           >
             Test import
           </button>
@@ -144,13 +146,13 @@ function AudioRecorder({
       {tab === "record" ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
           <p className="text-sm font-bold">Ghi âm</p>
-          <p className="max-w-56 text-sm text-[#866e5a]">Màn ghi âm trực tiếp ở bước sau. Dùng Tải lên để đưa file vào lượt khám.</p>
+          <p className="max-w-56 text-sm text-muted">Màn ghi âm trực tiếp ở bước sau. Dùng Tải lên để đưa file vào lượt khám.</p>
         </div>
       ) : isUploading || isProcessingTranscript ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#5c4e42] border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-ink border-t-transparent" />
           <p className="text-sm font-bold">{isProcessingTranscript ? "Đang tạo CAP và SOAP từ transcript JSON..." : "Đang xử lý âm thanh..."}</p>
-          <p className="max-w-64 text-xs text-[#866e5a]">{isProcessingTranscript ? "Dùng nội dung đã phân vai; không chạy lại nhận dạng âm thanh." : "Đang nhận diện giọng nói (Blaze STT) và phân vai bác sĩ / bệnh nhân (Qwen)..."}</p>
+          <p className="max-w-64 text-xs text-muted">{isProcessingTranscript ? "Dùng nội dung đã phân vai; không chạy lại nhận dạng âm thanh." : "Đang nhận diện giọng nói (Blaze STT) và phân vai bác sĩ / bệnh nhân (Qwen)..."}</p>
         </div>
       ) : tab === "test" ? (
         <div className="flex flex-1 flex-col p-3.5">
@@ -158,7 +160,7 @@ function AudioRecorder({
             onDragOver={(event) => { event.preventDefault(); setOver(true); }}
             onDragLeave={() => setOver(false)}
             onDrop={(event) => { event.preventDefault(); setOver(false); pick(event.dataTransfer.files[0]); }}
-            className={`flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-5 py-8 text-center ${over ? "border-[#5c4e42] bg-[#f6f0e6]" : "border-[#eadfce]"}`}
+            className={`flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-5 py-8 text-center ${over ? "border-ink bg-subtle" : "border-line"}`}
           >
             <input
               type="file"
@@ -166,26 +168,26 @@ function AudioRecorder({
               className="sr-only"
               onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ""; }}
             />
-            <span className="grid h-14 w-14 place-items-center rounded-2xl border border-[#eadfce] bg-[#f6f0e6] text-xl" aria-hidden>JSON</span>
+            <span className="grid h-14 w-14 place-items-center rounded-2xl border border-line bg-subtle text-xl" aria-hidden>JSON</span>
             <span className="text-sm font-bold">Kéo thả transcript JSON</span>
-            <span className="text-xs text-[#866e5a]">Nhận JSON Qwen đã phân vai hoặc transcript canonical.</span>
-            <span className="inline-flex h-9 items-center rounded-full bg-[#ead9c2] px-4 text-sm font-semibold">Chọn file JSON</span>
+            <span className="text-xs text-muted">Nhận JSON Qwen đã phân vai hoặc transcript canonical.</span>
+            <span className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white">Chọn file JSON</span>
           </label>
           {(uploadError || error) && <p role="alert" className="pt-2 text-sm text-rose-700">{uploadError || error}</p>}
           {transcriptRunId && <button type="button" onClick={onOpenTranscriptRun} className="w-fit pt-2 text-xs font-semibold underline">Mở run JSON đã lưu</button>}
         </div>
       ) : uploaded ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-3.5">
-          <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg border border-[#eadfce] px-2.5 py-2">
-            <span className="grid h-7 w-7 place-items-center rounded-md border border-[#eadfce] bg-[#f6f0e6] text-sm" aria-hidden>
+          <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg border border-line px-2.5 py-2">
+            <span className="grid h-7 w-7 place-items-center rounded-md border border-line bg-subtle text-sm" aria-hidden>
               ♪
             </span>
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold">{fileName}</span>
-              <span className="text-[11px] text-[#866e5a]">{shownDuration > 0 ? clock(shownDuration) : "Đã tải"}</span>
+              <span className="text-[11px] text-muted">{shownDuration > 0 ? clock(shownDuration) : "Đã tải"}</span>
             </span>
             {!locked && (
-              <button type="button" onClick={onClear} aria-label="Gỡ file âm thanh" className="px-1 text-sm text-[#866e5a] hover:text-[#3e342c]">
+              <button type="button" onClick={onClear} aria-label="Gỡ file âm thanh" className="px-1 text-sm text-muted hover:text-ink">
                 ✕
               </button>
             )}
@@ -197,7 +199,7 @@ function AudioRecorder({
               onClick={toggle}
               disabled={!audioUrl}
               aria-label={playing ? "Tạm dừng" : "Phát"}
-              className="grid h-7 w-7 place-items-center rounded-full border border-[#eadfce] bg-white text-[10px] disabled:text-[#b3a394]"
+              className="grid h-7 w-7 place-items-center rounded-full border border-line bg-white text-[10px] disabled:text-faint"
             >
               {playing ? "❚❚" : "▶"}
             </button>
@@ -214,9 +216,9 @@ function AudioRecorder({
                 if (audioRef.current) audioRef.current.currentTime = next;
                 setTime(next);
               }}
-              className="h-1.5 flex-1 cursor-pointer accent-[#5c4e42] disabled:cursor-not-allowed"
+              className="h-1.5 flex-1 cursor-pointer accent-ink disabled:cursor-not-allowed"
             />
-            <span className="font-mono text-[10px] text-[#866e5a]">
+            <span className="font-mono text-[10px] text-muted">
               {clock(time)} / {shownDuration > 0 ? clock(shownDuration) : "00:00"}
             </span>
           </div>
@@ -235,7 +237,7 @@ function AudioRecorder({
             />
           )}
 
-          <TranscriptPanel lines={lines} locked={locked} onChange={onLines} onRegen={onRegen} />
+          {showTranscript && <TranscriptPanel lines={lines} locked={locked} onChange={onLines} onRegen={onRegen} />}
           {(uploadError || error) && <p role="alert" className="text-sm text-rose-700">{uploadError || error}</p>}
         </div>
       ) : (
@@ -252,7 +254,7 @@ function AudioRecorder({
               pick(event.dataTransfer.files[0]);
             }}
             className={`flex flex-1 cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed px-5 py-8 text-center ${
-              over ? "border-[#5c4e42] bg-[#f6f0e6]" : "border-[#eadfce]"
+              over ? "border-ink bg-subtle" : "border-line"
             }`}
           >
             <input
@@ -264,11 +266,11 @@ function AudioRecorder({
                 event.target.value = "";
               }}
             />
-            <span className="grid h-14 w-14 place-items-center rounded-2xl border border-[#eadfce] bg-[#f6f0e6] text-2xl" aria-hidden>
+            <span className="grid h-14 w-14 place-items-center rounded-2xl border border-line bg-subtle text-2xl" aria-hidden>
               ♪
             </span>
             <span className="text-sm font-bold">Kéo thả file âm thanh</span>
-            <span className="inline-flex h-9 items-center rounded-full bg-[#ead9c2] px-4 text-sm font-semibold">
+            <span className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white">
               Chọn file
             </span>
           </label>

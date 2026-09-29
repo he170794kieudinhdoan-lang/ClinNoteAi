@@ -1,11 +1,34 @@
 @import "tailwindcss";
 @import "neobrutalism-ui-react/styles.css";
 
-/* Library stylesheet paints body unlayered. Put the app canvas back, then
-   theme only the login frame via .nb-classic. */
+@theme {
+  --color-ink: #1c1f23;
+  --color-muted: #6b7178;
+  --color-faint: #9aa1a8;
+  --color-line: #e7e9ec;
+  --color-line-soft: #f1f2f4;
+  --color-canvas: #f6f7f8;
+  --color-surface: #ffffff;
+  --color-subtle: #f7f8f9;
+  --color-warn: #8a5a12;
+  --color-warn-bg: #fffbeb;
+  --color-warn-border: #f3e2b0;
+  --color-danger: #9b4236;
+  --color-ok: #3c6246;
+  --color-ok-bg: #eef6f0;
+  --shadow-panel: 0 8px 24px rgb(28 31 35 / 0.04);
+}
+
 body {
   position: relative;
   z-index: 0;
+  background-color: #f6f7f8;
+  color: #1c1f23;
+  font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: 400;
+}
+
+body.login-canvas {
   background-color: #e7dccb;
   background-image:
     url("/login-pattern.svg?v=4"),
@@ -15,11 +38,9 @@ body {
   background-position: center top 16px, center bottom 16px, center;
   background-size: 220px 36px, 220px 36px, auto;
   background-attachment: fixed;
-  font-family: var(--font-sans), system-ui, sans-serif;
-  font-weight: 400;
 }
 
-body::before {
+body.login-canvas::before {
   content: "";
   position: fixed;
   z-index: -1;
@@ -32,15 +53,6 @@ body::before {
   background-repeat: repeat;
   background-position: center;
   background-size: 360px 360px;
-}
-
-body:has(.plain-canvas) {
-  background-color: #efe6d8;
-  background-image: none;
-}
-
-body:has(.plain-canvas)::before {
-  content: none;
 }
 
 button:not(:disabled),

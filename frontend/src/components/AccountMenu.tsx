@@ -51,34 +51,34 @@ export default function AccountMenu() {
         aria-label="Tài khoản"
         aria-expanded={open}
         onClick={toggle}
-        className="block h-8 w-8 overflow-hidden rounded-full border border-[#eadfce] bg-white"
+        className="block h-8 w-8 overflow-hidden rounded-full border border-line bg-white"
       >
         <img src="/default-avatar.jpg" alt="" className="h-full w-full object-cover" />
       </button>
       {open && (
         <div
-          className="fixed z-50 w-64 rounded-2xl border border-[#efe4d4] bg-[#fffdf9] p-4 text-[#3e342c] shadow-[0_16px_40px_rgba(62,52,44,0.12)]"
+          className="fixed z-50 w-64 rounded-2xl border border-line bg-white p-4 text-ink shadow-[0_16px_40px_rgba(62,52,44,0.12)]"
           style={{ top: place.top, right: place.right }}
         >
           <div className="flex items-center gap-3">
-            <img src="/default-avatar.jpg" alt="" className="h-12 w-12 rounded-full border border-[#eadfce] object-cover" />
+            <img src="/default-avatar.jpg" alt="" className="h-12 w-12 rounded-full border border-line object-cover" />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{name || "Bác sĩ"}</p>
-              <p className="truncate text-xs text-[#866e5a]">{email || "Chưa đăng nhập"}</p>
+              <p className="truncate text-xs text-muted">{email || "Chưa đăng nhập"}</p>
             </div>
           </div>
           {email ? (
             <button
               type="button"
               onClick={logout}
-              className="mt-4 h-9 w-full rounded-lg border border-[#eadfce] bg-white text-sm font-semibold hover:bg-[#f6f0e6]"
+              className="mt-4 h-9 w-full rounded-lg border border-line bg-white text-sm font-semibold hover:bg-subtle"
             >
               Đăng xuất
             </button>
           ) : (
             <Link
               href="/login"
-              className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg bg-[#ead9c2] text-sm font-semibold hover:bg-[#e3d0b4]"
+              className="mt-4 inline-flex h-9 w-full items-center justify-center rounded-lg bg-ink text-sm font-semibold text-white hover:bg-ink/90"
             >
               Đăng nhập
             </Link>

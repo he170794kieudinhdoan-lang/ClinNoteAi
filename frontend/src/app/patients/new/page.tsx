@@ -2,26 +2,27 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useRef, useState } from "react";
+import { ReactNode, useRef, useState } from "react";
+import { useForm } from "react-hook-form";
+import { toast } from "sonner";
+import ClinicShell from "@/components/ClinicShell";
 import { saveEncounter } from "@/hooks/useEncounter";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { createPatient } from "@/lib/api";
 import { getSupabase } from "@/lib/supabase";
 import type { Encounter, Gender } from "@/types";
 
-const GENDERS: Gender[] = ["Nam", "Nữ", "Khác"];
+type PatientForm = {
+  code: string;
+  name: string;
+  day: string;
+  month: string;
+  year: string;
+  gender: Gender | "";
+  dob: string;
+};
 
-function setDobPart(
-  raw: string,
-  max: number,
-  current: string,
-  set: (value: string) => void,
-  next?: HTMLInputElement | null,
-) {
-  const value = raw.replace(/\D/g, "").slice(0, max);
-  set(value);
-  if (current.length < max && value.length === max) next?.focus();
-}
+const GENDERS: Gender[] = ["Nam", "Nữ", "Khác"];
 
 function ageFromParts(day: string, month: string, year: string) {
   if (!day && !month && !year) return null;
@@ -42,40 +43,63 @@ function ageFromParts(day: string, month: string, year: string) {
 export default function AddPatientPage() {
   const authed = useRequireAuth();
   const router = useRouter();
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
-  const [day, setDay] = useState("");
-  const [month, setMonth] = useState("");
-  const [year, setYear] = useState("");
   const dayRef = useRef<HTMLInputElement>(null);
   const monthRef = useRef<HTMLInputElement>(null);
   const yearRef = useRef<HTMLInputElement>(null);
-  const [gender, setGender] = useState<Gender | "">("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState("");
-  const [busy, setBusy] = useState(false);
+  const {
+    handleSubmit,
+    watch,
+    setValue,
+    setError,
+    clearErrors,
+    register,
+    formState: { errors, isSubmitting },
+  } = useForm<PatientForm>({
+    defaultValues: { code: "", name: "", day: "", month: "", year: "", gender: "", dob: "" },
+  });
+  const code = watch("code");
+  const name = watch("name");
+  const day = watch("day");
+  const month = watch("month");
+  const year = watch("year");
+  const gender = watch("gender");
 
   const age = ageFromParts(day, month, year);
 
-  function validate() {
-    const next: Record<string, string> = {};
-    const patientCode = code.trim();
-    if (!/^\d{10}$/.test(patientCode)) next.code = "Nhập đúng 10 chữ số.";
-    if (name.trim().length < 2) next.name = "Nhập họ tên.";
-    else if (name.trim().length > 30) next.name = "Họ tên tối đa 30 ký tự.";
-    const startedDob = Boolean(day || month || year);
-    if (startedDob && age === null) next.dob = "Ngày sinh chưa hợp lệ.";
-    return next;
+  function writePart(
+    field: "day" | "month" | "year",
+    raw: string,
+    max: number,
+    current: string,
+    next?: HTMLInputElement | null,
+  ) {
+    const value = raw.replace(/\D/g, "").slice(0, max);
+    setValue(field, value);
+    if (errors.dob) clearErrors("dob");
+    if (current.length < max && value.length === max) next?.focus();
   }
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
+  async function onSubmit(values: PatientForm) {
     setApiError("");
-    const next = validate();
-    setErrors(next);
-    if (Object.keys(next).length || !code) return;
-
-    setBusy(true);
+    const nextAge = ageFromParts(values.day, values.month, values.year);
+    let invalid = false;
+    if (!/^\d{10}$/.test(values.code.trim())) {
+      setError("code", { type: "validate", message: "Nhập đúng 10 chữ số." });
+      invalid = true;
+    }
+    if (values.name.trim().length < 2) {
+      setError("name", { type: "validate", message: "Nhập họ tên." });
+      invalid = true;
+    } else if (values.name.trim().length > 30) {
+      setError("name", { type: "validate", message: "Họ tên tối đa 30 ký tự." });
+      invalid = true;
+    }
+    if ((values.day || values.month || values.year) && nextAge === null) {
+      setError("dob", { type: "validate", message: "Ngày sinh chưa hợp lệ." });
+      invalid = true;
+    }
+    if (invalid) return;
 
     try {
       // 1. Get logged in doctor_id from Supabase auth session
@@ -95,14 +119,14 @@ export default function AddPatientPage() {
         Nữ: "FEMALE",
         Khác: "OTHER",
       };
-      const dob = age === null ? undefined : `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+      const dob = nextAge === null ? undefined : `${values.year}-${values.month.padStart(2, "0")}-${values.day.padStart(2, "0")}`;
 
       // 3. POST /api/v1/patients -> get REAL patient_id from DB
       const patientRes = await createPatient({
-        patient_code: code.trim(),
-        full_name: name.trim(),
+        patient_code: values.code.trim(),
+        full_name: values.name.trim(),
         date_of_birth: dob ?? null,
-        sex: gender ? sexMap[gender] || gender : null,
+        sex: values.gender ? sexMap[values.gender] || values.gender : null,
       });
 
       const realPatientId = patientRes.id;
@@ -114,11 +138,11 @@ export default function AddPatientPage() {
         doctorId: doctorId,       // Supabase auth user.id
         patient: {
           id: realPatientId,
-          name: name.trim(),
-          age: age ?? 0,
-          gender: gender || undefined,
+          name: values.name.trim(),
+          age: nextAge ?? 0,
+          gender: values.gender || undefined,
           reason: "",
-          code: code.trim(),
+          code: values.code.trim(),
           dob,
         },
         status: "empty",
@@ -130,60 +154,62 @@ export default function AddPatientPage() {
       };
 
       saveEncounter(encounter);
+      toast.success("Đã tạo bệnh nhân");
       router.push(`/encounters/${encounter.id}`);
-    } catch (err: any) {
-      setApiError(err.message || "Tạo bệnh nhân thất bại.");
-    } finally {
-      setBusy(false);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Tạo bệnh nhân thất bại.";
+      setApiError(message);
+      toast.error(message);
     }
   }
 
-  if (!authed) return <main className="nb-classic min-h-dvh bg-[#efe6d8]" />;
+  if (!authed) return <main className="min-h-dvh bg-canvas" />;
 
   return (
-    <main className="nb-classic relative min-h-screen text-[#3e342c]">
-      <button
-        type="button"
-        aria-label="Đóng"
-        onClick={() => router.push("/")}
-        className="fixed inset-0 z-0 bg-[#3e342c]/15"
-      />
-
+    <ClinicShell section="new">
+      <section className="flex h-full items-center justify-center overflow-auto bg-canvas p-6">
       <form
-        onSubmit={onSubmit}
+        onSubmit={handleSubmit(onSubmit)}
         noValidate
-        className="pointer-events-auto fixed left-1/2 top-1/2 z-20 flex max-h-[calc(100vh-2rem)] w-[min(780px,calc(100vw-1.5rem))] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-md border border-[#d9cbb8] bg-[#f6f0e6] shadow-[0_16px_40px_rgba(62,52,44,0.12)]"
+        className="flex max-h-full w-[min(780px,100%)] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-panel"
       >
+        <input type="hidden" {...register("dob")} />
         <header className="flex items-center justify-between px-5 py-4">
           <h1 className="font-serif text-xl font-bold">Thêm bệnh nhân</h1>
           <Link
             href="/"
             aria-label="Đóng"
-            className="grid h-8 w-8 place-items-center rounded-sm border border-[#d9cbb8] bg-white text-sm shadow-sm transition-colors hover:bg-[#f6f0e6]"
+            className="grid h-8 w-8 place-items-center rounded-sm border border-line bg-white text-sm shadow-sm transition-colors hover:bg-subtle"
           >
             ✕
           </Link>
         </header>
 
         <div className="grid min-h-0 flex-1 overflow-auto md:grid-cols-[1fr_260px] md:items-stretch">
-          <div className="grid grid-cols-1 content-start gap-x-4 gap-y-4 p-5 sm:grid-cols-2 md:border-r md:border-[#d9cbb8]">
-            <Field label="Mã định danh y tế" required error={errors.code} count={`${code.length}/10`}>
-              <div className="flex h-10 items-center rounded-sm border border-[#d9cbb8] bg-white px-2.5">
+          <div className="grid grid-cols-1 content-start gap-x-4 gap-y-4 p-5 sm:grid-cols-2 md:border-r md:border-line">
+            <Field label="Mã định danh y tế" required error={errors.code?.message} count={`${code.length}/10`}>
+              <div className="flex h-10 items-center rounded-sm border border-line bg-white px-2.5">
                 <input
                   value={code}
                   maxLength={10}
                   inputMode="numeric"
                   placeholder="10 chữ số BHXH"
-                  onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 10))}
+                  onChange={(event) => {
+                    setValue("code", event.target.value.replace(/\D/g, "").slice(0, 10));
+                    if (errors.code) clearErrors("code");
+                  }}
                   aria-label="Mã định danh y tế"
-                  className="min-w-0 flex-1 bg-transparent font-mono text-sm tracking-wide outline-none placeholder:text-[#b3a394] placeholder:font-sans placeholder:tracking-normal"
+                  className="min-w-0 flex-1 bg-transparent font-mono text-sm tracking-wide outline-none placeholder:text-faint placeholder:font-sans placeholder:tracking-normal"
                 />
               </div>
             </Field>
-            <Field label="Họ và tên" required error={errors.name} count={`${name.length}/30`}>
+            <Field label="Họ và tên" required error={errors.name?.message} count={`${name.length}/30`}>
               <input
                 value={name}
-                onChange={(event) => setName(event.target.value.slice(0, 30))}
+                onChange={(event) => {
+                  setValue("name", event.target.value.slice(0, 30));
+                  if (errors.name) clearErrors("name");
+                }}
                 placeholder="Nguyễn Văn A"
                 autoComplete="name"
                 maxLength={30}
@@ -191,12 +217,12 @@ export default function AddPatientPage() {
               />
             </Field>
 
-            <Field label="Ngày sinh" error={errors.dob}>
+            <Field label="Ngày sinh" error={errors.dob?.message}>
               <div className="grid grid-cols-3 gap-1.5">
                 <input
                   ref={dayRef}
                   value={day}
-                  onChange={(event) => setDobPart(event.target.value, 2, day, setDay, monthRef.current)}
+                  onChange={(event) => writePart("day", event.target.value, 2, day, monthRef.current)}
                   placeholder="dd"
                   inputMode="numeric"
                   aria-label="Ngày"
@@ -205,7 +231,7 @@ export default function AddPatientPage() {
                 <input
                   ref={monthRef}
                   value={month}
-                  onChange={(event) => setDobPart(event.target.value, 2, month, setMonth, yearRef.current)}
+                  onChange={(event) => writePart("month", event.target.value, 2, month, yearRef.current)}
                   placeholder="mm"
                   inputMode="numeric"
                   aria-label="Tháng"
@@ -214,7 +240,7 @@ export default function AddPatientPage() {
                 <input
                   ref={yearRef}
                   value={year}
-                  onChange={(event) => setDobPart(event.target.value, 4, year, setYear)}
+                  onChange={(event) => writePart("year", event.target.value, 4, year)}
                   placeholder="yyyy"
                   inputMode="numeric"
                   aria-label="Năm"
@@ -223,21 +249,21 @@ export default function AddPatientPage() {
               </div>
             </Field>
             <Field label="Tuổi">
-              <div className="flex h-10 items-center gap-1.5 rounded-sm border border-[#d9cbb8] bg-[#fffdf9] px-2.5 text-xs text-[#866e5a]">
-                <b className="text-sm text-[#3e342c]">{age === null ? "--" : age}</b>
+              <div className="flex h-10 items-center gap-1.5 rounded-sm border border-line bg-white px-2.5 text-xs text-muted">
+                <b className="text-sm text-ink">{age === null ? "--" : age}</b>
                 tuổi
               </div>
             </Field>
 
             <Field label="Giới tính" className="sm:col-span-2">
-              <div className="flex h-10 overflow-hidden rounded-sm border border-[#d9cbb8] bg-white">
+              <div className="flex h-10 overflow-hidden rounded-sm border border-line bg-white">
                 {GENDERS.map((item) => (
                   <button
                     key={item}
                     type="button"
-                    onClick={() => setGender(item)}
-                    className={`flex-1 border-r border-[#d9cbb8] text-xs transition-colors last:border-r-0 ${
-                      gender === item ? "bg-[#e7d8c0] font-semibold text-[#3e342c]" : "text-[#866e5a] hover:bg-[#f6f0e6]"
+                    onClick={() => setValue("gender", item)}
+                    className={`flex-1 border-r border-line text-xs transition-colors last:border-r-0 ${
+                      gender === item ? "bg-subtle font-semibold text-ink" : "text-muted hover:bg-subtle"
                     }`}
                   >
                     {item}
@@ -248,26 +274,26 @@ export default function AddPatientPage() {
           </div>
 
           <aside className="flex flex-col p-5">
-            <div className="flex flex-1 flex-col rounded-sm border border-[#d9cbb8] bg-[#fffdf9] p-4">
+            <div className="flex flex-1 flex-col rounded-sm border border-line bg-white p-4">
               <div className="flex items-start gap-3">
                 <img
                   src="/default-avatar.jpg"
                   alt=""
-                  className="h-14 w-12 shrink-0 rounded-sm border border-[#d9cbb8] object-cover"
+                  className="h-14 w-12 shrink-0 rounded-sm border border-line object-cover"
                 />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug">{name.trim() || "—"}</p>
-                    <span className="shrink-0 rounded-sm border border-[#d9cbb8] bg-white px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">MỚI</span>
+                    <span className="shrink-0 rounded-sm border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">MỚI</span>
                   </div>
-                  <p className="mt-1 font-mono text-xs tracking-wide text-[#866e5a]">{code || "··········"}</p>
+                  <p className="mt-1 font-mono text-xs tracking-wide text-muted">{code || "··········"}</p>
                 </div>
               </div>
-              <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 border-t border-[#d9cbb8] pt-3 text-xs text-[#866e5a]">
+              <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 border-t border-line pt-3 text-xs text-muted">
                 <dt>Tuổi</dt>
-                <dd className="text-[#3e342c]">{age === null ? "—" : age}</dd>
+                <dd className="text-ink">{age === null ? "—" : age}</dd>
                 <dt>Giới tính</dt>
-                <dd className="text-[#3e342c]">{gender || "—"}</dd>
+                <dd className="text-ink">{gender || "—"}</dd>
               </dl>
             </div>
           </aside>
@@ -278,36 +304,37 @@ export default function AddPatientPage() {
             ❌ {apiError}
           </div>
         )}
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#d9cbb8] px-5 py-3">
+        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
           <div className="flex flex-wrap items-center gap-2">
             <Step n="1" active>
               Đăng ký
             </Step>
-            <span className="text-xs text-[#866e5a]">→</span>
+            <span className="text-xs text-muted">→</span>
             <Step n="2">Khám</Step>
-            <span className="text-xs text-[#866e5a]">→</span>
+            <span className="text-xs text-muted">→</span>
             <Step n="3">Xuất ghi chú</Step>
           </div>
           <div className="flex gap-2.5">
-            <button type="button" onClick={() => router.push("/")} className="h-9 rounded-sm border border-[#d9cbb8] bg-white px-4 text-sm shadow-sm transition-colors hover:bg-[#f6f0e6]">
+            <button type="button" onClick={() => router.push("/")} className="h-9 rounded-sm border border-line bg-white px-4 text-sm shadow-sm transition-colors hover:bg-subtle">
               Hủy
             </button>
             <button
               type="submit"
-              disabled={busy}
-              className="h-9 rounded-sm bg-[#ead9c2] px-4 text-sm font-semibold transition-colors hover:bg-[#e3d0b4] disabled:opacity-60"
+              disabled={isSubmitting}
+              className="h-9 rounded-lg bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-ink/90 disabled:opacity-60"
             >
-              {busy ? "Đang tạo..." : "Đăng ký và tiếp tục →"}
+              {isSubmitting ? "Đang tạo..." : "Đăng ký và tiếp tục →"}
             </button>
           </div>
         </footer>
       </form>
-    </main>
+      </section>
+    </ClinicShell>
   );
 }
 
 const inputClass =
-  "h-10 w-full rounded-sm border border-[#d9cbb8] bg-white px-2.5 text-sm text-[#3e342c] outline-none placeholder:text-[#b3a394]";
+  "h-10 w-full rounded-sm border border-line bg-white px-2.5 text-sm text-ink outline-none placeholder:text-faint";
 
 function Field({
   label,
@@ -331,7 +358,7 @@ function Field({
           {label}
           {required && <span className="text-[#8a5a32]"> *</span>}
         </span>
-        {count && <span className="text-[#866e5a]">{count}</span>}
+        {count && <span className="text-muted">{count}</span>}
       </span>
       {children}
       {error && <span className="text-sm text-rose-700">{error}</span>}
@@ -343,7 +370,7 @@ function Step({ n, active, children }: { n: string; active?: boolean; children: 
   return (
     <div
       className={`flex items-center justify-center gap-2 rounded-sm px-2.5 py-1.5 text-xs ${
-        active ? "border border-[#d9cbb8] bg-[#e7d8c0] font-semibold" : "border border-[#d9cbb8] text-[#866e5a]"
+        active ? "border border-line bg-subtle font-semibold" : "border border-line text-muted"
       }`}
     >
       <span className="grid h-4 w-4 place-items-center rounded-full border border-current text-[10px]">{n}</span>

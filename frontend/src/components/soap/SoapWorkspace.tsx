@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import CapEvidencePanel from "@/components/soap/CapEvidencePanel";
 import SoapReviewPanel from "@/components/soap/SoapReviewPanel";
@@ -28,6 +28,7 @@ import type {
   SoapWarningDecisions,
   SoapWarningValue,
 } from "@/types/soap";
+import type { SoapNote } from "@/types";
 import { SOAP_SECTIONS } from "@/types/soap";
 
 type BusyAction = "extract" | "generate" | "save" | "approve" | "export" | "new-draft" | null;
@@ -43,6 +44,15 @@ const DEMO_TEXT = `Bệnh nhân: Tôi bị đau đầu từ sáng nay.\nBác sĩ
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+}
+
+function toPlainSoap(soap: SoapContent): SoapNote {
+  return {
+    subjective: soap.S.items.map((item) => item.text.trim()).filter(Boolean).join("\n"),
+    objective: soap.O.items.map((item) => item.text.trim()).filter(Boolean).join("\n"),
+    assessment: soap.A.items.map((item) => item.text.trim()).filter(Boolean).join("\n"),
+    plan: soap.P.items.map((item) => item.text.trim()).filter(Boolean).join("\n"),
+  };
 }
 
 function normalizeSoap(value: unknown): SoapContent {
@@ -202,10 +212,12 @@ function statsFromTranscript(transcript: SoapTranscript) {
   return { turns: turns.length, patient, clinician, unresolved: turns.length - patient - clinician, start, end };
 }
 
-export default function SoapWorkspace({ embedded = false, embeddedRunId = null, runSource }: {
+export default function SoapWorkspace({ embedded = false, embeddedRunId = null, runSource, onBindRegen, onPlainSoap }: {
   embedded?: boolean;
   embeddedRunId?: string | null;
   runSource?: "consultation" | "test";
+  onBindRegen?: (regenerate: (() => void) | null) => void;
+  onPlainSoap?: (soap: SoapNote) => void;
 }) {
   const [inputFormat, setInputFormat] = useState<SoapInputFormat>("qwen_role_result");
   const [inputContent, setInputContent] = useState("");
@@ -344,7 +356,6 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
     try {
       await generateSoap(run.run_id, currentRevisionNumber);
       await fetchAndSetRun(run.run_id);
-      setNotice("Đã tạo revision SOAP mới. Các item đang chờ người review.");
     } catch (cause) {
       setError(errorMessageFor(cause));
       if (cause instanceof SoapApiError && cause.status === 409) {
@@ -354,6 +365,17 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
       setBusy(null);
     }
   }
+
+  const generateRef = useRef(handleGenerate);
+  generateRef.current = handleGenerate;
+  useEffect(() => {
+    onBindRegen?.(() => { void generateRef.current(); });
+    return () => onBindRegen?.(null);
+  }, [onBindRegen]);
+
+  useEffect(() => {
+    if (activeSoap) onPlainSoap?.(toPlainSoap(activeSoap));
+  }, [activeSoap, onPlainSoap]);
 
   async function handleSave() {
     if (!run || !activeSoap || !hasUnsavedChanges || readOnly) return;
@@ -459,7 +481,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
     const capIds = item.cap_ids.filter((id) => run?.caps.some((cap) => cap.prop_id === id));
     setSelectedCapIds(capIds);
     setSelectedCapId(capIds[0] ?? null);
-    if (capIds.length > 0) document.getElementById("soap-evidence")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!embedded && capIds.length > 0) document.getElementById("soap-evidence")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function selectCap(capId: string) {
@@ -477,32 +499,32 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
     : null;
 
   return (
-    <main className={embedded ? "w-full text-[#3e342c]" : "min-h-dvh bg-[#f8f3eb]/90 px-3 py-4 text-[#3e342c] sm:px-6 sm:py-6"}>
+    <main className={embedded ? "w-full text-ink" : "min-h-dvh bg-[#f8f3eb]/90 px-3 py-4 text-ink sm:px-6 sm:py-6"}>
       <div className={embedded ? "flex w-full min-w-0 flex-col gap-4" : "mx-auto flex w-full max-w-[1500px] flex-col gap-4"}>
-        {!embedded && <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e8dccb] bg-[#fffdf9] px-4 py-3 shadow-sm sm:px-5">
+        {!embedded && <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e8dccb] bg-white px-4 py-3 shadow-sm sm:px-5">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#efe3d0] text-lg font-bold">S</span>
             <div>
-              <p className="text-[10px] font-semibold tracking-[0.15em] text-[#9a8674]">CLINNOTE · MVP LOCAL</p>
+              <p className="text-[10px] font-semibold tracking-[0.15em] text-faint">CLINNOTE · MVP LOCAL</p>
               <h1 className="font-serif text-xl font-bold">SOAP qua CAP</h1>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {run && <span className="max-w-64 truncate rounded-lg border border-[#eadfce] bg-white px-3 py-2 font-mono text-[10px] text-[#6d5c4e]">run {run.run_id}</span>}
-            <Link href="/" className="inline-flex h-9 items-center rounded-lg border border-[#eadfce] bg-white px-3 text-xs font-semibold hover:bg-[#f6f0e6]">Trang chủ</Link>
+            {run && <span className="max-w-64 truncate rounded-lg border border-line bg-white px-3 py-2 font-mono text-[10px] text-muted">run {run.run_id}</span>}
+            <Link href="/" className="inline-flex h-9 items-center rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle">Trang chủ</Link>
           </div>
         </header>}
 
-        {!embedded && <section className="rounded-2xl border border-[#eadfce] bg-[#fffdf9] p-4 shadow-sm sm:p-5">
+        {!embedded && <section className="rounded-2xl border border-line bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <p className="text-[10px] font-semibold tracking-[0.14em] text-[#9a8674]">BƯỚC 1 · TRANSCRIPT → CAP</p>
+              <p className="text-[10px] font-semibold tracking-[0.14em] text-faint">BƯỚC 1 · TRANSCRIPT → CAP</p>
               <h2 className="mt-1 font-serif text-lg font-bold">Nhập hội thoại đã phân vai</h2>
-              <p className="mt-1 max-w-3xl text-xs leading-5 text-[#6d5c4e]">
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-muted">
                 Tải JSON Qwen đã có vai, hoặc dán JSON canonical / transcript theo từng dòng. Tệp chỉ được gửi trong request này; đường dẫn audio trong JSON không được mở.
               </p>
             </div>
-            <button type="button" onClick={() => { selectFormat("text"); setInputContent(DEMO_TEXT); setInputFileName(""); setError(""); }} className="h-9 rounded-lg border border-dashed border-[#bca887] bg-[#fffaf0] px-3 text-xs font-semibold text-[#72563d] hover:bg-[#f7eccd]">
+            <button type="button" onClick={() => { selectFormat("text"); setInputContent(DEMO_TEXT); setInputFileName(""); setError(""); }} className="h-9 rounded-lg border border-dashed border-[#bca887] bg-[#fffaf0] px-3 text-xs font-semibold text-muted hover:bg-[#f7eccd]">
               Dùng mẫu giả lập
             </button>
           </div>
@@ -513,65 +535,67 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
               ["canonical", "JSON canonical"],
               ["text", "Transcript text"],
             ] as const).map(([format, label]) => (
-              <button key={format} type="button" onClick={() => selectFormat(format)} aria-pressed={inputFormat === format} className={`h-8 rounded-lg px-3 text-xs ${inputFormat === format ? "bg-[#e7d8c0] font-semibold text-[#3e342c]" : "border border-[#eadfce] bg-white text-[#6d5c4e] hover:bg-[#f6f0e6]"}`}>
+              <button key={format} type="button" onClick={() => selectFormat(format)} aria-pressed={inputFormat === format} className={`h-8 rounded-lg px-3 text-xs ${inputFormat === format ? "bg-subtle font-semibold text-ink" : "border border-line bg-white text-muted hover:bg-subtle"}`}>
                 {label}
               </button>
             ))}
-            <label className="inline-flex h-8 cursor-pointer items-center rounded-lg border border-[#eadfce] bg-white px-3 text-xs font-medium hover:bg-[#f6f0e6]">
+            <label className="inline-flex h-8 cursor-pointer items-center rounded-lg border border-line bg-white px-3 text-xs font-medium hover:bg-subtle">
               Tải file JSON
               <input type="file" accept=".json,application/json" className="sr-only" onChange={handleFile} />
             </label>
           </div>
 
-          {inputFileName && <p className="mt-2 text-[11px] text-[#6d5c4e]">Tệp đã chọn: <span className="font-semibold">{inputFileName}</span></p>}
+          {inputFileName && <p className="mt-2 text-[11px] text-muted">Tệp đã chọn: <span className="font-semibold">{inputFileName}</span></p>}
           <textarea
             value={inputContent}
             onChange={(event) => { setInputContent(event.target.value); setInputFileName(""); }}
             aria-label="Transcript hoặc JSON đầu vào"
             placeholder={inputFormat === "text" ? "Bệnh nhân: ...\nBác sĩ: ..." : '{ "segments": [...] }'}
             rows={5}
-            className="mt-3 w-full resize-y rounded-xl border border-[#e4d8c8] bg-white px-3 py-2.5 font-mono text-xs leading-5 outline-none focus:border-[#b5945e]"
+            className="mt-3 w-full resize-y rounded-xl border border-[#e4d8c8] bg-white px-3 py-2.5 font-mono text-xs leading-5 outline-none focus:border-ink"
           />
           <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-            <div aria-live="polite" className={`text-xs ${preview.error ? "text-[#a14e3b]" : "text-[#6d5c4e]"}`}>
+            <div aria-live="polite" className={`text-xs ${preview.error ? "text-[#a14e3b]" : "text-muted"}`}>
               {currentInputSummary}{inputTimeRange ? ` · thời gian ${inputTimeRange}` : " · chưa có khoảng thời gian"}
             </div>
-            <button type="button" onClick={handleExtract} disabled={!extractInputValid || busy !== null} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#ead9c2] px-4 text-sm font-bold shadow-sm transition hover:bg-[#e3d0b4] disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="button" onClick={handleExtract} disabled={!extractInputValid || busy !== null} className="inline-flex h-10 items-center gap-2 rounded-lg bg-ink px-4 text-sm font-bold text-white shadow-sm transition hover:bg-ink/90 disabled:cursor-not-allowed disabled:opacity-50">
               {busy === "extract" && <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#72563d] border-t-transparent" />}
               {busy === "extract" ? "Đang trích CAP…" : "Lưu transcript và trích CAP"}
             </button>
           </div>
-          <p className="mt-2 text-[10px] leading-4 text-[#9a8674]">Số lượt và vai là bản xem trước cấu trúc. Confidence phân vai không phải độ tin cậy của SOAP.</p>
+          <p className="mt-2 text-[10px] leading-4 text-faint">Số lượt và vai là bản xem trước cấu trúc. Confidence phân vai không phải độ tin cậy của SOAP.</p>
         </section>}
 
-        {apiDisabled && <div role="status" className="rounded-xl border border-[#d7b68e] bg-[#fff4df] px-4 py-3 text-sm text-[#72563d]">API SOAP chưa được bật trên backend. Bật `SOAP_ENABLED` trong cấu hình development/test rồi tải lại.</div>}
+        {apiDisabled && <div role="status" className="rounded-xl border border-[#d7b68e] bg-[#fff4df] px-4 py-3 text-sm text-muted">API SOAP chưa được bật trên backend. Bật `SOAP_ENABLED` trong cấu hình development/test rồi tải lại.</div>}
         {error && <div role="alert" className="rounded-xl border border-[#e3b8aa] bg-[#fff2ed] px-4 py-3 text-sm text-[#8b4233]">{error}</div>}
         {notice && <div role="status" className="rounded-xl border border-[#c9dec9] bg-[#eff8ee] px-4 py-3 text-sm text-[#3f6848]">{notice}</div>}
-        {embedded && !run && !error && <div role="status" className="rounded-xl border border-[#eadfce] bg-white p-4 text-sm">Đang tải run SOAP đã lưu…</div>}
-        {run?.caps_complete === false && <div role="status" className="rounded-xl border border-[#ead29f] bg-[#fff9e8] px-4 py-3 text-sm text-[#72563d]">Run này đã lưu transcript nhưng trích CAP chưa hoàn tất. Kiểm tra lỗi lần chạy và nhập lại transcript để tạo run mới.</div>}
+        {embedded && !run && !error && <div role="status" className="rounded-xl border border-line bg-white p-4 text-sm">Đang tải run SOAP đã lưu…</div>}
+        {run?.caps_complete === false && <div role="status" className="rounded-xl border border-[#ead29f] bg-[#fff9e8] px-4 py-3 text-sm text-muted">Run này đã lưu transcript nhưng trích CAP chưa hoàn tất. Kiểm tra lỗi lần chạy và nhập lại transcript để tạo run mới.</div>}
         {run && transcriptStats && (
           <>
-            <section className="rounded-2xl border border-[#eadfce] bg-white px-4 py-3 shadow-sm sm:px-5">
+            {!embedded && (
+            <section className="rounded-2xl border border-line bg-white px-4 py-3 shadow-sm sm:px-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-semibold tracking-[0.14em] text-[#9a8674]">SOAP CÓ DẪN NGUỒN{embedded && runSource === "test" ? " · TEST JSON" : ""}</p>
+                  <p className="text-[10px] font-semibold tracking-[0.14em] text-faint">SOAP CÓ DẪN NGUỒN{runSource === "test" ? " · TEST JSON" : ""}</p>
                   <h2 className="mt-1 text-sm font-bold">Bản SOAP · {transcriptStats.turns} lượt thoại · {transcriptStats.patient} người bệnh · {transcriptStats.clinician} bác sĩ</h2>
-                  <p className="mt-1 text-xs text-[#866e5a]">{transcriptStats.unresolved} lượt chưa rõ vai · {transcriptStats.start != null && transcriptStats.end != null ? `${formatDuration(transcriptStats.start)}–${formatDuration(transcriptStats.end)}` : "không có mốc giờ"} · {run.caps.length} CAP</p>
+                  <p className="mt-1 text-xs text-muted">{transcriptStats.unresolved} lượt chưa rõ vai · {transcriptStats.start != null && transcriptStats.end != null ? `${formatDuration(transcriptStats.start)}–${formatDuration(transcriptStats.end)}` : "không có mốc giờ"} · {run.caps.length} CAP</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <span className="rounded-lg border border-[#eadfce] bg-[#fffdf9] px-3 py-2 font-mono text-[10px] text-[#6d5c4e]">{run.run_id}</span>
-                  <button type="button" onClick={handleGenerate} disabled={busy !== null || run.caps_complete === false || hasUnsavedChanges || isHistorical} className="h-9 rounded-lg bg-[#3e342c] px-3.5 text-xs font-semibold text-white hover:bg-[#5c4e42] disabled:opacity-45">
+                  <span className="rounded-lg border border-line bg-white px-3 py-2 font-mono text-[10px] text-muted">{run.run_id}</span>
+                  <button type="button" onClick={handleGenerate} disabled={busy !== null || run.caps_complete === false || hasUnsavedChanges || isHistorical} className="h-9 rounded-lg bg-ink px-3.5 text-xs font-semibold text-white hover:bg-ink/90 disabled:opacity-45">
                     {busy === "generate" ? "Đang tạo…" : latestRevision ? "Sinh lại SOAP" : "Tạo SOAP từ CAP đã lưu"}
                   </button>
                 </div>
               </div>
               {hasUnsavedChanges && <p className="mt-2 text-[11px] text-[#99623b]">Có thay đổi chưa lưu. Lưu revision trước khi sinh lại SOAP.</p>}
             </section>
+            )}
 
             {activeRevision && activeSoap && (
               <>
                 {isHistorical && (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d9cbb9] bg-[#f6f0e6] px-4 py-3 text-xs">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#d9cbb9] bg-subtle px-4 py-3 text-xs">
                     <span>Đang xem revision {activeRevision.revision}; bản cũ chỉ đọc. Thay đổi chỉ được thực hiện trên revision mới nhất.</span>
                     <button type="button" onClick={() => latestRevision && selectRevision(latestRevision)} className="h-8 rounded-lg bg-white px-3 font-semibold">Mở bản mới nhất</button>
                   </div>
@@ -580,47 +604,100 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
                   <SoapReviewPanel
                     soap={activeSoap}
                     caps={run.caps}
+                    transcript={run.transcript}
                     readOnly={readOnly}
                     revisionNumber={activeRevision.revision}
                     revisionStatus={activeRevision.status}
                     onSoap={changeSoap}
                     onSelectEvidence={selectEvidence}
                   />
-                  <aside className="flex flex-col gap-3 rounded-2xl border border-[#eadfce] bg-white p-4 shadow-sm">
+                  {embedded ? (
+                    <div className="flex flex-col gap-2 rounded-2xl border border-line bg-white px-3 py-2.5">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input
+                          id="soap-reviewer-name"
+                          value={reviewerName}
+                          onChange={(event) => setReviewerName(event.target.value)}
+                          readOnly={readOnly}
+                          aria-label="Tên người review"
+                          placeholder="Tên người review"
+                          className="h-8 min-w-36 flex-1 rounded-lg border border-line px-2.5 text-xs outline-none focus:border-ink read-only:bg-subtle"
+                        />
+                        {activeRevision.status !== "approved" && activeRevision.status !== "final" && !isHistorical && (
+                          <>
+                            <button type="button" onClick={handleSave} disabled={!canSave || busy !== null} className="h-8 rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle disabled:opacity-45">
+                              {busy === "save" ? "Đang lưu…" : "Lưu"}
+                            </button>
+                            <button type="button" onClick={handleApprove} disabled={!canApprove || busy !== null} className="h-8 rounded-lg bg-ink px-3 text-xs font-semibold text-white hover:bg-ink/90 disabled:opacity-45">
+                              {busy === "approve" ? "Đang duyệt…" : "Duyệt"}
+                            </button>
+                          </>
+                        )}
+                        {finalRevision && !isHistorical && (
+                          <button type="button" onClick={handleStartDraft} disabled={busy !== null} className="h-8 rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle disabled:opacity-45">
+                            {busy === "new-draft" ? "Đang tạo…" : "Sửa tiếp"}
+                          </button>
+                        )}
+                      </div>
+                      {hasUnsavedChanges && invalidItemsForSave.length > 0 && (
+                        <p className="text-[11px] text-[#99623b]">Điền nội dung và lý do cho câu thêm tay trước khi lưu.</p>
+                      )}
+                      {!canApprove && activeRevision.status !== "approved" && activeRevision.status !== "final" && !isHistorical && !(hasUnsavedChanges && invalidItemsForSave.length > 0) && (
+                        <p className="text-[11px] text-muted">Duyệt sau khi đã lưu, xác nhận các câu có nguồn và nhập tên.</p>
+                      )}
+                      <details className="text-[11px] text-muted">
+                        <summary className="cursor-pointer font-semibold text-ink">Revision {activeRevision.revision} · {activeRevision.status}</summary>
+                        <ul className="mt-2 space-y-1">
+                          {[...run.revisions].sort((a, b) => b.revision - a.revision).map((revision) => (
+                            <li key={revision.revision}>
+                              <button type="button" onClick={() => selectRevision(revision)} className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left ${revision.revision === activeRevision.revision ? "bg-subtle font-semibold text-ink" : "hover:bg-subtle"}`}>
+                                <span>Revision {revision.revision}</span>
+                                <span>{revision.status}</span>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                        <button type="button" onClick={handleExport} disabled={busy !== null} className="mt-2 h-8 rounded-lg border border-line bg-white px-3 text-xs font-semibold text-ink hover:bg-subtle disabled:opacity-45">
+                          {busy === "export" ? "Đang tải…" : "Tải JSON"}
+                        </button>
+                      </details>
+                    </div>
+                  ) : (
+                  <aside className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4 shadow-sm">
                     <div>
-                      <p className="text-[10px] font-semibold tracking-[0.14em] text-[#9a8674]">REVIEWER</p>
+                      <p className="text-[10px] font-semibold tracking-[0.14em] text-faint">REVIEWER</p>
                       <label className="mt-2 block text-xs font-semibold" htmlFor="soap-reviewer-name">Tên người review</label>
-                      <input id="soap-reviewer-name" value={reviewerName} onChange={(event) => setReviewerName(event.target.value)} readOnly={readOnly} placeholder="Tên tự khai" className="mt-1.5 h-9 w-full rounded-lg border border-[#eadfce] px-3 text-xs outline-none focus:border-[#b5945e] read-only:bg-[#faf7f2]" />
-                      <p className="mt-1.5 text-[10px] leading-4 text-[#9a8674]">Tên tự khai để ghi lịch sử review; đây không phải chữ ký điện tử hay xác thực danh tính.</p>
+                      <input id="soap-reviewer-name" value={reviewerName} onChange={(event) => setReviewerName(event.target.value)} readOnly={readOnly} placeholder="Tên tự khai" className="mt-1.5 h-9 w-full rounded-lg border border-line px-3 text-xs outline-none focus:border-ink read-only:bg-subtle" />
+                      <p className="mt-1.5 text-[10px] leading-4 text-faint">Tên tự khai để ghi lịch sử review; đây không phải chữ ký điện tử hay xác thực danh tính.</p>
                     </div>
 
                     <div className="rounded-xl bg-[#f8f3eb] p-3 text-xs">
                       <p className="font-semibold">Revision {activeRevision.revision}</p>
-                      <p className="mt-1 text-[#866e5a]">Trạng thái: {activeRevision.status}</p>
-                      {activeRevision.parent_revision != null && <p className="mt-1 text-[#866e5a]">Bản cha: {activeRevision.parent_revision}</p>}
-                      {activeRevision.created_at && <p className="mt-1 text-[#866e5a]">Tạo lúc: {timestampLabel(activeRevision.created_at)}</p>}
-                      {activeRevision.approved_at && <p className="mt-1 text-[#866e5a]">Duyệt lúc: {timestampLabel(activeRevision.approved_at)}</p>}
+                      <p className="mt-1 text-muted">Trạng thái: {activeRevision.status}</p>
+                      {activeRevision.parent_revision != null && <p className="mt-1 text-muted">Bản cha: {activeRevision.parent_revision}</p>}
+                      {activeRevision.created_at && <p className="mt-1 text-muted">Tạo lúc: {timestampLabel(activeRevision.created_at)}</p>}
+                      {activeRevision.approved_at && <p className="mt-1 text-muted">Duyệt lúc: {timestampLabel(activeRevision.approved_at)}</p>}
                     </div>
 
                     <div className="space-y-2">
                       {activeRevision.status !== "approved" && activeRevision.status !== "final" && !isHistorical && (
                         <>
-                          <button type="button" onClick={handleSave} disabled={!canSave || busy !== null} className="h-10 w-full rounded-lg bg-[#ead9c2] px-3 text-sm font-bold hover:bg-[#e3d0b4] disabled:opacity-45">
+                          <button type="button" onClick={handleSave} disabled={!canSave || busy !== null} className="h-10 w-full rounded-lg bg-ink px-3 text-sm font-bold text-white hover:bg-ink/90 disabled:opacity-45">
                             {busy === "save" ? "Đang lưu revision…" : "Lưu bản sửa thành revision"}
                           </button>
                           {hasUnsavedChanges && invalidItemsForSave.length > 0 && <p className="text-[10px] leading-4 text-[#99623b]">Mỗi câu cần có nội dung; câu không gắn CAP cần có lý do bổ sung thủ công trước khi lưu.</p>}
-                          <button type="button" onClick={handleApprove} disabled={!canApprove || busy !== null} className="h-10 w-full rounded-lg bg-[#3e342c] px-3 text-sm font-bold text-white hover:bg-[#5c4e42] disabled:opacity-45">
+                          <button type="button" onClick={handleApprove} disabled={!canApprove || busy !== null} className="h-10 w-full rounded-lg bg-ink px-3 text-sm font-bold text-white hover:bg-ink/90 disabled:opacity-45">
                             {busy === "approve" ? "Đang duyệt…" : "Duyệt revision hiện tại"}
                           </button>
                           {!canApprove && <p className="text-[10px] leading-4 text-[#99623b]">Cần lưu mọi thay đổi, review từng câu có nguồn hợp lệ, ghi lý do cho nội dung thủ công, xử lý cảnh báo và nhập tên reviewer.</p>}
                         </>
                       )}
                       {finalRevision && !isHistorical && (
-                        <button type="button" onClick={handleStartDraft} disabled={busy !== null} className="h-10 w-full rounded-lg border border-[#d8c7ac] bg-white px-3 text-xs font-bold hover:bg-[#f6f0e6] disabled:opacity-50">
+                        <button type="button" onClick={handleStartDraft} disabled={busy !== null} className="h-10 w-full rounded-lg border border-[#d8c7ac] bg-white px-3 text-xs font-bold hover:bg-subtle disabled:opacity-50">
                           {busy === "new-draft" ? "Đang tạo draft…" : "Tạo draft mới để sửa"}
                         </button>
                       )}
-                      <button type="button" onClick={handleExport} disabled={busy !== null} className="h-10 w-full rounded-lg border border-[#eadfce] bg-white px-3 text-xs font-semibold hover:bg-[#f6f0e6] disabled:opacity-50">
+                      <button type="button" onClick={handleExport} disabled={busy !== null} className="h-10 w-full rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle disabled:opacity-50">
                         {busy === "export" ? "Đang tải…" : `Tải JSON revision ${activeRevision.revision}`}
                       </button>
                     </div>
@@ -631,20 +708,26 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
                         {[...run.revisions].sort((a, b) => b.revision - a.revision).map((revision) => (
                           <li key={revision.revision}>
                             <button type="button" onClick={() => selectRevision(revision)} className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] ${revision.revision === activeRevision.revision ? "bg-[#f1e5d2] font-semibold" : "hover:bg-[#f8f3eb]"}`}>
-                              <span>Revision {revision.revision}</span><span className="text-[#866e5a]">{revision.status}</span>
+                              <span>Revision {revision.revision}</span><span className="text-muted">{revision.status}</span>
                             </button>
                           </li>
                         ))}
                       </ul>
                     </div>
                   </aside>
+                  )}
                 </div>
               </>
             )}
 
             {!latestRevision && (
-              <div className="rounded-2xl border border-[#eadfce] bg-white px-4 py-5 text-sm text-[#6d5c4e] shadow-sm">
-                CAP đã lưu. Bấm “Tạo SOAP từ CAP đã lưu” để bắt đầu draft; transcript mới sẽ tạo run khác và không thay snapshot này.
+              <div className="rounded-2xl border border-line bg-white px-4 py-5 text-sm text-muted shadow-sm">
+                <p>CAP đã lưu. Tạo SOAP để bắt đầu bản nháp.</p>
+                {embedded && (
+                  <button type="button" onClick={handleGenerate} disabled={busy !== null || run.caps_complete === false} className="mt-3 h-8 rounded-lg bg-ink px-3 text-xs font-semibold text-white hover:bg-ink/90 disabled:opacity-45">
+                    {busy === "generate" ? "Đang tạo…" : "Tạo SOAP"}
+                  </button>
+                )}
               </div>
             )}
 
@@ -652,10 +735,10 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
               <section className="rounded-2xl border border-[#ead29f] bg-[#fff9e8] p-4 shadow-sm sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-[10px] font-semibold tracking-[0.14em] text-[#9b7645]">CẢNH BÁO TỪ CAP</p>
-                    <h2 className="mt-1 text-sm font-bold">Đọc và ghi quyết định trước khi duyệt</h2>
+                    {!embedded && <p className="text-[10px] font-semibold tracking-[0.14em] text-[#9b7645]">CẢNH BÁO TỪ CAP</p>}
+                    <h2 className={`text-sm font-bold ${embedded ? "" : "mt-1"}`}>Cảnh báo cần ghi quyết định trước khi duyệt</h2>
                   </div>
-                  <span className="rounded-full border border-[#ead29f] bg-white px-2.5 py-1 text-[10px] text-[#72563d]">{unresolvedWarnings.length} chưa xử lý</span>
+                  <span className="rounded-full border border-[#ead29f] bg-white px-2.5 py-1 text-[10px] text-muted">{unresolvedWarnings.length} chưa xử lý</span>
                 </div>
                 <div className="mt-3 space-y-2">
                   {warnings.map((warning, index) => {
@@ -663,7 +746,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
                     return (
                       <label key={`${key}-${index}`} className="block rounded-xl border border-[#efdfbb] bg-white p-3 text-xs">
                         <span className="block font-medium leading-5">{key}</span>
-                        <input value={warningDecisions[key] ?? ""} onChange={(event) => setWarningDecision(warning, event.target.value)} disabled={readOnly} placeholder="Ghi quyết định review, ví dụ giữ trạng thái chưa chắc chắn…" className="mt-2 h-9 w-full rounded-lg border border-[#eadfce] px-3 text-xs outline-none focus:border-[#b5945e] disabled:bg-[#faf7f2]" />
+                        <input value={warningDecisions[key] ?? ""} onChange={(event) => setWarningDecision(warning, event.target.value)} disabled={readOnly} placeholder="Ghi quyết định review, ví dụ giữ trạng thái chưa chắc chắn…" className="mt-2 h-9 w-full rounded-lg border border-line px-3 text-xs outline-none focus:border-ink disabled:bg-subtle" />
                       </label>
                     );
                   })}
@@ -671,14 +754,14 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
               </section>
             )}
 
-            <div id="soap-evidence"><CapEvidencePanel transcript={run.transcript} caps={run.caps} selectedCapId={selectedCapId} selectedCapIds={selectedCapIds} onSelectCap={selectCap} /></div>
+            {!embedded && <div id="soap-evidence"><CapEvidencePanel transcript={run.transcript} caps={run.caps} selectedCapId={selectedCapId} selectedCapIds={selectedCapIds} onSelectCap={selectCap} /></div>}
 
           </>
         )}
 
-        <footer className="px-2 pb-2 text-[10px] leading-4 text-[#9a8674]">
+        {!embedded && <footer className="px-2 pb-2 text-[10px] leading-4 text-faint">
           Bản nháp cần người review. Liên kết CAP/quote được kiểm tra theo code; điều đó không tự chứng minh câu SOAP được nội dung nguồn hỗ trợ. Màn hình này dùng dữ liệu giả lập hoặc transcript người dùng tải lên.
-        </footer>
+        </footer>}
       </div>
     </main>
   );

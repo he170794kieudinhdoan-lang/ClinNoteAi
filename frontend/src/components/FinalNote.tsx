@@ -1,7 +1,9 @@
 "use client";
 
+import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
 import { ReactNode, useEffect, useState } from "react";
+import { toast } from "sonner";
 import { downloadNotePdf } from "@/lib/notePdf";
 import { getSupabase } from "@/lib/supabase";
 import type { Encounter } from "@/types";
@@ -58,6 +60,7 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
   });
   const [doctor, setDoctor] = useState("Bác sĩ");
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState(false);
   const [pdfError, setPdfError] = useState("");
 
   useEffect(() => {
@@ -83,8 +86,11 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
     setSaving(true);
     try {
       await downloadNotePdf(encounter, doctor, parts, approved);
+      toast.success("Đã xuất PDF");
     } catch (err) {
-      setPdfError(err instanceof Error ? err.message : "Không xuất được PDF.");
+      const message = err instanceof Error ? err.message : "Không xuất được PDF.";
+      setPdfError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -93,27 +99,27 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
   return (
     <>
       <div className="grid min-h-0 flex-1 lg:grid-cols-[20.5rem_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col gap-3.5 overflow-auto p-3.5 lg:border-r lg:border-[#eadfce]">
+        <aside className="flex min-h-0 flex-col gap-3.5 overflow-auto p-3.5 lg:border-r lg:border-line">
           {children}
-          <section className="rounded-2xl border border-[#efe4d4] bg-[#fffdf9]">
-            <h2 className="border-b border-[#efe4d4] px-3 py-2 text-sm font-semibold">Phiên khám</h2>
+          <section className="rounded-2xl border border-line bg-white">
+            <h2 className="border-b border-line px-3 py-2 text-sm font-semibold">Phiên khám</h2>
             <dl className="grid grid-cols-[4.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-2 px-3 py-2.5 text-xs">
-              <dt className="text-[9px] tracking-wide text-[#866e5a]">NGUỒN</dt>
+              <dt className="text-[9px] tracking-wide text-muted">NGUỒN</dt>
               <dd className="flex min-w-0 items-center gap-1.5">
-                <span className="rounded-full border border-[#eadfce] bg-white px-1.5 py-0.5 text-[10px] font-semibold">{source.tag}</span>
+                <span className="rounded-full border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold">{source.tag}</span>
                 <span className="truncate">{source.text}</span>
-                {source.mark && <span className="shrink-0 font-mono text-[#866e5a]">{source.mark}</span>}
+                {source.mark && <span className="shrink-0 font-mono text-muted">{source.mark}</span>}
               </dd>
-              <dt className="text-[9px] tracking-wide text-[#866e5a]">BÁC SĨ</dt>
+              <dt className="text-[9px] tracking-wide text-muted">BÁC SĨ</dt>
               <dd className="truncate">{doctor}</dd>
-              <dt className="text-[9px] tracking-wide text-[#866e5a]">DUYỆT LÚC</dt>
+              <dt className="text-[9px] tracking-wide text-muted">DUYỆT LÚC</dt>
               <dd className="font-mono">{approved}</dd>
-              <dt className="text-[9px] tracking-wide text-[#866e5a]">ICD-10</dt>
-              <dd>{icd ? <span className="rounded-full bg-[#3e342c] px-2 py-0.5 text-[10px] font-semibold text-white">{icd.code}</span> : "—"}</dd>
+              <dt className="text-[9px] tracking-wide text-muted">ICD-10</dt>
+              <dd>{icd ? <span className="rounded-full bg-ink px-2 py-0.5 text-[10px] font-semibold text-white">{icd.code}</span> : "—"}</dd>
             </dl>
           </section>
-          <section className="rounded-2xl border border-[#efe4d4] bg-[#fffdf9]">
-            <h2 className="border-b border-[#efe4d4] px-3 py-2 text-sm font-semibold">Xuất bản</h2>
+          <section className="rounded-2xl border border-line bg-white">
+            <h2 className="border-b border-line px-3 py-2 text-sm font-semibold">Xuất bản</h2>
             <ul className="flex flex-col gap-1.5 px-3 py-2.5">
               {PARTS.map(([id, label]) => (
                 <li key={id}>
@@ -123,7 +129,7 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
                     onClick={() => toggle(id)}
                     className="flex items-center gap-2 text-left text-sm"
                   >
-                    <span className={`grid h-3.5 w-3.5 place-items-center rounded-sm border text-[10px] leading-none ${parts[id] ? "border-[#3e342c] bg-[#3e342c] text-white" : "border-[#eadfce] bg-white text-transparent"}`}>
+                    <span className={`grid h-3.5 w-3.5 place-items-center rounded-sm border text-[10px] leading-none ${parts[id] ? "border-[#3e342c] bg-ink text-white" : "border-line bg-white text-transparent"}`}>
                       ✓
                     </span>
                     {label}
@@ -135,96 +141,133 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
         </aside>
 
         <div className="min-h-[28rem] overflow-auto bg-[#e7e1d6] p-6 lg:min-h-0">
-          <article
-            className="final-sheet mx-auto w-full max-w-[40rem] bg-white px-10 py-11 text-[15px] leading-7 text-[#1a1a1a] shadow-[0_10px_28px_rgba(0,0,0,0.14)]"
-            style={{ fontFamily: '"Times New Roman", Times, "Palatino Linotype", Palatino, serif' }}
-          >
-            <header className="text-center">
-              <p className="text-[12px] tracking-[0.32em] uppercase">ClinNote</p>
-              <h2 className="mt-1 text-[22px] leading-tight font-bold tracking-[0.04em]">PHIẾU KHÁM BỆNH</h2>
-              <p className="mt-1 text-[14px]">Đã duyệt · {approved}</p>
-            </header>
-            <div className="mt-3 border-t-2 border-black" />
-
-            {parts.patient && (
-              <dl className="mt-4 grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-3 gap-y-0.5">
-                <dt>Họ và tên</dt>
-                <dd className="font-bold">{encounter.patient.name}</dd>
-                <dt>Ngày sinh</dt>
-                <dd>
-                  {encounter.patient.dob || "—"}
-                  {encounter.patient.age > 0 ? ` (${encounter.patient.age} tuổi)` : ""}
-                </dd>
-                <dt>Giới tính</dt>
-                <dd>{encounter.patient.gender || "—"}</dd>
-                <dt>Mã bệnh nhân</dt>
-                <dd>{encounter.patient.code || "—"}</dd>
-                <dt>Lý do khám</dt>
-                <dd>{encounter.patient.reason || "—"}</dd>
-              </dl>
-            )}
-
-            {parts.soap && (
-              <div className="mt-4 border-t border-black pt-3">
-                {SOAP.map(([key, , name], index) => (
-                  <section key={key} className="mb-3">
-                    <h3 className="font-bold">{index + 1}. {name}</h3>
-                    <p className="text-justify whitespace-pre-wrap">{encounter.soap[key].trim() || "—"}</p>
-                  </section>
-                ))}
-              </div>
-            )}
-
-            {parts.icd && (
-              <section className="mt-1">
-                <h3 className="font-bold">Chẩn đoán (ICD-10)</h3>
-                <p>{icd ? `${icd.code} — ${icd.title}` : "Chưa chọn mã"}</p>
-              </section>
-            )}
-
-            {parts.transcript && (
-              <section className="mt-3">
-                <h3 className="font-bold">Bản ghi</h3>
-                {encounter.transcript.length === 0 ? (
-                  <p>Không có bản ghi</p>
-                ) : (
-                  <ol className="mt-1">
-                    {encounter.transcript.map((line) => (
-                      <li key={line.id}>
-                        {clock(line.timestampSec)} {line.speaker === "doctor" ? "Bác sĩ" : "Bệnh nhân"}: {line.text}
-                      </li>
-                    ))}
-                  </ol>
-                )}
-              </section>
-            )}
-
-            <div className="mt-8 flex justify-end">
-              <div className="w-56 text-center">
-                <p>{paperDate(encounter.approvedAt ?? encounter.createdAt)}</p>
-                <p className="font-bold">Bác sĩ khám bệnh</p>
-                <div className="h-12" />
-                <p className="font-bold">{doctor}</p>
-              </div>
-            </div>
-          </article>
+          <NoteSheet encounter={encounter} parts={parts} icd={icd} approved={approved} doctor={doctor} />
         </div>
       </div>
 
-      <footer className="flex flex-wrap items-center justify-end gap-2.5 border-t border-[#eadfce] px-4 py-3 sm:px-5">
-        <Link href="/" className="inline-flex h-9 items-center rounded-lg border border-[#eadfce] bg-white px-4 text-sm shadow-sm hover:bg-[#f6f0e6]">
+      <footer className="flex flex-wrap items-center justify-end gap-2.5 border-t border-line px-4 py-3 sm:px-5">
+        <Link href="/" className="inline-flex h-9 items-center rounded-lg border border-line bg-white px-4 text-sm shadow-sm hover:bg-subtle">
           ← Trang chủ
         </Link>
         <button
           type="button"
+          onClick={() => setPreview(true)}
+          className="h-9 rounded-lg border border-line bg-white px-4 text-sm hover:bg-subtle"
+        >
+          Xem trước
+        </button>
+        <button
+          type="button"
           disabled={saving}
           onClick={() => void exportPdf()}
-          className="h-9 rounded-lg bg-[#ead9c2] px-4 text-sm font-semibold hover:bg-[#e3d0b4] disabled:opacity-60"
+          className="h-9 rounded-lg bg-ink px-4 text-sm font-semibold text-white hover:bg-ink/90 disabled:opacity-60"
         >
           {saving ? "Đang tạo..." : "Xuất PDF"}
         </button>
         {pdfError && <p className="w-full text-right text-xs text-rose-700">{pdfError}</p>}
       </footer>
+      <Dialog.Root open={preview} onOpenChange={setPreview}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="fixed inset-0 z-40 bg-ink/35" />
+          <Dialog.Content className="fixed top-1/2 left-1/2 z-50 max-h-[min(90dvh,52rem)] w-[min(44rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-auto rounded-2xl bg-[#e7e1d6] p-6 shadow-[0_16px_40px_rgb(28_31_35/0.2)]">
+            <Dialog.Title className="sr-only">Xem trước phiếu khám</Dialog.Title>
+            <NoteSheet encounter={encounter} parts={parts} icd={icd} approved={approved} doctor={doctor} />
+            <div className="mt-4 flex justify-end">
+              <Dialog.Close className="h-9 rounded-lg bg-ink px-4 text-sm font-semibold text-white">Đóng</Dialog.Close>
+            </div>
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </>
+  );
+}
+
+function NoteSheet({
+  encounter,
+  parts,
+  icd,
+  approved,
+  doctor,
+}: {
+  encounter: Encounter;
+  parts: Record<Part, boolean>;
+  icd: Encounter["icdSuggestions"][number] | undefined;
+  approved: string;
+  doctor: string;
+}) {
+  return (
+    <article
+      className="final-sheet mx-auto w-full max-w-[40rem] bg-white px-10 py-11 text-[15px] leading-7 text-[#1a1a1a] shadow-[0_10px_28px_rgba(0,0,0,0.14)]"
+      style={{ fontFamily: '"Times New Roman", Times, "Palatino Linotype", Palatino, serif' }}
+    >
+      <header className="text-center">
+        <p className="text-[12px] tracking-[0.32em] uppercase">ClinNote</p>
+        <h2 className="mt-1 text-[22px] leading-tight font-bold tracking-[0.04em]">PHIẾU KHÁM BỆNH</h2>
+        <p className="mt-1 text-[14px]">Đã duyệt · {approved}</p>
+      </header>
+      <div className="mt-3 border-t-2 border-black" />
+
+      {parts.patient && (
+        <dl className="mt-4 grid grid-cols-[8.5rem_minmax(0,1fr)] gap-x-3 gap-y-0.5">
+          <dt>Họ và tên</dt>
+          <dd className="font-bold">{encounter.patient.name}</dd>
+          <dt>Ngày sinh</dt>
+          <dd>
+            {encounter.patient.dob || "—"}
+            {encounter.patient.age > 0 ? ` (${encounter.patient.age} tuổi)` : ""}
+          </dd>
+          <dt>Giới tính</dt>
+          <dd>{encounter.patient.gender || "—"}</dd>
+          <dt>Mã bệnh nhân</dt>
+          <dd>{encounter.patient.code || "—"}</dd>
+          <dt>Lý do khám</dt>
+          <dd>{encounter.patient.reason || "—"}</dd>
+        </dl>
+      )}
+
+      {parts.soap && (
+        <div className="mt-4 border-t border-black pt-3">
+          {SOAP.map(([key, , name], index) => (
+            <section key={key} className="mb-3">
+              <h3 className="font-bold">{index + 1}. {name}</h3>
+              <p className="text-justify whitespace-pre-wrap">{encounter.soap[key].trim() || "—"}</p>
+            </section>
+          ))}
+        </div>
+      )}
+
+      {parts.icd && (
+        <section className="mt-1">
+          <h3 className="font-bold">Chẩn đoán (ICD-10)</h3>
+          <p>{icd ? `${icd.code} — ${icd.title}` : "Chưa chọn mã"}</p>
+        </section>
+      )}
+
+      {parts.transcript && (
+        <section className="mt-3">
+          <h3 className="font-bold">Bản ghi</h3>
+          {encounter.transcript.length === 0 ? (
+            <p>Không có bản ghi</p>
+          ) : (
+            <ol className="mt-1">
+              {encounter.transcript.map((line) => (
+                <li key={line.id}>
+                  {clock(line.timestampSec)} {line.speaker === "doctor" ? "Bác sĩ" : "Bệnh nhân"}: {line.text}
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      )}
+
+      <div className="mt-8 flex justify-end">
+        <div className="w-56 text-center">
+          <p>{paperDate(encounter.approvedAt ?? encounter.createdAt)}</p>
+          <p className="font-bold">Bác sĩ khám bệnh</p>
+          <div className="h-12" />
+          <p className="font-bold">{doctor}</p>
+        </div>
+      </div>
+    </article>
   );
 }

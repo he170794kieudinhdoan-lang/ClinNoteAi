@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     soap_llm_model: str = ""
     soap_llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
 
+    # ICD-10 from icd.kcb.vn, proxied so the Parse key stays on the server.
+    parse_api_key: str = ""
+    parse_icd_base_url: str = "https://api.parse.bot/scraper/f43e4b76-2a78-47fd-b08d-13fc8f3dbba3"
+
 
 @lru_cache
 def get_settings() -> Settings:

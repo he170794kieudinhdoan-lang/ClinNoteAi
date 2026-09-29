@@ -3,6 +3,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 from src.services.audio.temp_storage import save_temp_audio
+from src.services.icd_kcb import IcdNotFound, IcdUnavailable, IcdUpstream, lookup_code, search_codes
 from src.services.blaze.stt_async import BlazeSTTError, blaze_stt
 from src.services.speaker.role_classifier import (
     SpeakerRoleError,
@@ -354,4 +355,30 @@ async def update_transcript_segment(
         raise HTTPException(
             status_code=500,
             detail="Failed to update transcript segment content",
-        ) from exc
+        ) from exc
+
+
+def _icd_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, IcdNotFound):
+        return HTTPException(status_code=404, detail="Không có mã ICD này.")
+    if isinstance(exc, IcdUnavailable):
+        return HTTPException(status_code=503, detail=str(exc))
+    return HTTPException(status_code=502, detail=str(exc) if isinstance(exc, IcdUpstream) else "Không tra được ICD.")
+
+
+@router.get("/icd/codes/{code}")
+async def icd_code(code: str):
+    """Chi tiết một mã ICD-10 từ icd.kcb.vn."""
+    try:
+        return await lookup_code(code)
+    except (IcdNotFound, IcdUnavailable, IcdUpstream) as exc:
+        raise _icd_error(exc) from exc
+
+
+@router.get("/icd/search")
+async def icd_search(q: str = ""):
+    """Tìm mã hoặc tên bệnh tiếng Việt. Danh mục chương được tải một lần rồi lọc tại server."""
+    try:
+        return await search_codes(q)
+    except (IcdNotFound, IcdUnavailable, IcdUpstream) as exc:
+        raise _icd_error(exc) from exc

@@ -27,6 +27,33 @@ export function getHealth() {
   return request<{ status: string; env?: string }>("/health");
 }
 
+export interface IcdDetail {
+  icd10_code: string;
+  disease_name_vi: string;
+  description_vi: string;
+  chapter: { code: string; title: string };
+  section: { code: string; title: string };
+  parent_group: { code: string; title: string };
+}
+
+const icdDetails = new Map<string, Promise<IcdDetail>>();
+
+export function lookupIcd(code: string) {
+  const key = code.trim().toUpperCase();
+  const cached = icdDetails.get(key);
+  if (cached) return cached;
+  const pending = request<IcdDetail>(`/api/v1/icd/codes/${encodeURIComponent(key)}`).catch((error) => {
+    icdDetails.delete(key);
+    throw error;
+  });
+  icdDetails.set(key, pending);
+  return pending;
+}
+
+export function searchIcdRemote(query: string) {
+  return request<{ code: string; title: string }[]>(`/api/v1/icd/search?q=${encodeURIComponent(query)}`);
+}
+
 export function getAgentStatus() {
   return request<{ status: string; agent?: string }>("/api/v1/status");
 }

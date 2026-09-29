@@ -38,9 +38,11 @@ export default function LoginPage() {
     const prevBody = document.body.style.overflow;
     root.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
+    document.body.classList.add("login-canvas");
     return () => {
       root.style.overflow = prevRoot;
       document.body.style.overflow = prevBody;
+      document.body.classList.remove("login-canvas");
     };
   }, []);
 

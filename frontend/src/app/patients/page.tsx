@@ -1,7 +1,9 @@
 "use client";
 
+import { Command } from "cmdk";
+import { Search } from "lucide-react";
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import ClinicShell from "@/components/ClinicShell";
 import { useEncounterList } from "@/hooks/useEncounter";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
@@ -28,42 +30,62 @@ function latestByPatient(encounters: Encounter[]) {
 export default function PatientsPage() {
   const authed = useRequireAuth();
   const { encounters } = useEncounterList();
+  const [query, setQuery] = useState("");
   const patients = useMemo(() => latestByPatient(encounters), [encounters]);
+  const needle = query.trim().toLowerCase();
+  const visible = needle
+    ? patients.filter((item) => item.patient.name.toLowerCase().includes(needle) || (item.patient.code ?? "").toLowerCase().includes(needle))
+    : patients;
 
-  if (!authed) return <main className="nb-classic min-h-dvh bg-[#efe6d8]" />;
+  if (!authed) return <main className="min-h-dvh bg-canvas" />;
 
   return (
-    <ClinicShell section="patients" title="Bệnh nhân" plain>
-      <section className="flex h-full min-h-0 w-full flex-col gap-4 overflow-hidden px-5 pt-1 pb-5">
+    <ClinicShell section="patients">
+      <section className="flex h-full min-h-0 w-full flex-col gap-4 overflow-auto bg-canvas px-6 py-5">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold tracking-[0.14em] text-[#9a8674]">HỒ SƠ</p>
-            <h1 className="font-serif text-2xl font-bold tracking-tight">Quản lý bệnh nhân</h1>
+            <p className="text-[11px] font-semibold tracking-[0.14em] text-faint">HỒ SƠ</p>
+            <h1 className="text-2xl font-extrabold tracking-tight">Bệnh nhân</h1>
           </div>
           <Link
             href="/patients/new"
-            className="inline-flex h-10 items-center rounded-lg bg-[#ead9c2] px-4 text-sm font-semibold transition-colors hover:bg-[#e3d0b4]"
+            className="inline-flex h-10 items-center rounded-lg bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-ink/90"
           >
             Thêm bệnh nhân
           </Link>
         </div>
 
-        <article className="min-h-0 w-full flex-1 overflow-auto rounded-2xl border border-[#efe4d4] bg-[#fffdf9] shadow-sm">
-          <ul className="divide-y divide-[#f3eadf]">
-            {patients.length === 0 && <li className="px-4 py-6 text-sm text-[#866e5a]">Chưa có bệnh nhân.</li>}
-            {patients.map((item) => (
+        <Command shouldFilter={false} className="rounded-2xl border border-line bg-white shadow-panel">
+          <div className="flex items-center gap-2 border-b border-line px-3">
+            <Search size={16} className="shrink-0 text-faint" />
+            <Command.Input
+              value={query}
+              onValueChange={setQuery}
+              placeholder="Tìm theo tên hoặc mã bệnh nhân"
+              aria-label="Tìm bệnh nhân"
+              className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-faint"
+            />
+          </div>
+        </Command>
+
+        <article className="min-h-0 w-full flex-1 overflow-auto rounded-2xl border border-line bg-white shadow-panel">
+          <ul className="divide-y divide-line-soft">
+            {visible.length === 0 && (
+              <li className="px-4 py-6 text-sm text-muted">{needle ? "Không thấy bệnh nhân khớp." : "Chưa có bệnh nhân."}</li>
+            )}
+            {visible.map((item) => (
               <li key={item.patient.code || item.id}>
-                <Link href={`/encounters/${item.id}`} className="grid gap-2 px-4 py-3 transition-colors hover:bg-[#faf6f0] sm:grid-cols-[1.4fr_0.8fr_0.6fr_auto] sm:items-center">
+                <Link href={`/encounters/${item.id}`} className="grid gap-2 px-4 py-3 transition-colors hover:bg-subtle sm:grid-cols-[1.4fr_0.8fr_0.6fr_auto] sm:items-center">
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">{item.patient.name}</span>
-                    <span className="font-mono text-xs text-[#9a8674]">{item.patient.code}</span>
+                    <span className="font-mono text-xs text-faint">{item.patient.code}</span>
                   </span>
-                  <span className="text-sm text-[#5c4e42]">{item.patient.reason || "—"}</span>
-                  <span className="text-sm text-[#5c4e42]">
+                  <span className="text-sm text-muted">{item.patient.reason || "—"}</span>
+                  <span className="text-sm text-muted">
                     {item.patient.gender || "—"}
                     {item.patient.age > 0 ? ` · ${item.patient.age} tuổi` : ""}
                   </span>
-                  <span className="w-fit rounded-full border border-[#eadfce] bg-white px-2.5 py-0.5 text-[11px] text-[#5c4e42]">
+                  <span className="w-fit rounded-full border border-line bg-white px-2.5 py-0.5 text-[11px] text-muted">
                     {STATUS_LABEL[item.status]}
                   </span>
                 </Link>

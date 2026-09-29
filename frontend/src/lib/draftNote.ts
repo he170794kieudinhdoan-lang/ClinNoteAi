@@ -20,6 +20,12 @@ function clip(parts: string[], max = 320) {
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
+export function suggestIcd(lines: TranscriptLine[]): IcdSuggestion[] {
+  const blob = lines.map((line) => line.text).join(" ");
+  const matched = ICD_RULES.filter((rule) => rule.test.test(blob)).map((rule) => rule.item);
+  return matched.length ? matched.slice(0, 3) : [{ code: "R69", title: "Nguyên nhân bệnh chưa xác định", confidence: 30 }];
+}
+
 export function draftFromTranscript(lines: TranscriptLine[]): {
   soap: SoapNote;
   icdSuggestions: IcdSuggestion[];
@@ -29,11 +35,7 @@ export function draftFromTranscript(lines: TranscriptLine[]): {
   const doctor = lines.filter((line) => line.speaker === "doctor").map((line) => line.text);
   const findings = doctor.filter((text) => /huyết áp|mạch|nhịp|nhiệt|sưng|ấn|nghiệm|khám|gập|duỗi/i.test(text));
   const plan = doctor.filter((text) => /tái khám|thuốc|x-quang|mri|tập|nẹp|kê|giới thiệu/i.test(text));
-  const blob = lines.map((line) => line.text).join(" ");
-  const icdSuggestions = ICD_RULES.filter((rule) => rule.test.test(blob)).map((rule) => rule.item);
-  const suggestions = icdSuggestions.length
-    ? icdSuggestions.slice(0, 3)
-    : [{ code: "R69", title: "Nguyên nhân bệnh chưa xác định", confidence: 30 }];
+  const suggestions = suggestIcd(lines);
 
   return {
     soap: {
