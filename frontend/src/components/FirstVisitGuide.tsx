@@ -6,17 +6,17 @@ const STEPS = [
   {
     key: "upload",
     title: "Tải file âm thanh",
-    body: "Kéo thả hoặc chọn file ghi âm buổi khám. Đây là bước đầu, trước khi có transcript và ghi chú.",
+    body: "Kéo thả hoặc chọn file ghi âm buổi khám. Đây là bước đầu, trước khi có hội thoại và ghi chú.",
   },
   {
     key: "transcript",
-    title: "Transcript",
-    body: "Bấm Xuất transcript. Hội thoại bác sĩ và bệnh nhân sẽ hiện ở cột này.",
+    title: "Hội thoại",
+    body: "Bấm Xuất hội thoại. Lời bác sĩ và bệnh nhân sẽ hiện ở cột này.",
   },
   {
     key: "generate",
     title: "Tạo SOAP",
-    body: "Khi transcript đã có, bấm Generate SOAP để soạn ghi chú.",
+    body: "Khi đã có hội thoại, bấm Tạo SOAP để soạn ghi chú.",
   },
 ] as const;
 

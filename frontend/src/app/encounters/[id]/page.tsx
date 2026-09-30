@@ -268,7 +268,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           soapRunOutdated: Boolean(current.soapRunId),
         };
       });
-      if (lines.length > 0) toast.success("Bản transcript thô đã xuất hiện ở phần Transcript");
+      if (lines.length > 0) toast.success("Bản hội thoại thô đã hiện ở cột Hội thoại");
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Xử lý âm thanh thất bại.");
     } finally {
@@ -298,21 +298,21 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       try {
         parsed = JSON.parse(content);
       } catch {
-        throw new Error("File transcript không phải JSON hợp lệ.");
+        throw new Error("File hội thoại không phải JSON hợp lệ.");
       }
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("JSON transcript phải là một object.");
+        throw new Error("JSON hội thoại phải là một object.");
       }
       const source = parsed as Record<string, unknown>;
       let inputFormat: SoapInputFormat;
       if (Array.isArray(source.segments) && source.speaker_roles && typeof source.speaker_roles === "object") {
         inputFormat = "qwen_role_result";
-        if (source.segments.length === 0) throw new Error("JSON Qwen không có đoạn hội thoại.");
+        if (source.segments.length === 0) throw new Error("File JSON không có đoạn hội thoại.");
       } else if (Array.isArray(source.turns)) {
         inputFormat = "canonical";
-        if (source.turns.length === 0) throw new Error("JSON transcript không có lượt nói.");
+        if (source.turns.length === 0) throw new Error("File JSON không có lượt nói.");
       } else {
-        throw new Error("JSON cần có segments và speaker_roles như mẫu Qwen, hoặc turns của transcript chuẩn.");
+        throw new Error("JSON cần có các đoạn đã phân vai, hoặc danh sách lượt nói.");
       }
       const extracted = await extractCaps({ input_format: inputFormat, content });
       runId = extracted.run_id;
@@ -325,8 +325,8 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       }
       await generateSoap(runId, 0);
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Không xử lý được transcript JSON.";
-      setUploadError(runId ? `CAP đã lưu ở run ${runId}, nhưng chưa tạo được SOAP: ${message}` : message);
+      const message = cause instanceof Error ? cause.message : "Không xử lý được file JSON hội thoại.";
+      setUploadError(runId ? `Nguồn đã lưu, nhưng chưa tạo được SOAP: ${message}` : message);
     } finally {
       setJsonBusy(false);
     }
@@ -336,7 +336,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     const consultationId = draftRef.current?.consultationId;
     if (!consultationId || soapBusy || isUploading || jsonBusy) return;
     if (!isUUID(consultationId)) {
-      setSoapError("Mã lượt khám không hợp lệ; không thể đọc transcript đã lưu.");
+      setSoapError("Mã lượt khám không hợp lệ; không thể đọc hội thoại đã lưu.");
       return;
     }
     setSoapBusy(true);
@@ -356,10 +356,10 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
         saveEncounter(next);
       }
       await generateSoap(runId, 0);
-      toast.success("Đã tạo CAP và SOAP");
+      toast.success("Đã tạo ghi chú SOAP");
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "Không tạo được CAP và SOAP.";
-      const detail = runId ? `CAP đã được lưu trong run ${runId}, nhưng chưa tạo được SOAP: ${message}` : message;
+      const message = cause instanceof Error ? cause.message : "Không tạo được ghi chú SOAP.";
+      const detail = runId ? `Nguồn đã lưu, nhưng chưa tạo được SOAP: ${message}` : message;
       setSoapError(detail);
       toast.error(detail);
     } finally {
@@ -505,7 +505,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       <div className="flex h-full min-h-0 flex-col overflow-hidden bg-canvas text-ink">
         <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-line bg-white px-5">
           <div className="min-w-0">
-            <h2 className="truncate text-[15px] font-extrabold tracking-tight">Clinical Note Session</h2>
+            <h2 className="truncate text-[15px] font-extrabold tracking-tight">Phiên khám</h2>
             <p className="mt-0.5 flex flex-wrap items-center gap-2 truncate text-[11.5px] text-muted">
               <span>{draft.patient.name}</span>
               <span>·</span>
@@ -516,7 +516,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <Link href="/patients/new" className="inline-flex h-8 items-center rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle">
-              New Session
+              Thêm bệnh nhân
             </Link>
             {!activeRunId && (
               <button
@@ -527,7 +527,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                   canApprove ? "bg-ink text-white hover:bg-ink/90" : "bg-line text-faint"
                 }`}
               >
-                {locked ? "Đã duyệt" : "Save Clinical Note"}
+                {locked ? "Đã duyệt" : "Lưu ghi chú"}
               </button>
             )}
           </div>
@@ -570,10 +570,10 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                 <div className="flex min-w-0 items-center gap-2">
                   {!transcriptOpen && (
                     <button type="button" onClick={() => transcriptPanel.current?.expand()} className={toolBtn}>
-                      <PanelLeft size={14} /> Transcript
+                      <PanelLeft size={14} /> Hội thoại
                     </button>
                   )}
-                  <h3 className="truncate text-[15px] font-extrabold">Clinical SOAP Note</h3>
+                  <h3 className="truncate text-[15px] font-extrabold">Ghi chú SOAP</h3>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <button type="button" onClick={() => setCleanOpen(true)} disabled={!soapGenerated} className={toolBtn}>
@@ -581,7 +581,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                   </button>
                   {draft.soapTestRunId && (
                     <button type="button" disabled={soapBusy || jsonBusy} onClick={() => { setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current); setShowLegacyFinal(false); }} className={toolBtn}>
-                      Run JSON
+                      Bản JSON
                     </button>
                   )}
                   {locked && activeRunId && (
@@ -590,16 +590,16 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                     </button>
                   )}
                   <button type="button" data-guide="generate" onClick={onGenerateClick} disabled={soapBusy || jsonBusy || regenBusy || isUploading || draft.transcript.length === 0 || (!soapGenerated && !draft.consultationId)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink bg-ink px-3 text-[12.5px] font-semibold text-white disabled:opacity-45">
-                    <RefreshCw size={14} /> {soapBusy || jsonBusy || regenBusy ? "Đang tạo…" : soapGenerated ? "Regenerate" : "Generate SOAP"}
+                    <RefreshCw size={14} /> {soapBusy || jsonBusy || regenBusy ? "Đang tạo…" : soapGenerated ? "Tạo lại" : "Tạo SOAP"}
                   </button>
                   <button type="button" onClick={() => void copyNote()} disabled={!soapGenerated} className={toolBtn}>
-                    <Copy size={14} /> Copy
+                    <Copy size={14} /> Sao chép
                   </button>
                   <button type="button" onClick={() => void printPdf()} disabled={printing || !soapGenerated} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-none border border-ink bg-ink px-3 text-[12.5px] font-semibold text-white disabled:opacity-60">
-                    <Printer size={14} /> {printing ? "Đang tạo…" : "Print PDF"}
+                    <Printer size={14} /> {printing ? "Đang tạo…" : "In PDF"}
                   </button>
                   {!filesOpen && (
-                    <button type="button" aria-label="Mở files" onClick={() => filesPanel.current?.expand()} className={toolBtn}>
+                    <button type="button" aria-label="Mở tài liệu" onClick={() => filesPanel.current?.expand()} className={toolBtn}>
                       <PanelRight size={14} />
                     </button>
                   )}
@@ -610,7 +610,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                 <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
                   <PatientCard patient={draft.patient} locked={locked} />
                   {activeRunId ? (soapBusy || jsonBusy ? (
-                    <div role="status" className="flex min-h-48 items-center justify-center rounded-2xl border border-line bg-white p-6 text-sm shadow-panel">Đang tạo CAP và SOAP…</div>
+                    <div role="status" className="flex min-h-48 items-center justify-center rounded-2xl border border-line bg-white p-6 text-sm shadow-panel">Đang tạo ghi chú SOAP…</div>
                   ) : (
                     <SoapWorkspace key={activeRunId} embedded embeddedRunId={activeRunId} runSource={draft.soapActiveSource} onBindRegen={bindRegen} onPlainSoap={rememberSoap} />
                   )) : (
@@ -666,8 +666,8 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
             >
             <aside className="flex h-full min-h-0 flex-col bg-white">
               <div className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-subtle px-3.5">
-                <span className="text-[13.5px] font-bold">Session Attachments</span>
-                <button type="button" aria-label="Đóng files" onClick={() => filesPanel.current?.collapse()} className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-white">
+                <span className="text-[13.5px] font-bold">Tài liệu kèm</span>
+                <button type="button" aria-label="Đóng tài liệu" onClick={() => filesPanel.current?.collapse()} className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-white">
                   <PanelRight size={15} />
                 </button>
               </div>
@@ -692,7 +692,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                   showTranscript={false}
                 />
               ) : (
-                <p className="m-3 rounded-xl border border-line bg-subtle p-3 text-xs text-muted">Phiếu đã duyệt. SOAP có CAP nằm ở cột giữa.</p>
+                <p className="m-3 rounded-xl border border-line bg-subtle p-3 text-xs text-muted">Phiếu đã duyệt. Ghi chú có nguồn nằm ở cột giữa.</p>
               )}
             </aside>
             </Panel>
@@ -816,7 +816,7 @@ const PatientCard = memo(function PatientCard({ patient, locked }: { patient: En
         </span>
       </div>
       <span className="shrink-0 rounded-full bg-subtle px-2.5 py-1 text-[11px] font-semibold text-muted">
-        {locked ? "Đã duyệt" : "Clinical note"}
+        {locked ? "Đã duyệt" : "Bản nháp"}
       </span>
     </article>
   );

@@ -8,12 +8,12 @@ import { cn } from "@/lib/cn";
 import { getSupabase } from "@/lib/supabase";
 
 const NAV = [
-  { href: "/", label: "Clinical Notes", id: "home" },
-  { label: "Sessions", id: "sessions", count: "12" },
-  { href: "/patients", label: "Patients", id: "patients", count: "128" },
-  { label: "Templates", id: "templates" },
-  { label: "Knowledge Base", id: "knowledge" },
-  { label: "Settings", id: "settings" },
+  { href: "/", label: "Ghi chú", id: "home" },
+  { label: "Phiên khám", id: "sessions", count: "12" },
+  { href: "/patients", label: "Bệnh nhân", id: "patients", count: "128" },
+  { label: "Mẫu", id: "templates" },
+  { label: "Tài liệu", id: "knowledge" },
+  { label: "Cài đặt", id: "settings" },
 ] as const;
 
 export default function ClinicShell({
@@ -71,7 +71,7 @@ export default function ClinicShell({
           </div>
 
           {!collapsed && (
-            <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.16em] text-[#8aa394] uppercase">Main workspace</p>
+            <p className="px-3 pb-2 text-[11px] font-semibold tracking-[0.16em] text-[#8aa394] uppercase">Làm việc</p>
           )}
           <nav className="flex flex-col gap-1">
             {NAV.map((item) => {

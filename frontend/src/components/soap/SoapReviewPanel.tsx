@@ -152,7 +152,7 @@ export default function SoapReviewPanel({
                 </span>
                 {!readOnly && (
                   <button type="button" onClick={() => addManualItem(key)} className="ml-auto shrink-0 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-ink ring-1 ring-line hover:bg-canvas">
-                    + Add line
+                    + Thêm câu
                   </button>
                 )}
               </header>
@@ -212,7 +212,7 @@ export default function SoapReviewPanel({
                             support_status: "unsupported",
                           });
                         }}
-                        placeholder="Nguồn ngoài transcript"
+                        placeholder="Nguồn ngoài hội thoại"
                         className="mt-1 h-8 w-full rounded-lg border border-line bg-white px-2 text-xs outline-none focus:border-ink"
                       />
                     </label>

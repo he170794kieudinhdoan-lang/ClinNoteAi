@@ -10,10 +10,10 @@ import IcdSuggestBar from "@/components/IcdSuggestBar";
 import type { IcdSuggestion, SoapNote } from "@/types";
 
 const FIELDS = [
-  ["subjective", "S", "Subjective (Bệnh sử & Triệu chứng cơ năng)"],
-  ["objective", "O", "Objective (Thám khám thực thể & Dấu hiệu sinh tồn)"],
-  ["assessment", "A", "Assessment (Đánh giá & Chẩn đoán sơ bộ)"],
-  ["plan", "P", "Plan (Kế hoạch điều trị & Đề xuất)"],
+  ["subjective", "S", "Bệnh sử & triệu chứng cơ năng"],
+  ["objective", "O", "Thám khám thực thể & dấu hiệu sinh tồn"],
+  ["assessment", "A", "Đánh giá & chẩn đoán sơ bộ"],
+  ["plan", "P", "Kế hoạch điều trị & đề xuất"],
 ] as const;
 
 export default function SoapEditor({

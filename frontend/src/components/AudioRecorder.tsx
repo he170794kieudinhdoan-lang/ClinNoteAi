@@ -77,7 +77,7 @@ function AudioRecorder({
     if (!file || isUploading || isProcessingTranscript) return;
     if (tab === "test") {
       if (!JSON_EXT.test(file.name) && file.type !== "application/json") {
-        setError("Chọn file transcript JSON của Qwen hoặc JSON canonical.");
+        setError("Chọn file JSON hội thoại đã phân vai.");
         return;
       }
       setError("");
@@ -86,7 +86,7 @@ function AudioRecorder({
     }
     if (tab !== "upload" || locked) return;
     if (!isAudio(file)) {
-      setError("Chọn file âm thanh. Để thử JSON, mở tab Test import.");
+      setError("Chọn file âm thanh. Để thử JSON, mở tab Nhập JSON.");
       return;
     }
     setError("");
@@ -133,7 +133,7 @@ function AudioRecorder({
   return (
     <section className="flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
       <header className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2">
-        <h2 className="text-[11px] font-bold tracking-[0.08em] text-faint uppercase">Voice</h2>
+        <h2 className="text-[11px] font-bold tracking-[0.08em] text-faint uppercase">Âm thanh</h2>
         <div role="group" aria-label="Nguồn hội thoại" className="flex h-8 overflow-hidden rounded-lg border border-line text-[11px]">
           <button
             type="button"
@@ -160,7 +160,7 @@ function AudioRecorder({
             onClick={() => switchTab("test")}
             className={`border-l border-line px-2.5 disabled:opacity-50 ${tab === "test" ? "bg-subtle font-semibold text-ink" : "bg-white text-muted"}`}
           >
-            Test import
+            Nhập JSON
           </button>
         </div>
       </header>
@@ -177,7 +177,7 @@ function AudioRecorder({
             role="status"
             className="absolute top-1/2 left-1/2 w-[min(16rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-md border border-line bg-white px-4 py-4 text-center"
           >
-            <p className="text-sm font-bold">{isProcessingTranscript ? "Đang tạo CAP và SOAP từ transcript JSON..." : "Đang xử lý âm thanh..."}</p>
+            <p className="text-sm font-bold">{isProcessingTranscript ? "Đang tạo ghi chú từ file JSON..." : "Đang xử lý âm thanh..."}</p>
             <div className="mt-3 h-1 overflow-hidden rounded-full bg-line" aria-hidden>
               <span className="wf-cover-sweep block h-full w-1/3 rounded-full bg-ink" />
             </div>
@@ -196,7 +196,7 @@ function AudioRecorder({
             </span>
             <span className="min-w-0">
               <span className="block truncate text-sm font-semibold">{pending.name}</span>
-              <span className="text-[11px] text-muted">Đã chọn, chưa xuất transcript</span>
+              <span className="text-[11px] text-muted">Đã chọn, chưa xuất hội thoại</span>
             </span>
             <button type="button" onClick={() => setPending(null)} aria-label="Bỏ file đã chọn" className="px-1 text-sm text-muted hover:text-ink">
               ✕
@@ -208,7 +208,7 @@ function AudioRecorder({
             disabled={locked}
             className="h-9 rounded-md bg-ink text-sm font-semibold text-white disabled:opacity-45"
           >
-            Xuất transcript
+            Xuất hội thoại
           </button>
           {(uploadError || error) && <p role="alert" className="text-sm text-rose-700">{uploadError || error}</p>}
         </div>
@@ -227,12 +227,12 @@ function AudioRecorder({
               onChange={(event) => { pick(event.target.files?.[0]); event.target.value = ""; }}
             />
             <span className="grid h-14 w-14 place-items-center rounded-2xl border border-line bg-subtle text-xl" aria-hidden>JSON</span>
-            <span className="text-sm font-bold">Kéo thả transcript JSON</span>
-            <span className="text-xs text-muted">Nhận JSON Qwen đã phân vai hoặc transcript canonical.</span>
+            <span className="text-sm font-bold">Kéo thả file JSON hội thoại</span>
+            <span className="text-xs text-muted">Nhận file JSON đã phân vai bác sĩ và bệnh nhân.</span>
             <span className="inline-flex h-9 items-center rounded-full bg-ink px-4 text-sm font-semibold text-white">Chọn file JSON</span>
           </label>
           {(uploadError || error) && <p role="alert" className="pt-2 text-sm text-rose-700">{uploadError || error}</p>}
-          {transcriptRunId && <button type="button" onClick={onOpenTranscriptRun} className="w-fit pt-2 text-xs font-semibold underline">Mở run JSON đã lưu</button>}
+          {transcriptRunId && <button type="button" onClick={onOpenTranscriptRun} className="w-fit pt-2 text-xs font-semibold underline">Mở bản JSON đã lưu</button>}
         </div>
       ) : uploaded ? (
         <div className="flex min-h-0 flex-1 flex-col gap-3 p-3.5">

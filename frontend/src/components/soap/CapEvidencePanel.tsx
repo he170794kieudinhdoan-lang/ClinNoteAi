@@ -105,7 +105,7 @@ export default function CapEvidencePanel({
       <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-line bg-white">
         <header className="flex items-center justify-between gap-3 border-b border-[#f0e7dc] px-4 py-3">
           <div>
-            <h2 className="text-sm font-bold">CAP và nguồn</h2>
+            <h2 className="text-sm font-bold">Nguồn trích dẫn</h2>
             <p className="mt-0.5 text-xs text-muted">{caps.length} thông tin; click một thẻ để đối chiếu lời thoại.</p>
           </div>
           <span className="rounded-full bg-subtle px-2.5 py-1 text-[10px] text-muted">Nguồn văn bản</span>
@@ -170,7 +170,7 @@ export default function CapEvidencePanel({
 
       <div className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-line bg-white">
         <header className="border-b border-[#f0e7dc] px-4 py-3">
-          <h2 className="text-sm font-bold">Transcript đã lưu</h2>
+          <h2 className="text-sm font-bold">Hội thoại đã lưu</h2>
           <p className="mt-0.5 text-xs text-muted">Đoạn có trích dẫn khớp được tô sáng; mốc giờ bao trùm toàn segment.</p>
         </header>
         <ol className="min-h-0 flex-1 space-y-2 overflow-auto p-3">

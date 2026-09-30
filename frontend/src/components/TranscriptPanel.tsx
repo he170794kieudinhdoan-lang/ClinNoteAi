@@ -127,7 +127,7 @@ export default function TranscriptPanel({
     return (
       <div data-guide="transcript" className="flex h-full min-h-0 flex-col bg-white">
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-subtle px-3.5">
-          <span className="text-[13.5px] font-bold">Transcript</span>
+          <span className="text-[13.5px] font-bold">Hội thoại</span>
           <div className="flex items-center gap-1">
             {!locked && onRegen && !editing && (
               <button type="button" onClick={onRegen} disabled={lines.length === 0} className="hidden h-7 rounded-md px-2 text-[11px] font-semibold text-muted hover:bg-white disabled:opacity-40">
@@ -153,7 +153,7 @@ export default function TranscriptPanel({
               </>
             )}
             {onCollapse && (
-              <button type="button" aria-label="Thu gọn transcript" onClick={onCollapse} className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-white">
+              <button type="button" aria-label="Thu gọn hội thoại" onClick={onCollapse} className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-white">
                 <PanelLeftClose size={15} />
               </button>
             )}
@@ -211,7 +211,7 @@ export default function TranscriptPanel({
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-line bg-white">
         <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
           <span className="text-xs font-semibold text-ink">Bản ghi</span>
-          <span className="text-[10px] tracking-wide text-faint">STT</span>
+          <span className="text-[10px] tracking-wide text-faint">Âm thanh</span>
         </div>
         <ul className="min-h-0 flex-1 divide-y divide-line-soft overflow-x-hidden overflow-y-auto px-3">
           {lines.map((line) => (

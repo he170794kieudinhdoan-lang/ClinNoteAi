@@ -17,10 +17,10 @@ const PARTS = [
 type Part = (typeof PARTS)[number][0];
 
 const SOAP = [
-  ["subjective", "S", "Subjective (Bệnh sử & Triệu chứng cơ năng)"],
-  ["objective", "O", "Objective (Thám khám thực thể & Dấu hiệu sinh tồn)"],
-  ["assessment", "A", "Assessment (Đánh giá & Chẩn đoán sơ bộ)"],
-  ["plan", "P", "Plan (Kế hoạch điều trị & Đề xuất)"],
+  ["subjective", "S", "Bệnh sử & triệu chứng cơ năng"],
+  ["objective", "O", "Thám khám thực thể & dấu hiệu sinh tồn"],
+  ["assessment", "A", "Đánh giá & chẩn đoán sơ bộ"],
+  ["plan", "P", "Kế hoạch điều trị & đề xuất"],
 ] as const;
 
 function clock(total: number) {
