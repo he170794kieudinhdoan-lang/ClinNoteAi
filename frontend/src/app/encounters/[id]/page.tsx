@@ -7,11 +7,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, PanelLeft, PanelRight, Printer, RefreshCw } from "lucide-react";
+import { Copy, Eye, PanelLeft, PanelRight, Printer, RefreshCw } from "lucide-react";
 import { memo, use, useCallback, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { toast } from "sonner";
 import AudioRecorder from "@/components/AudioRecorder";
+import FirstVisitGuide, { FIRST_VISIT_GUIDE_HIDE, firstVisitGuideKey } from "@/components/FirstVisitGuide";
 import ClinicShell from "@/components/ClinicShell";
 import FinalNote from "@/components/FinalNote";
 import IcdSuggestBar from "@/components/IcdSuggestBar";
@@ -23,28 +24,21 @@ import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { draftFromTranscript, suggestIcd } from "@/lib/draftNote";
 import {
   createConsultation,
+  dedupeTranscriptLines,
   getConsultationTranscript,
   mapSegmentToTranscriptLine,
   uploadConsultationAudio,
 } from "@/lib/api";
 import { getSupabase } from "@/lib/supabase";
-import { downloadNotePdf } from "@/lib/notePdf";
 import { extractCaps, generateSoap } from "@/lib/soapApi";
 import { soapTranscriptFromConsultation } from "@/lib/soapTranscript";
 import type { Encounter, Patient, SoapNote } from "@/types";
-import type { SoapInputFormat } from "@/types/soap";
+import { SOAP_SECTIONS, type SoapInputFormat } from "@/types/soap";
 
 const EMPTY_SOAP = { subjective: "", objective: "", assessment: "", plan: "" };
 
 function isUUID(str: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-}
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (!parts.length) return "?";
-  const last = parts.length > 1 ? parts[parts.length - 1].charAt(0) : "";
-  return (parts[0].charAt(0) + last).toLocaleUpperCase("vi-VN");
 }
 
 function dobLine(patient: Patient) {
@@ -85,14 +79,20 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const [filesOpen, setFilesOpen] = useState(true);
   const transcriptPanel = useRef<ImperativePanelHandle>(null);
   const filesPanel = useRef<ImperativePanelHandle>(null);
-  const groundedRegen = useRef<(() => void) | null>(null);
+  const groundedRegen = useRef<(() => Promise<boolean>) | null>(null);
   const groundedSoap = useRef<SoapNote | null>(null);
+  const [previewSoap, setPreviewSoap] = useState<SoapNote | null>(null);
   const [printing, setPrinting] = useState(false);
-  const bindRegen = useCallback((regenerate: (() => void) | null) => {
+  const [regenBusy, setRegenBusy] = useState(false);
+  const [transcriptBusy, setTranscriptBusy] = useState(false);
+  const [cleanOpen, setCleanOpen] = useState(false);
+  const [guideOn, setGuideOn] = useState(false);
+  const bindRegen = useCallback((regenerate: (() => Promise<boolean>) | null) => {
     groundedRegen.current = regenerate;
   }, []);
   const rememberSoap = useCallback((soap: SoapNote) => {
     groundedSoap.current = soap;
+    setPreviewSoap(soap);
   }, []);
   const audioUrlRef = useRef<string | null>(null);
   const seen = useRef<string | null>(null);
@@ -103,6 +103,17 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+
+  useEffect(() => {
+    if (localStorage.getItem(FIRST_VISIT_GUIDE_HIDE) === "1") return;
+    if (sessionStorage.getItem(firstVisitGuideKey(id)) === "1") setGuideOn(true);
+  }, [id]);
+
+  useEffect(() => {
+    if (!guideOn) return;
+    transcriptPanel.current?.expand();
+    filesPanel.current?.expand();
+  }, [guideOn, draft]);
 
   useEffect(() => {
     if (!encounter || encounter.id !== id || loadedId.current === id) return;
@@ -124,7 +135,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     getConsultationTranscript(consultationId)
       .then((res) => {
         if (!active || !res.segments || res.segments.length === 0) return;
-        const lines = res.segments.map(mapSegmentToTranscriptLine);
+        const lines = dedupeTranscriptLines(res.segments.map(mapSegmentToTranscriptLine));
         setDraft((current) => {
           if (!current) return current;
           return {
@@ -233,11 +244,11 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       const uploadRes = await uploadConsultationAudio(targetConsultationId, file);
 
       // 2. Lấy transcript mới nhất từ GET /api/v1/consultations/{consultation_id}/transcript
-      let lines = uploadRes.transcript.map(mapSegmentToTranscriptLine);
+      let lines = dedupeTranscriptLines(uploadRes.transcript.map(mapSegmentToTranscriptLine));
       try {
         const transcriptRes = await getConsultationTranscript(targetConsultationId);
         if (transcriptRes.segments && transcriptRes.segments.length > 0) {
-          lines = transcriptRes.segments.map(mapSegmentToTranscriptLine);
+          lines = dedupeTranscriptLines(transcriptRes.segments.map(mapSegmentToTranscriptLine));
         }
       } catch (err: unknown) {
         console.warn("Không lấy được transcript qua GET API, dùng kết quả từ upload response:", err);
@@ -245,21 +256,19 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
 
       setDraft((current) => {
         if (!current) return current;
-        const nextSoap = current.transcript.length === 0 ? draftFromTranscript(lines) : current;
+        const hasNote = Boolean(current.soapRunId || current.soapTestRunId) || (["subjective", "objective", "assessment", "plan"] as const).some((key) => current.soap[key].trim());
         return {
           ...current,
-          status: "soap",
+          status: hasNote ? (current.status === "empty" ? "soap" : current.status) : "uploaded",
           audioFileName: file.name,
           consultationId: targetConsultationId,
           transcript: lines,
-          soap: nextSoap.soap || current.soap,
-          icdSuggestions: nextSoap.icdSuggestions || current.icdSuggestions,
-          selectedIcd: current.selectedIcd || nextSoap.selectedIcd,
-          missingFields: [],
+          missingFields: current.missingFields.filter((field) => field !== "Audio / transcript"),
           soapActiveSource: "consultation",
           soapRunOutdated: Boolean(current.soapRunId),
         };
       });
+      if (lines.length > 0) toast.success("Bản transcript thô đã xuất hiện ở phần Transcript");
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Xử lý âm thanh thất bại.");
     } finally {
@@ -366,6 +375,17 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     });
   }, []);
 
+  const regenTranscript = useCallback(async () => {
+    setTranscriptBusy(true);
+    try {
+      regen();
+      // ponytail: bản nháp dựng ngay trên máy; giữ overlay để thanh tiến trình kịp hiện.
+      await new Promise((resolve) => window.setTimeout(resolve, 700));
+    } finally {
+      setTranscriptBusy(false);
+    }
+  }, [regen]);
+
   if (!authed) return <main className="min-h-dvh bg-canvas" />;
 
   if (!ready || (encounter && !draft)) {
@@ -394,6 +414,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const icdSuggestions = draft.icdSuggestions.length ? draft.icdSuggestions : suggestIcd(draft.transcript);
   const encounterId = draft.id;
   const canApprove = !locked && (["subjective", "objective", "assessment", "plan"] as const).every((key) => draft.soap[key].trim());
+  const soapGenerated = Boolean(activeRunId) || (["subjective", "objective", "assessment", "plan"] as const).some((key) => draft.soap[key].trim());
 
   function leave(next: Encounter | null) {
     leaveRef.current = true;
@@ -411,7 +432,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
 
   const note = draft;
   function noteSoap() {
-    return activeRunId && groundedSoap.current ? groundedSoap.current : note.soap;
+    return activeRunId && (previewSoap ?? groundedSoap.current) ? (previewSoap ?? groundedSoap.current)! : note.soap;
   }
 
   async function copyNote() {
@@ -435,6 +456,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       const fullName = session?.user.user_metadata?.full_name;
       const doctor = typeof fullName === "string" && fullName.trim() ? fullName.trim() : "Bác sĩ";
       const approved = new Date().toLocaleString("vi-VN");
+      const { downloadNotePdf } = await import("@/lib/notePdf");
       await downloadNotePdf(
         { ...note, soap: noteSoap() },
         doctor,
@@ -449,9 +471,33 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  function regenerateNote() {
-    if (activeRunId) groundedRegen.current?.();
-    else regen();
+  async function regenerateNote() {
+    if (activeRunId && groundedRegen.current) {
+      setRegenBusy(true);
+      try {
+        const ok = await groundedRegen.current();
+        if (ok) toast.success("Đã tạo lại SOAP");
+        else toast.error("Không tạo lại được SOAP");
+      } finally {
+        setRegenBusy(false);
+      }
+      return;
+    }
+    regen();
+    toast.success("Đã tạo lại SOAP");
+  }
+
+  function onGenerateClick() {
+    if (!draft || draft.transcript.length === 0 || soapBusy || jsonBusy || isUploading || regenBusy) return;
+    if (activeRunId) {
+      void regenerateNote();
+      return;
+    }
+    if (!soapGenerated && draft.consultationId) {
+      void createGroundedSoap();
+      return;
+    }
+    regen();
   }
 
   return (
@@ -487,24 +533,6 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           </div>
         </header>
 
-        {(draft.transcript.length > 0 || activeRunId) && (
-          <section className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-line bg-white px-5 py-2 text-xs" aria-label="Tạo CAP và SOAP có dẫn nguồn">
-            <p className="text-muted">
-              {activeRunId ? "Đang xem SOAP có dẫn nguồn." : "Transcript đã sẵn sàng để tạo CAP và SOAP có dẫn nguồn."}
-              {draft.soapRunOutdated && draft.soapActiveSource !== "test" ? " Transcript đã đổi sau run trước." : ""}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {draft.soapRunId && <button type="button" disabled={soapBusy || jsonBusy} onClick={() => { setDraft((current) => current ? { ...current, soapActiveSource: "consultation" } : current); setShowLegacyFinal(false); }} className="h-8 rounded-lg border border-line bg-white px-3 font-semibold disabled:opacity-45">SOAP từ audio</button>}
-              {draft.soapTestRunId && <button type="button" disabled={soapBusy || jsonBusy} onClick={() => { setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current); setShowLegacyFinal(false); }} className="h-8 rounded-lg border border-line bg-white px-3 font-semibold disabled:opacity-45">Run JSON</button>}
-              {locked && activeRunId && <button type="button" onClick={() => setShowLegacyFinal((current) => !current)} className="h-8 rounded-lg border border-line bg-white px-3 font-semibold">{showLegacyFinal ? "SOAP có CAP" : "Phiếu cũ"}</button>}
-              <button type="button" onClick={() => void createGroundedSoap()} disabled={soapBusy || jsonBusy || isUploading || !draft.consultationId || draft.transcript.length === 0} className="h-8 rounded-lg bg-ink px-3 font-semibold text-white disabled:opacity-45">
-                {soapBusy ? "Đang tạo…" : "Generate SOAP"}
-              </button>
-            </div>
-            {soapError && <p role="alert" className="basis-full text-danger">{soapError}</p>}
-          </section>
-        )}
-
         {locked && (!activeRunId || showLegacyFinal) ? (
           <div className="min-h-0 flex-1 overflow-auto bg-canvas p-4">
             <FinalNote encounter={draft}>
@@ -530,7 +558,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                 lines={draft.transcript}
                 locked={locked}
                 onChange={onLines}
-                onRegen={regen}
+                onRegen={() => void regenTranscript()}
                 onCollapse={() => transcriptPanel.current?.collapse()}
               />
             </Panel>
@@ -548,22 +576,36 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                   <h3 className="truncate text-[15px] font-extrabold">Clinical SOAP Note</h3>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
-                  {!filesOpen && (
-                    <button type="button" onClick={() => filesPanel.current?.expand()} className={toolBtn}>
-                      <PanelRight size={14} /> Files
+                  <button type="button" onClick={() => setCleanOpen(true)} disabled={!soapGenerated} className={toolBtn}>
+                    <Eye size={14} /> Bản xem trước
+                  </button>
+                  {draft.soapTestRunId && (
+                    <button type="button" disabled={soapBusy || jsonBusy} onClick={() => { setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current); setShowLegacyFinal(false); }} className={toolBtn}>
+                      Run JSON
                     </button>
                   )}
-                  <button type="button" onClick={regenerateNote} disabled={soapBusy || jsonBusy} className={toolBtn}>
-                    <RefreshCw size={14} /> Regenerate
+                  {locked && activeRunId && (
+                    <button type="button" onClick={() => setShowLegacyFinal((current) => !current)} className={toolBtn}>
+                      {showLegacyFinal ? "SOAP có CAP" : "Phiếu cũ"}
+                    </button>
+                  )}
+                  <button type="button" data-guide="generate" onClick={onGenerateClick} disabled={soapBusy || jsonBusy || regenBusy || isUploading || draft.transcript.length === 0 || (!soapGenerated && !draft.consultationId)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink bg-ink px-3 text-[12.5px] font-semibold text-white disabled:opacity-45">
+                    <RefreshCw size={14} /> {soapBusy || jsonBusy || regenBusy ? "Đang tạo…" : soapGenerated ? "Regenerate" : "Generate SOAP"}
                   </button>
-                  <button type="button" onClick={() => void copyNote()} className={toolBtn}>
+                  <button type="button" onClick={() => void copyNote()} disabled={!soapGenerated} className={toolBtn}>
                     <Copy size={14} /> Copy
                   </button>
-                  <button type="button" onClick={() => void printPdf()} disabled={printing} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-[#16845B] bg-[#16845B] px-3 text-[12.5px] font-semibold text-white shadow-[0_2px_6px_rgba(22,132,91,0.18)] transition-colors hover:bg-[#12724f] disabled:opacity-60">
+                  <button type="button" onClick={() => void printPdf()} disabled={printing || !soapGenerated} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-none border border-ink bg-ink px-3 text-[12.5px] font-semibold text-white disabled:opacity-60">
                     <Printer size={14} /> {printing ? "Đang tạo…" : "Print PDF"}
                   </button>
+                  {!filesOpen && (
+                    <button type="button" aria-label="Mở files" onClick={() => filesPanel.current?.expand()} className={toolBtn}>
+                      <PanelRight size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
+              {soapError && <p role="alert" className="shrink-0 border-b border-line bg-white px-4 py-2 text-xs text-danger">{soapError}</p>}
               <div id="encounter-soap-workspace" className="min-h-0 flex-1 overflow-auto p-4">
                 <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
                   <PatientCard patient={draft.patient} locked={locked} />
@@ -573,17 +615,16 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                     <SoapWorkspace key={activeRunId} embedded embeddedRunId={activeRunId} runSource={draft.soapActiveSource} onBindRegen={bindRegen} onPlainSoap={rememberSoap} />
                   )) : (
                     <div className="flex min-h-0 flex-col gap-2">
-                      <p className="rounded-lg border border-warn-border bg-warn-bg px-3 py-2 text-xs text-warn">Nháp nhanh, chưa có CAP. Dùng Generate SOAP để mở bản có dẫn nguồn.</p>
                       <SoapEditor
                         soap={draft.soap}
                         suggestions={draft.icdSuggestions}
                         selectedIcd={draft.selectedIcd}
                         showIcd={draft.transcript.length > 0}
-                        locked={locked}
+                        locked={locked || !soapGenerated}
                         onSoap={(soap) => setDraft((current) => (current ? { ...current, soap } : current))}
                         onSelect={(selectedIcd) => setDraft((current) => (current ? { ...current, selectedIcd } : current))}
                         onSuggestions={(icdSuggestions) => setDraft((current) => (current ? { ...current, icdSuggestions } : current))}
-                        onRegen={regen}
+                        onRegen={() => void regenTranscript()}
                       />
                     </div>
                   )}
@@ -647,7 +688,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                   onOpenTranscriptRun={() => setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current)}
                   onClear={clearFile}
                   onLines={onLines}
-                  onRegen={regen}
+                  onRegen={() => void regenTranscript()}
                   showTranscript={false}
                 />
               ) : (
@@ -658,8 +699,105 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           </PanelGroup>
           </div>
         )}
+        {(soapBusy || regenBusy || transcriptBusy) && (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" />
+            <div
+              role="status"
+              className="absolute top-1/2 left-1/2 w-[min(16rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-md border border-line bg-white px-4 py-4 text-center"
+            >
+              <p className="text-sm font-bold">
+                {transcriptBusy ? "Đang sinh lại transcript..." : regenBusy ? "Đang tạo lại SOAP..." : "Đang tạo SOAP..."}
+              </p>
+              <div className="mt-3 h-1 overflow-hidden rounded-full bg-line" aria-hidden>
+                <span className="wf-cover-sweep block h-full w-1/3 rounded-full bg-ink" />
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-muted">
+                {transcriptBusy ? "Đang dựng lại nội dung từ hội thoại hiện có." : "Đang trích CAP và soạn ghi chú có dẫn nguồn."}
+              </p>
+            </div>
+          </div>
+        )}
+        {cleanOpen && <CleanSoap soap={noteSoap()} onClose={() => setCleanOpen(false)} />}
+        {guideOn && !soapBusy && !jsonBusy && !isUploading && (
+          <FirstVisitGuide
+            onClose={(forever, finished) => {
+              if (forever) localStorage.setItem(FIRST_VISIT_GUIDE_HIDE, "1");
+              if (forever || finished) sessionStorage.removeItem(firstVisitGuideKey(id));
+              setGuideOn(false);
+            }}
+          />
+        )}
       </div>
     </ClinicShell>
+  );
+}
+
+const CLEAN_FIELDS = [
+  ["subjective", "S", SOAP_SECTIONS[0].label],
+  ["objective", "O", SOAP_SECTIONS[1].label],
+  ["assessment", "A", SOAP_SECTIONS[2].label],
+  ["plan", "P", SOAP_SECTIONS[3].label],
+] as const;
+
+function cleanParts(text: string) {
+  return text
+    .split(/\n+|(?<=\.)\s+(?=\p{Lu})/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function CleanLines({ text }: { text: string }) {
+  const lines = cleanParts(text);
+  if (lines.length === 0) {
+    return <p className="text-[15px] leading-8 text-muted">Chưa có nội dung.</p>;
+  }
+  return (
+    <ul className="flex flex-col gap-2">
+      {lines.map((line, index) => (
+        <li key={index} className="flex items-start gap-2 text-[14px] leading-6 text-ink">
+          <span className="mt-[0.45rem] h-1.5 w-1.5 shrink-0 rounded-full bg-ink" aria-hidden />
+          <span>{line}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CleanSoap({ soap, onClose }: { soap: SoapNote; onClose: () => void }) {
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/40 p-4 backdrop-blur-[2px]">
+      <button type="button" aria-label="Đóng" className="absolute inset-0 cursor-default" onClick={onClose} />
+      <section className="relative flex h-[80vh] w-[80vw] flex-col overflow-hidden rounded-md border border-line bg-white">
+        <header className="flex shrink-0 items-center justify-between gap-3 border-b border-line px-4 py-3">
+          <h2 className="text-[15px] font-extrabold tracking-tight">Bản xem trước</h2>
+          <button type="button" onClick={onClose} className="h-8 rounded-md border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle">
+            Đóng
+          </button>
+        </header>
+        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 bg-subtle p-3 md:grid-cols-2 md:grid-rows-2">
+          {CLEAN_FIELDS.map(([key, letter, title]) => (
+            <article key={key} className="flex min-h-0 flex-col overflow-hidden rounded-md border border-line bg-white">
+              <header className="flex shrink-0 items-center gap-2 border-b border-line px-3 py-2.5">
+                <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-subtle text-xs font-extrabold text-ink">{letter}</span>
+                <h3 className="text-[13px] font-extrabold leading-snug">{title}</h3>
+              </header>
+              <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+                <CleanLines text={soap[key]} />
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -669,9 +807,7 @@ const PatientCard = memo(function PatientCard({ patient, locked }: { patient: En
   return (
     <article className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 shadow-panel">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-subtle text-sm font-extrabold text-ink ring-1 ring-line">
-          {initials(patient.name)}
-        </span>
+        <img src="/patient-avatar.jpg" alt="" className="h-10 w-10 shrink-0 rounded-full border border-line bg-white object-cover" />
         <span className="min-w-0">
           <span className="block truncate text-[15px] font-extrabold">{patient.name}</span>
           <span className="block truncate text-[11.5px] text-muted">

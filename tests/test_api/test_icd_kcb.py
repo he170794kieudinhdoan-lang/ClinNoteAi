@@ -1,6 +1,6 @@
 import pytest
 
-from src.services.icd_kcb import detail_from_payload, match_rows, normalize_code, IcdNotFound
+from src.services.icd_kcb import detail_from_payload, match_rows, normalize_code, query_code_param, IcdNotFound
 
 
 def test_detail_drops_html_and_keeps_hierarchy():
@@ -33,8 +33,16 @@ def test_search_ignores_vietnamese_marks():
 
 def test_normalize_code_rejects_junk():
     assert normalize_code(" m17.9 ") == "M17.9"
+    assert normalize_code("M25.562") == "M25.562"
     with pytest.raises(IcdNotFound):
         normalize_code("khớp gối")
+
+
+def test_query_param_keeps_two_decimal_digits():
+    assert query_code_param("M17.9") == "M17.9"
+    assert query_code_param("M25.56") == "M25.56"
+    assert query_code_param("M25.562") == "M25.56"
+    assert query_code_param("A00.1234") == "A00.12"
 
 
 @pytest.mark.asyncio

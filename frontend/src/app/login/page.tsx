@@ -1,6 +1,5 @@
 "use client";
 
-import { Button, Card, Input, Label } from "neobrutalism-ui-react";
 import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
@@ -38,11 +37,9 @@ export default function LoginPage() {
     const prevBody = document.body.style.overflow;
     root.style.overflow = "hidden";
     document.body.style.overflow = "hidden";
-    document.body.classList.add("login-canvas");
     return () => {
       root.style.overflow = prevRoot;
       document.body.style.overflow = prevBody;
-      document.body.classList.remove("login-canvas");
     };
   }, []);
 
@@ -230,13 +227,13 @@ export default function LoginPage() {
     await finish("form");
   }
 
-  if (phase === "leave") return <main className="nb-classic h-dvh overflow-hidden bg-[#efe6d8]" />;
+  if (phase === "leave") return <main className="h-dvh overflow-hidden bg-canvas" />;
 
   return (
-    <main className="nb-classic relative flex h-dvh items-center justify-center overflow-hidden p-3 sm:p-6">
+    <main className="relative flex h-dvh items-center justify-center overflow-hidden bg-canvas p-3 sm:p-6">
       {cover !== "off" && (
         <div
-          className={`fixed inset-0 z-50 hidden place-items-center bg-[#efe6d8] transition-opacity duration-500 md:grid ${
+          className={`fixed inset-0 z-50 hidden place-items-center bg-canvas transition-opacity duration-500 md:grid ${
             cover === "out" ? "pointer-events-none opacity-0" : "opacity-100"
           }`}
           role="status"
@@ -246,79 +243,49 @@ export default function LoginPage() {
           <LoginCover />
         </div>
       )}
-      <Card
-        tone="cream"
-        radius="sm"
-        shadow="sm"
-        border="thin"
-        className="login-card-bg wf-rise relative z-10 flex max-h-full min-h-0 w-full max-w-[1040px] flex-col overflow-hidden !rounded-[22px] !border-[#efe4d4] !shadow-[0_16px_40px_rgba(62,52,44,0.12)]"
-      >
-        <header className="flex items-center justify-between px-4 py-3 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#efe3d0] text-[#5c4e42]">
-              {/* Medical Pulse / Stethoscope Logo */}
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4.5 3v5a4 4 0 0 0 8 0V3" />
-                <path d="M8.5 12v3a4 4 0 0 0 4 4h1a4 4 0 0 0 4-4v-3" />
-                <circle cx="17.5" cy="11.5" r="1.5" />
-                <path d="M12.5 19v2" />
-              </svg>
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold tracking-tight text-[#5c4e42]">ClinNote AI</span>
-                <span className="rounded-full border border-[#eadfce] bg-white px-2 py-0.5 text-[10px] font-semibold text-[#5c4e42]">
-                  HITL Edition
-                </span>
-              </div>
-              <p className="hidden text-[11px] text-[#866e5a] sm:block">Trợ lý y khoa thông minh</p>
-            </div>
-          </div>
+      <section className="wf-rise relative z-10 flex max-h-full min-h-0 w-full max-w-[1040px] flex-col overflow-hidden rounded-md border border-line bg-white">
+        <header className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-6">
+          <img src="/logo.png" alt="ClinNote" className="h-10 w-auto max-w-[220px] object-contain object-left" />
+          <p className="hidden text-[11px] text-muted sm:block">Trợ lý y khoa thông minh</p>
         </header>
 
         {/* 2-Column Body */}
         <div className="grid min-h-0 flex-1 md:grid-cols-[320px_1fr]">
-          <aside className="relative z-20 hidden h-[32rem] w-full self-start md:block">
-            <div className="lw-glass absolute top-[9px] right-[9px] bottom-[11px] left-[9px] overflow-hidden">
-              <video
-                ref={mainVideo}
-                src="/login.mp4"
-                autoPlay
-                loop
-                muted
-                playsInline
-                preload="auto"
-                onCanPlayThrough={releaseCover}
-                onError={releaseCover}
-                className={`h-full w-full bg-[#e4c9a4] object-cover transition-opacity duration-300 ${scene ? "opacity-0" : "opacity-100"}`}
-                aria-hidden="true"
-                suppressHydrationWarning
-              />
-              <video
-                ref={hoverVideo}
-                src="/login-success.mp4"
-                muted
-                playsInline
-                preload="metadata"
-                className={`pointer-events-none absolute inset-0 z-20 h-full w-full object-cover transition-opacity duration-300 ${scene ? "opacity-100" : "opacity-0"}`}
-                aria-hidden="true"
-                suppressHydrationWarning
-              />
-            </div>
-            <div className="lw-jamb lw-jamb-left" aria-hidden="true" />
-            <div className="lw-jamb lw-jamb-right" aria-hidden="true" />
-            <div className="lw-head" aria-hidden="true" />
-            <div className="lw-sill" aria-hidden="true" />
+          <aside className="relative hidden h-[32rem] border-r border-line md:block">
+            <video
+              ref={mainVideo}
+              src="/login.mp4"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="auto"
+              onCanPlayThrough={releaseCover}
+              onError={releaseCover}
+              className={`h-full w-full bg-subtle object-cover transition-opacity duration-300 ${scene ? "opacity-0" : "opacity-100"}`}
+              aria-hidden="true"
+              suppressHydrationWarning
+            />
+            <video
+              ref={hoverVideo}
+              src="/login-success.mp4"
+              muted
+              playsInline
+              preload="metadata"
+              className={`pointer-events-none absolute inset-0 z-20 h-full w-full object-cover transition-opacity duration-300 ${scene ? "opacity-100" : "opacity-0"}`}
+              aria-hidden="true"
+              suppressHydrationWarning
+            />
           </aside>
 
           <section className="no-y-scroll flex min-h-0 flex-col justify-start overflow-y-auto bg-transparent px-5 pt-1 pb-5 sm:px-8 sm:pt-2 sm:pb-6">
             {/* Top switcher & Title */}
-            <div className="mb-4 flex flex-nowrap items-start justify-between gap-3 border-b border-[#d4c0a4] pb-3">
+            <div className="mb-4 flex flex-nowrap items-start justify-between gap-3 border-b border-line pb-3">
               <div className="relative min-h-[4.75rem] min-w-0 flex-1">
                 {(
                   [
-                    ["login", "Đăng nhập tài khoản", "Chào mừng trở lại! Vui lòng nhập thông tin phiên làm việc."],
-                    ["register", "Tạo tài khoản bác sĩ", "Bắt đầu trải nghiệm trợ lý lâm sàng AI cho phòng khám của bạn."],
+                    ["login", "Đăng nhập tài khoản", "Chào mừng trở lại. Nhập thông tin phiên làm việc."],
+                    ["register", "Tạo tài khoản bác sĩ", "Bắt đầu dùng trợ lý lâm sàng cho phòng khám."],
                     ["forgot", "Khôi phục mật khẩu", "Nhập email đã đăng ký để nhận liên kết khôi phục."],
                   ] as const
                 ).map(([id, title, body]) => (
@@ -329,34 +296,27 @@ export default function LoginPage() {
                       mode === id ? "opacity-100" : "pointer-events-none absolute inset-x-0 top-0 opacity-0"
                     }`}
                   >
-                    <h1 className="font-serif text-xl font-bold tracking-tight text-[#3e3228]">{title}</h1>
-                    <p className="mt-1 text-sm text-[#5c4636]">{body}</p>
+                    <h1 className="text-xl font-extrabold tracking-tight text-ink">{title}</h1>
+                    <p className="mt-1 text-sm text-muted">{body}</p>
                   </div>
                 ))}
               </div>
 
-              {/* Segmented Mode Control */}
-              <div className="inline-flex shrink-0 rounded-lg border border-[#d4c0a4] bg-[#F8F0E5] p-1 shadow-sm">
+              <div className="inline-flex h-8 shrink-0 overflow-hidden rounded-sm border border-line bg-white text-xs">
                 {(
                   [
                     ["login", "Đăng nhập"],
                     ["register", "Đăng ký"],
                   ] as const
                 ).map(([id, label]) => (
-                  <Button
+                  <button
                     key={id}
                     type="button"
-                    size="sm"
-                    radius="sm"
-                    shadow="none"
-                    border="none"
-                    tone="cream"
-                    press="none"
-                    className={`!rounded-md whitespace-nowrap !border-0 !text-[#3a2e14] transition-colors duration-300 ${mode === id ? "!bg-[#ECD8BC]" : "!bg-transparent !shadow-none"}`}
                     onClick={() => switchMode(id)}
+                    className={`px-3 font-semibold whitespace-nowrap ${mode === id ? "bg-ink text-white" : "text-muted hover:bg-subtle"}`}
                   >
                     {label}
-                  </Button>
+                  </button>
                 ))}
               </div>
             </div>
@@ -370,25 +330,25 @@ export default function LoginPage() {
             >
               {sentTo ? (
                 /* Success View for Forgot Password */
-                <div className="wf-rise rounded-2xl border border-dashed border-[#d9ba96] bg-[#fdf9f4] p-7 text-center">
-                  <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full bg-[#f4e6d4] text-[#482307]">
+                <div className="wf-rise rounded-md border border-dashed border-line bg-subtle p-7 text-center">
+                  <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full border border-line bg-white text-ink">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <rect width="20" height="16" x="2" y="4" rx="2"/>
                       <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
                     </svg>
                   </div>
-                  <h3 className="text-base font-bold text-[#341804]">Đã gửi thư khôi phục!</h3>
-                  <p className="mt-1 text-sm text-[#725e4f]">
-                    Chúng tôi đã gửi hướng dẫn đặt lại mật khẩu đến:
+                  <h3 className="text-base font-bold text-ink">Đã gửi thư khôi phục</h3>
+                  <p className="mt-1 text-sm text-muted">
+                    Hướng dẫn đặt lại mật khẩu đã được gửi đến:
                   </p>
-                  <p className="mt-1 font-semibold text-sm text-[#482307]">{sentTo}</p>
-                  <p className="mt-2 text-xs text-[#938072]">
-                    Vui lòng kiểm tra hộp thư đến hoặc mục thư rác (Spam).
+                  <p className="mt-1 text-sm font-semibold text-ink">{sentTo}</p>
+                  <p className="mt-2 text-xs text-faint">
+                    Kiểm tra hộp thư đến hoặc mục thư rác.
                   </p>
-                  <div className="mt-5 flex justify-center gap-3">
-                    <Button type="button" tone="yellow" radius="sm" shadow="sm" border="thin" press="push" onClick={() => switchMode("login")}>
-                      ← Quay lại Đăng nhập
-                    </Button>
+                  <div className="mt-5 flex justify-center">
+                    <button type="button" onClick={() => switchMode("login")} className="h-9 rounded-md bg-ink px-4 text-sm font-semibold text-white">
+                      Quay lại đăng nhập
+                    </button>
                   </div>
                 </div>
               ) : (
@@ -452,7 +412,7 @@ export default function LoginPage() {
                             <button
                               type="button"
                               onClick={() => switchMode("forgot")}
-                              className="text-xs font-medium text-[#7c4314] hover:text-[#482307] hover:underline"
+                              className="text-xs font-medium text-muted hover:text-ink hover:underline"
                             >
                               Quên mật khẩu?
                             </button>
@@ -463,7 +423,7 @@ export default function LoginPage() {
                             type="button"
                             aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                             onClick={() => setShowPassword((v) => !v)}
-                            className="text-[#8c7462] hover:text-[#381a05] focus:outline-none"
+                            className="text-faint hover:text-ink focus:outline-none"
                           >
                             {showPassword ? (
                               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -504,7 +464,7 @@ export default function LoginPage() {
                           type="button"
                           aria-label={showConfirmPassword ? "Ẩn xác nhận mật khẩu" : "Hiện xác nhận mật khẩu"}
                           onClick={() => setShowConfirmPassword((v) => !v)}
-                          className="text-[#8c7462] hover:text-[#381a05] focus:outline-none"
+                          className="text-faint hover:text-ink focus:outline-none"
                         >
                           {showConfirmPassword ? (
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -526,95 +486,73 @@ export default function LoginPage() {
 
                   <Reveal show={mode === "login"}>
                     <div className="flex items-center justify-between pt-1">
-                      <label className="flex cursor-pointer select-none items-center gap-2.5 text-xs text-[#5c3e27]">
+                      <label className="flex cursor-pointer select-none items-center gap-2.5 text-xs text-muted">
                         <input
                           type="checkbox"
                           checked={remember}
                           onChange={(e) => setRemember(e.target.checked)}
-                          className="h-4 w-4 rounded border-[#d6c4b2] accent-[#482307] focus:ring-[#482307]/20"
+                          className="h-4 w-4 rounded-sm border-line accent-ink"
                         />
                         <span>Ghi nhớ phiên đăng nhập trên thiết bị này</span>
                       </label>
                     </div>
                   </Reveal>
 
-                  {notice && <p className="text-base text-[#5c4e42]">{notice}</p>}
-                  {errors.form && <p className="text-base font-medium text-rose-600">{errors.form}</p>}
+                  {notice && <p className="mb-3 text-sm text-muted">{notice}</p>}
+                  {errors.form && <p className="mb-3 text-sm text-danger">{errors.form}</p>}
 
-                  {/* Primary Submit Button */}
                   <div>
-                    <Button
+                    <button
                       type="submit"
                       disabled={busy !== null}
-                      tone="yellow"
-                      size="lg"
-                      radius="lg"
-                      className="!h-11 !rounded-lg !border-0 !bg-[#ECD8BC] !text-[#3a2e14] !shadow-none hover:!bg-[#e0c9a8]"
-                      shadow="none"
-                      border="none"
-                      press="none"
-                      fullWidth
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-ink text-sm font-semibold text-white disabled:opacity-60"
                     >
                       {busy === "form" ? (
                         <>
-                          <Spinner dark />
+                          <Spinner />
                           <span>Đang xử lý...</span>
                         </>
                       ) : (
-                        <>
-                          <span>
-                            {mode === "login"
-                              ? "Đăng nhập hệ thống"
-                              : mode === "register"
-                                ? "Tạo tài khoản bác sĩ"
-                                : "Gửi liên kết khôi phục"}
-                          </span>
-                          <svg className="transition-transform group-hover:translate-x-0.5" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M5 12h14"/>
-                            <path d="m12 5 7 7-7 7"/>
-                          </svg>
-                        </>
+                        <span>
+                          {mode === "login"
+                            ? "Đăng nhập"
+                            : mode === "register"
+                              ? "Tạo tài khoản"
+                              : "Gửi liên kết khôi phục"}
+                        </span>
                       )}
-                    </Button>
+                    </button>
 
                     {mode === "forgot" && (
                       <button
                         type="button"
                         onClick={() => switchMode("login")}
-                        className="mt-2.5 w-full text-center text-xs font-medium text-[#7c4314] hover:underline"
+                        className="mt-2.5 w-full text-center text-xs font-medium text-muted hover:text-ink hover:underline"
                       >
-                        ← Quay lại đăng nhập
+                        Quay lại đăng nhập
                       </button>
                     )}
                   </div>
 
-                  {/* Social Login Separator & Button */}
                   {mode !== "forgot" && (
                     <>
                       <div className="relative my-3 flex items-center justify-center">
                         <div className="absolute inset-0 flex items-center">
-                          <div className="w-full border-t border-[#d4c0a4]" />
+                          <div className="w-full border-t border-line" />
                         </div>
-                        <span className="relative bg-[#F8F0E5] px-3 text-[11px] font-medium tracking-wide text-[#6b5646] uppercase">
+                        <span className="relative bg-white px-3 text-[11px] text-faint">
                           hoặc tiếp tục với
                         </span>
                       </div>
 
-                      <Button
+                      <button
                         type="button"
                         disabled={busy !== null}
                         onClick={() => finish("google")}
-                        tone="cream"
-                        size="lg"
-                        radius="lg"
-                        className="!h-11 !rounded-lg !border !border-[#d4c0a4] !bg-[#fffdf8] !text-[#3e3228] !shadow-none"
-                        shadow="none"
-                        border="none"
-                        press="none"
-                        fullWidth
+                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-line bg-white text-sm font-semibold text-ink hover:bg-subtle disabled:opacity-60"
                       >
                         {busy === "google" ? (
-                          <Spinner dark />
+                          <Spinner />
                         ) : (
                           /* Official Google Color Logo SVG */
                           <svg width="17" height="17" viewBox="0 0 24 24">
@@ -637,7 +575,7 @@ export default function LoginPage() {
                           </svg>
                         )}
                         <span>{mode === "register" ? "Đăng ký bằng Google" : "Tài khoản Google"}</span>
-                      </Button>
+                      </button>
                     </>
                   )}
                 </>
@@ -646,7 +584,7 @@ export default function LoginPage() {
           </section>
         </div>
 
-      </Card>
+      </section>
     </main>
   );
 }
@@ -679,13 +617,13 @@ function EnhancedField({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <Label htmlFor={id}>{label}</Label>
+        <label htmlFor={id} className="text-xs font-semibold text-ink">{label}</label>
         {aside}
       </div>
 
-      <div className="flex items-center gap-2">
-        {icon && <span className="shrink-0 text-[#5c4e42]">{icon}</span>}
-        <Input
+      <div className="flex h-10 items-center gap-2 rounded-sm border border-line bg-white px-2.5">
+        {icon && <span className="shrink-0 text-faint">{icon}</span>}
+        <input
           id={id}
           type={type}
           value={value}
@@ -694,20 +632,13 @@ function EnhancedField({
           placeholder={placeholder}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
-          tone="cream"
-          border="thin"
-          className="min-w-0 flex-1 !rounded-lg"
+          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-faint"
         />
         {trailing && <span className="shrink-0">{trailing}</span>}
       </div>
 
       {error && (
-        <p id={`${id}-error`} className="flex items-center gap-1 text-[11px] font-medium text-rose-600">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" x2="12" y1="8" y2="12" />
-            <line x1="12" x2="12.01" y1="16" y2="16" />
-          </svg>
+        <p id={`${id}-error`} className="text-[11px] text-danger">
           {error}
         </p>
       )}
@@ -749,34 +680,22 @@ function Reveal({
 function LoginCover() {
   return (
     <div className="flex flex-col items-center gap-5">
-      <div className="relative grid h-16 w-16 place-items-center">
-        <span className="wf-cover-breathe absolute inset-0 rounded-full border border-[#c4a15a]" />
-        <span className="grid h-12 w-12 place-items-center rounded-2xl bg-[#efe3d0] text-[#5c4e42]">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M4.5 3v5a4 4 0 0 0 8 0V3" />
-            <path d="M8.5 12v3a4 4 0 0 0 4 4h1a4 4 0 0 0 4-4v-3" />
-            <circle cx="17.5" cy="11.5" r="1.5" />
-            <path d="M12.5 19v2" />
-          </svg>
-        </span>
-      </div>
+      <img src="/logo-mark.png" alt="" className="h-14 w-14 object-contain" />
       <div className="text-center">
-        <p className="text-sm font-bold tracking-tight text-[#5c4e42]">ClinNote AI</p>
-        <p className="mt-1 text-xs text-[#866e5a]">Đang mở phòng khám</p>
+        <p className="text-sm font-semibold text-ink">ClinNote</p>
+        <p className="mt-1 text-xs text-muted">Đang mở phòng khám</p>
       </div>
-      <div className="h-1 w-36 overflow-hidden rounded-full bg-[#eadfce]">
-        <span className="wf-cover-sweep block h-full w-1/3 rounded-full bg-[#c4a15a]" />
+      <div className="h-1 w-36 overflow-hidden rounded-full bg-line">
+        <span className="wf-cover-sweep block h-full w-1/3 rounded-full bg-ink" />
       </div>
     </div>
   );
 }
 
-function Spinner({ dark = false }: { dark?: boolean }) {
+function Spinner() {
   return (
     <span
-      className={`wf-spin inline-block h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent ${
-        dark ? "text-[#482307]" : "text-white"
-      }`}
+      className="wf-spin inline-block h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent"
       aria-hidden="true"
     />
   );

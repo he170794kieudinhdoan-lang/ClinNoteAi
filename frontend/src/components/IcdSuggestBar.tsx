@@ -3,11 +3,12 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import * as HoverCard from "@radix-ui/react-hover-card";
 import { Command } from "cmdk";
-import { Search } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { useEffect, useState } from "react";
-import { lookupIcd, searchIcdRemote, type IcdDetail } from "@/lib/api";
-import { ICD_CODE, searchIcd } from "@/lib/icdCatalog";
+import { lookupIcd, peekIcd, searchIcdRemote, type IcdDetail } from "@/lib/api";
 import type { IcdSuggestion } from "@/types";
+
+const ICD_CODE = /^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$/;
 
 export default function IcdSuggestBar({
   suggestions,
@@ -28,9 +29,17 @@ export default function IcdSuggestBar({
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
   const selected = suggestions.some((item) => item.code === selectedIcd) ? selectedIcd : suggestions[0]?.code;
-  const results = remote ?? searchIcd(query, suggestions);
   const typed = query.trim().toUpperCase();
+  const needle = query.trim();
+  const results = needle.length < 2 ? (needle.length === 0 ? suggestions.slice(0, 8) : []) : (remote ?? []);
   const manual = ICD_CODE.test(typed) && !results.some((item) => item.code === typed);
+
+  useEffect(() => {
+    for (const item of suggestions) {
+      if (!item.code) continue;
+      void lookupIcd(item.code).catch(() => undefined);
+    }
+  }, [suggestions]);
 
   useEffect(() => {
     if (!open) return;
@@ -41,10 +50,11 @@ export default function IcdSuggestBar({
       setSearching(false);
       return;
     }
+    setRemote(null);
+    setSearching(true);
+    setSearchError("");
     let alive = true;
     const timer = window.setTimeout(() => {
-      setSearching(true);
-      setSearchError("");
       searchIcdRemote(q)
         .then((rows) => {
           if (alive) setRemote(rows);
@@ -89,7 +99,7 @@ export default function IcdSuggestBar({
                   onClick={() => onSelect(item.code)}
                   disabled={locked}
                   className={`inline-flex h-8 max-w-full items-center gap-2 rounded-lg border px-2 text-[12px] ${
-                    on ? "border-[#16845B] bg-[#eef7f2] font-semibold" : "border-line bg-white hover:bg-subtle"
+                    on ? "border-accent bg-accent-bg font-semibold" : "border-line bg-white hover:bg-subtle"
                   }`}
                 >
                   <span className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px] ring-1 ring-line">{item.code}</span>
@@ -133,10 +143,23 @@ export default function IcdSuggestBar({
                 className="h-10 w-full rounded-lg border border-line bg-white px-3 text-sm outline-none"
               />
               <Command.List className="mt-3 min-h-0 flex-1 overflow-y-auto">
-                {query.trim() === "" && <p className="px-2 pb-1 text-[11px] text-faint">Gợi ý cho lượt khám này</p>}
-                {searching && <p className="px-2 py-2 text-[11px] text-muted">Đang tra danh mục KCB…</p>}
+                {needle.length === 0 && <p className="px-2 pb-1 text-[11px] text-faint">Gợi ý cho lượt khám này</p>}
+                {needle.length === 1 && <p className="px-2 py-2 text-[11px] text-muted">Nhập thêm một ký tự để tra danh mục.</p>}
+                {searching && (
+                  <div className="px-2 py-3" aria-live="polite">
+                    <p className="inline-flex items-center gap-2 text-[12px] text-muted">
+                      <Loader2 size={14} className="animate-spin" />
+                      Đang tra danh mục KCB…
+                    </p>
+                    <div className="mt-3 space-y-2">
+                      {[0, 1, 2].map((row) => (
+                        <div key={row} className="h-8 animate-pulse rounded-lg bg-white" />
+                      ))}
+                    </div>
+                  </div>
+                )}
                 {searchError && <p className="px-2 py-2 text-[11px] text-danger">{searchError}</p>}
-                {results.map((item) => (
+                {!searching && results.map((item) => (
                   <Command.Item
                     key={item.code}
                     value={`${item.code} ${item.title}`}
@@ -147,7 +170,7 @@ export default function IcdSuggestBar({
                     <span>{item.title}</span>
                   </Command.Item>
                 ))}
-                {manual && (
+                {!searching && manual && (
                   <Command.Item
                     value={typed}
                     onSelect={() => choose({ code: typed, title: "Mã nhập tay" })}
@@ -157,7 +180,9 @@ export default function IcdSuggestBar({
                     <span>Dùng mã này</span>
                   </Command.Item>
                 )}
-                <Command.Empty className="px-2 py-6 text-center text-sm text-faint">Không thấy mã phù hợp</Command.Empty>
+                {!searching && needle.length >= 2 && (
+                  <Command.Empty className="px-2 py-6 text-center text-sm text-faint">Không thấy mã phù hợp</Command.Empty>
+                )}
               </Command.List>
             </Command>
           </Dialog.Content>
@@ -168,10 +193,15 @@ export default function IcdSuggestBar({
 }
 
 function IcdHover({ code, title }: { code: string; title: string }) {
-  const [detail, setDetail] = useState<IcdDetail | null>(null);
+  const [detail, setDetail] = useState<IcdDetail | null>(() => peekIcd(code) ?? null);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    const ready = peekIcd(code);
+    if (ready) {
+      setDetail(ready);
+      return;
+    }
     let alive = true;
     lookupIcd(code)
       .then((next) => {

@@ -9,6 +9,7 @@ import { useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { PanelLeftClose } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
+import TranscriptChat, { chatLinesFromTranscript } from "@/components/TranscriptChat";
 import { updateTranscriptSegment } from "@/lib/api";
 import type { TranscriptLine } from "@/types";
 
@@ -42,19 +43,11 @@ export default function TranscriptPanel({
   onCollapse?: () => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [open, setOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draftTexts, setDraftTexts] = useState<Record<string, string>>({});
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState("");
-
-  function close() {
-    if (isSaving) return;
-    setEditing(false);
-    setDraftTexts({});
-    setEditError("");
-    setOpen(false);
-  }
 
   function startEditing() {
     const initial: Record<string, string> = {};
@@ -64,7 +57,6 @@ export default function TranscriptPanel({
     setDraftTexts(initial);
     setEditError("");
     setEditing(true);
-    if (variant === "compact") setOpen(true);
   }
 
   function cancelEditing() {
@@ -133,12 +125,12 @@ export default function TranscriptPanel({
 
   if (variant === "panel") {
     return (
-      <div className="flex h-full min-h-0 flex-col bg-white">
+      <div data-guide="transcript" className="flex h-full min-h-0 flex-col bg-white">
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-subtle px-3.5">
           <span className="text-[13.5px] font-bold">Transcript</span>
           <div className="flex items-center gap-1">
             {!locked && onRegen && !editing && (
-              <button type="button" onClick={onRegen} disabled={lines.length === 0} className="h-7 rounded-md px-2 text-[11px] font-semibold text-muted hover:bg-white disabled:opacity-40">
+              <button type="button" onClick={onRegen} disabled={lines.length === 0} className="hidden h-7 rounded-md px-2 text-[11px] font-semibold text-muted hover:bg-white disabled:opacity-40">
                 Sinh lại
               </button>
             )}
@@ -147,6 +139,9 @@ export default function TranscriptPanel({
                 Sửa
               </button>
             )}
+            <button type="button" onClick={() => setDetailOpen(true)} disabled={lines.length === 0} className="h-7 rounded-md px-2 text-[11px] font-semibold text-ink hover:bg-white disabled:opacity-40">
+              Xem chi tiết
+            </button>
             {editing && (
               <>
                 <button type="button" onClick={cancelEditing} disabled={isSaving} className="h-7 rounded-md px-2 text-[11px] font-semibold text-muted hover:bg-white">
@@ -204,6 +199,9 @@ export default function TranscriptPanel({
             })}
           </div>
         </div>
+        {detailOpen && (
+          <TranscriptChat lines={chatLinesFromTranscript(lines)} onClose={() => setDetailOpen(false)} />
+        )}
       </div>
     );
   }
@@ -228,102 +226,14 @@ export default function TranscriptPanel({
         </ul>
         <button
           type="button"
-          onClick={() => setOpen(true)}
+          onClick={() => setDetailOpen(true)}
           className="border-t border-line bg-ink py-2.5 text-center text-xs font-semibold text-white transition-colors hover:bg-ink/90"
         >
           Xem chi tiết
         </button>
       </div>
-
-      {open && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-ink/20 p-4">
-          <div className="flex max-h-[min(40rem,calc(100dvh-4rem))] w-[min(42rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-[22px] border border-line bg-subtle shadow-[0_16px_40px_rgba(62,52,44,0.12)]">
-            <header className="flex shrink-0 items-center justify-between gap-3 px-4 py-3">
-              <h2 className="font-serif text-lg font-bold text-ink">Bản ghi</h2>
-              <div className="flex items-center gap-2">
-                {!editing && !locked && onRegen && (
-                  <button
-                    type="button"
-                    onClick={onRegen}
-                    disabled={lines.length === 0}
-                    className="h-8 rounded-full bg-ink px-3 text-xs font-semibold text-white disabled:opacity-50"
-                  >
-                    Sinh lại nháp nhanh
-                  </button>
-                )}
-                {!locked && onChange && !editing && (
-                  <button
-                    type="button"
-                    onClick={startEditing}
-                    className="h-8 rounded-full border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle"
-                  >
-                    Chỉnh sửa
-                  </button>
-                )}
-                {editing && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={cancelEditing}
-                      disabled={isSaving}
-                      className="h-8 rounded-full border border-line bg-white px-3 text-xs font-semibold disabled:opacity-50 hover:bg-subtle"
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      type="button"
-                      onClick={saveEdits}
-                      disabled={isSaving}
-                      className="h-8 rounded-full bg-ink px-4 text-xs font-semibold text-white disabled:opacity-50 hover:bg-ink/90"
-                    >
-                      {isSaving ? "Đang lưu..." : "Lưu"}
-                    </button>
-                  </>
-                )}
-                <button
-                  type="button"
-                  onClick={close}
-                  disabled={isSaving}
-                  aria-label="Đóng"
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-white text-sm disabled:opacity-50"
-                >
-                  ✕
-                </button>
-              </div>
-            </header>
-
-            {editError && (
-              <div className="mx-4 mb-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
-                ❌ {editError}
-              </div>
-            )}
-
-            <ul className="min-h-0 flex-1 space-y-2 overflow-x-hidden overflow-y-auto px-4 pb-4">
-              {lines.map((line) => (
-                <li key={line.id} className={`rounded-xl px-3 py-2.5 ${line.speaker === "doctor" ? "bg-white" : "bg-[#efe4d4]"}`}>
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-line bg-white px-2 py-0.5 text-[11px] font-semibold text-muted">
-                      {line.speaker === "doctor" ? "Bác sĩ" : "Bệnh nhân"}
-                    </span>
-                    <span className="font-mono text-xs text-faint">{range(line)}</span>
-                  </div>
-                  {editing ? (
-                    <TextareaAutosize
-                      value={draftTexts[line.id] ?? line.text}
-                      minRows={2}
-                      aria-label={`Lời ${line.speaker === "doctor" ? "bác sĩ" : "bệnh nhân"}`}
-                      onChange={(event) => handleTextChange(line.id, event.target.value)}
-                      disabled={isSaving}
-                      className="mt-2 w-full resize-none rounded-lg border border-line bg-white px-2.5 py-2 text-sm leading-relaxed text-ink outline-none disabled:opacity-60"
-                    />
-                  ) : (
-                    <p className="mt-1.5 text-sm leading-relaxed text-ink">{line.text}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+      {detailOpen && (
+        <TranscriptChat lines={chatLinesFromTranscript(lines)} onClose={() => setDetailOpen(false)} />
       )}
     </>
   );

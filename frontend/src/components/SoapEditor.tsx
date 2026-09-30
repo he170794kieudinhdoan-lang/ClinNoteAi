@@ -10,10 +10,10 @@ import IcdSuggestBar from "@/components/IcdSuggestBar";
 import type { IcdSuggestion, SoapNote } from "@/types";
 
 const FIELDS = [
-  ["subjective", "S", "Chủ quan"],
-  ["objective", "O", "Khách quan"],
-  ["assessment", "A", "Đánh giá"],
-  ["plan", "P", "Kế hoạch"],
+  ["subjective", "S", "Subjective (Bệnh sử & Triệu chứng cơ năng)"],
+  ["objective", "O", "Objective (Thám khám thực thể & Dấu hiệu sinh tồn)"],
+  ["assessment", "A", "Assessment (Đánh giá & Chẩn đoán sơ bộ)"],
+  ["plan", "P", "Plan (Kế hoạch điều trị & Đề xuất)"],
 ] as const;
 
 export default function SoapEditor({
@@ -51,12 +51,12 @@ export default function SoapEditor({
               </header>
               <TextareaAutosize
                 value={value}
-                readOnly={locked}
+                disabled={locked}
                 minRows={3}
                 aria-label={name}
-                placeholder="Viết ghi chú..."
+                placeholder={locked ? "Chưa có nội dung." : "Viết ghi chú..."}
                 onChange={(event) => onSoap({ ...soap, [key]: event.target.value })}
-                className="min-h-20 w-full resize-none rounded-lg border border-line bg-white px-3 py-2 text-[13px] leading-6 text-ink outline-none placeholder:text-faint focus:border-ink"
+                className="min-h-20 w-full resize-none rounded-lg border border-line bg-white px-3 py-2 text-[13px] leading-6 text-ink outline-none placeholder:text-faint focus:border-ink disabled:cursor-not-allowed disabled:bg-subtle disabled:text-muted"
               />
             </article>
           );

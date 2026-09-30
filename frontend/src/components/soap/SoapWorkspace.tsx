@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import TranscriptChat, { chatLinesFromSoap } from "@/components/TranscriptChat";
 import CapEvidencePanel from "@/components/soap/CapEvidencePanel";
 import SoapReviewPanel from "@/components/soap/SoapReviewPanel";
 import {
@@ -194,11 +195,13 @@ function allItems(soap: SoapContent) {
   return SOAP_SECTIONS.flatMap(({ key }) => soap[key].items);
 }
 
+function isManualItem(item: SoapItem) {
+  return item.origin === "reviewer" && item.cap_ids.length === 0;
+}
+
 function itemBlocksApproval(item: SoapItem) {
   if (!item.text.trim() || item.review_status !== "reviewed") return true;
-  if (item.origin === "reviewer" && item.cap_ids.length === 0) {
-    return item.support_status !== "unsupported" || !item.manual_reason?.trim();
-  }
+  if (isManualItem(item)) return !item.manual_reason?.trim() || item.support_status === "supported";
   return item.support_status !== "supported" || item.source_link_status !== "valid" || item.cap_ids.length === 0;
 }
 
@@ -216,7 +219,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
   embedded?: boolean;
   embeddedRunId?: string | null;
   runSource?: "consultation" | "test";
-  onBindRegen?: (regenerate: (() => void) | null) => void;
+  onBindRegen?: (regenerate: (() => Promise<boolean>) | null) => void;
   onPlainSoap?: (soap: SoapNote) => void;
 }) {
   const [inputFormat, setInputFormat] = useState<SoapInputFormat>("qwen_role_result");
@@ -233,6 +236,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
   const [error, setError] = useState("");
   const [apiDisabled, setApiDisabled] = useState(false);
   const [notice, setNotice] = useState("");
+  const [sourceFocus, setSourceFocus] = useState<string | null>(null);
 
   const preview = useMemo(() => inspectInput(inputFormat, inputContent), [inputFormat, inputContent]);
   const latestRevision = run ? latestRevisionOf(run) : null;
@@ -264,6 +268,19 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
       unresolvedWarnings.length === 0 &&
       blockedItems.length === 0,
   );
+  const approveGap = (() => {
+    if (!activeRevision || finalRevision || isHistorical || canApprove) return "";
+    const manual = blockedItems.filter(isManualItem).length;
+    const linked = blockedItems.length - manual;
+    const steps = [
+      hasUnsavedSoap ? "lưu nội dung đang sửa" : "",
+      linked ? `xác nhận ${linked} câu còn gắn nguồn` : "",
+      manual ? `xác nhận ${manual} câu bổ sung thủ công` : "",
+      unresolvedWarnings.length ? "ghi quyết định cho cảnh báo" : "",
+      reviewerName.trim() ? "" : "nhập tên",
+    ].filter(Boolean);
+    return steps.length ? `Chưa duyệt được: ${steps.join(", ")}.` : "";
+  })();
   const extractInputValid = !preview.error && inputContent.trim().length > 0;
   const transcriptStats = run ? statsFromTranscript(run.transcript) : null;
 
@@ -349,18 +366,20 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
   }
 
   async function handleGenerate() {
-    if (!run || hasUnsavedChanges || isHistorical) return;
+    if (!run || hasUnsavedChanges || isHistorical) return false;
     setBusy("generate");
     setError("");
     setNotice("");
     try {
       await generateSoap(run.run_id, currentRevisionNumber);
       await fetchAndSetRun(run.run_id);
+      return true;
     } catch (cause) {
       setError(errorMessageFor(cause));
       if (cause instanceof SoapApiError && cause.status === 409) {
         try { await fetchAndSetRun(run.run_id); } catch { /* Keep the original conflict visible. */ }
       }
+      return false;
     } finally {
       setBusy(null);
     }
@@ -369,7 +388,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
   const generateRef = useRef(handleGenerate);
   generateRef.current = handleGenerate;
   useEffect(() => {
-    onBindRegen?.(() => { void generateRef.current(); });
+    onBindRegen?.(() => generateRef.current());
     return () => onBindRegen?.(null);
   }, [onBindRegen]);
 
@@ -501,7 +520,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
   return (
     <main className={embedded ? "w-full text-ink" : "min-h-dvh bg-[#f8f3eb]/90 px-3 py-4 text-ink sm:px-6 sm:py-6"}>
       <div className={embedded ? "flex w-full min-w-0 flex-col gap-4" : "mx-auto flex w-full max-w-[1500px] flex-col gap-4"}>
-        {!embedded && <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#e8dccb] bg-white px-4 py-3 shadow-sm sm:px-5">
+        {!embedded && <header className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 shadow-sm sm:px-5">
           <div className="flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#efe3d0] text-lg font-bold">S</span>
             <div>
@@ -610,6 +629,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
                     revisionStatus={activeRevision.status}
                     onSoap={changeSoap}
                     onSelectEvidence={selectEvidence}
+                    onViewSource={setSourceFocus}
                   />
                   {embedded ? (
                     <div className="flex flex-col gap-2 rounded-2xl border border-line bg-white px-3 py-2.5">
@@ -642,8 +662,8 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
                       {hasUnsavedChanges && invalidItemsForSave.length > 0 && (
                         <p className="text-[11px] text-[#99623b]">Điền nội dung và lý do cho câu thêm tay trước khi lưu.</p>
                       )}
-                      {!canApprove && activeRevision.status !== "approved" && activeRevision.status !== "final" && !isHistorical && !(hasUnsavedChanges && invalidItemsForSave.length > 0) && (
-                        <p className="text-[11px] text-muted">Duyệt sau khi đã lưu, xác nhận các câu có nguồn và nhập tên.</p>
+                      {approveGap && !(hasUnsavedChanges && invalidItemsForSave.length > 0) && (
+                        <p className="text-[11px] text-muted">{approveGap}</p>
                       )}
                       <details className="text-[11px] text-muted">
                         <summary className="cursor-pointer font-semibold text-ink">Revision {activeRevision.revision} · {activeRevision.status}</summary>
@@ -689,7 +709,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
                           <button type="button" onClick={handleApprove} disabled={!canApprove || busy !== null} className="h-10 w-full rounded-lg bg-ink px-3 text-sm font-bold text-white hover:bg-ink/90 disabled:opacity-45">
                             {busy === "approve" ? "Đang duyệt…" : "Duyệt revision hiện tại"}
                           </button>
-                          {!canApprove && <p className="text-[10px] leading-4 text-[#99623b]">Cần lưu mọi thay đổi, review từng câu có nguồn hợp lệ, ghi lý do cho nội dung thủ công, xử lý cảnh báo và nhập tên reviewer.</p>}
+                          {approveGap && <p className="text-[10px] leading-4 text-[#99623b]">{approveGap}</p>}
                         </>
                       )}
                       {finalRevision && !isHistorical && (
@@ -762,6 +782,13 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
         {!embedded && <footer className="px-2 pb-2 text-[10px] leading-4 text-faint">
           Bản nháp cần người review. Liên kết CAP/quote được kiểm tra theo code; điều đó không tự chứng minh câu SOAP được nội dung nguồn hỗ trợ. Màn hình này dùng dữ liệu giả lập hoặc transcript người dùng tải lên.
         </footer>}
+        {sourceFocus && run && (
+          <TranscriptChat
+            lines={chatLinesFromSoap(run.transcript)}
+            focusId={sourceFocus}
+            onClose={() => setSourceFocus(null)}
+          />
+        )}
       </div>
     </main>
   );

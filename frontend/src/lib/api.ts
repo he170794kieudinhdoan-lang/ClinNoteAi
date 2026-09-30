@@ -37,15 +37,25 @@ export interface IcdDetail {
 }
 
 const icdDetails = new Map<string, Promise<IcdDetail>>();
+const icdReady = new Map<string, IcdDetail>();
+
+export function peekIcd(code: string) {
+  return icdReady.get(code.trim().toUpperCase());
+}
 
 export function lookupIcd(code: string) {
   const key = code.trim().toUpperCase();
   const cached = icdDetails.get(key);
   if (cached) return cached;
-  const pending = request<IcdDetail>(`/api/v1/icd/codes/${encodeURIComponent(key)}`).catch((error) => {
-    icdDetails.delete(key);
-    throw error;
-  });
+  const pending = request<IcdDetail>(`/api/v1/icd/codes/${encodeURIComponent(key)}`)
+    .then((detail) => {
+      icdReady.set(key, detail);
+      return detail;
+    })
+    .catch((error) => {
+      icdDetails.delete(key);
+      throw error;
+    });
   icdDetails.set(key, pending);
   return pending;
 }
@@ -150,6 +160,17 @@ export function mapSegmentToTranscriptLine(seg: BackendTranscriptSegment): Trans
     timestampSec: seg.start_ms != null ? seg.start_ms / 1000 : 0,
     endSec: seg.end_ms != null ? seg.end_ms / 1000 : undefined,
   };
+}
+
+/** Bỏ bản ghi trùng nguyên văn và trùng mốc giờ, giữ lần xuất hiện đầu. */
+export function dedupeTranscriptLines(lines: TranscriptLine[]): TranscriptLine[] {
+  const seen = new Set<string>();
+  return lines.filter((line) => {
+    const key = `${line.speaker}\0${line.timestampSec}\0${line.endSec ?? ""}\0${line.text}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 /**

@@ -97,6 +97,10 @@ def save_transcript_for_consultation(
     segments: list[dict[str, Any]],
 ) -> list[TranscriptSegment]:
     try:
+        db.query(TranscriptSegment).filter(
+            TranscriptSegment.consultation_id == consultation.id
+        ).delete(synchronize_session=False)
+
         transcript_segments = save_transcript_segments(
             db=db,
             consultation_id=consultation.id,

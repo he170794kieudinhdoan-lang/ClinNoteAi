@@ -2,30 +2,71 @@
 @import "neobrutalism-ui-react/styles.css";
 
 @theme {
-  --color-ink: #1c1f23;
-  --color-muted: #6b7178;
-  --color-faint: #9aa1a8;
-  --color-line: #e7e9ec;
-  --color-line-soft: #f1f2f4;
-  --color-canvas: #f6f7f8;
+  --color-ink: #0a0a0a;
+  --color-muted: #737373;
+  --color-faint: #a3a3a3;
+  --color-line: #e5e5e5;
+  --color-line-soft: #e5e5e5;
+  --color-canvas: #ffffff;
   --color-surface: #ffffff;
-  --color-subtle: #f7f8f9;
-  --color-warn: #8a5a12;
+  --color-subtle: #f5f5f5;
+  --color-accent: #1b793d;
+  --color-accent-bg: #e9f0e5;
+  --color-warn: #c9822c;
   --color-warn-bg: #fffbeb;
   --color-warn-border: #f3e2b0;
-  --color-danger: #9b4236;
-  --color-ok: #3c6246;
-  --color-ok-bg: #eef6f0;
-  --shadow-panel: 0 8px 24px rgb(28 31 35 / 0.04);
+  --color-danger: #b53b3b;
+  --color-ok: #1b793d;
+  --color-ok-bg: #e9f0e5;
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+  --radius-2xl: 6px;
+  --radius-3xl: 6px;
+  --shadow-sm: 0 0 #0000;
+  --shadow-panel: 0 0 #0000;
 }
 
 body {
   position: relative;
   z-index: 0;
-  background-color: #f6f7f8;
-  color: #1c1f23;
-  font-family: var(--font-sans), system-ui, sans-serif;
+  background-color: #ffffff;
+  color: #0a0a0a;
+  font-family: var(--font-sans), ui-monospace, monospace;
   font-weight: 400;
+}
+
+h1,
+h2,
+h3,
+.font-serif,
+.font-extrabold {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+}
+
+.font-semibold,
+.font-bold {
+  font-weight: 500;
+}
+
+[class*="tracking-[0.14em]"] {
+  font-family: var(--font-pixel), ui-monospace, monospace;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.bg-ink {
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1), border-color 150ms, color 150ms;
+}
+
+button.bg-ink:hover:not(:disabled),
+a.bg-ink:hover {
+  background-color: #333333;
 }
 
 body.login-canvas {
@@ -175,6 +216,60 @@ button:disabled {
   display: none;
   width: 0;
   height: 0;
+}
+
+.dob-cal.rdp-root {
+  --rdp-accent-color: #3a3a3a;
+  --rdp-accent-background-color: #f5f5f5;
+  --rdp-day-height: 34px;
+  --rdp-day-width: 36px;
+  --rdp-day_button-height: 30px;
+  --rdp-day_button-width: 30px;
+  --rdp-day_button-border-radius: 4px;
+  --rdp-selected-border: 2px solid #0a0a0a;
+  --rdp-today-color: #3a3a3a;
+  --rdp-nav-height: 2.25rem;
+  --rdp-nav_button-width: 1.75rem;
+  --rdp-nav_button-height: 1.75rem;
+  --rdp-dropdown-gap: 0.35rem;
+  --rdp-weekday-padding: 0.25rem 0;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.dob-cal .rdp-month_caption {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dob-cal .rdp-dropdowns {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.dob-cal .rdp-caption_label {
+  gap: 2px;
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 3px 6px;
+}
+
+.dob-cal .rdp-button_previous,
+.dob-cal .rdp-button_next {
+  border: 1px solid #e5e5e5;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.dob-cal .rdp-chevron {
+  width: 14px;
+  height: 14px;
+}
+
+.dob-cal .rdp-selected {
+  font-size: inherit;
 }
 
 .lw-head,

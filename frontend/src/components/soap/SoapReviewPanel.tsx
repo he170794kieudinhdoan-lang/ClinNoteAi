@@ -1,8 +1,10 @@
 "use client";
 
 import * as HoverCard from "@radix-ui/react-hover-card";
+import { TextQuote } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import { toast } from "sonner";
+import { soapTurnKey } from "@/components/TranscriptChat";
 import type { ClinicalAtomicProposition, SoapContent, SoapItem, SoapSectionKey, SoapTranscript } from "@/types/soap";
 import { SOAP_SECTIONS } from "@/types/soap";
 
@@ -26,16 +28,18 @@ function speakerLabel(speaker: string | null | undefined) {
 
 function sourcesFor(item: SoapItem, caps: ClinicalAtomicProposition[], transcript?: SoapTranscript) {
   const turns = transcript?.turns ?? [];
-  const rows: { speaker: string; time: string; quote: string }[] = [];
+  const rows: { speaker: string; time: string; quote: string; lineId: string }[] = [];
   for (const cap of caps.filter((entry) => item.cap_ids.includes(entry.prop_id))) {
     for (const evidence of cap.evidence ?? []) {
       const turn = turns.find((entry) => entry.turn_id === evidence.turn_id);
       const quote = evidence.quote || turn?.text || "";
       if (!quote) continue;
+      const lineId = turn ? soapTurnKey(turn) : evidence.turn_id;
       rows.push({
         speaker: speakerLabel(evidence.speaker ?? turn?.speaker),
         time: clock(evidence.start_ms ?? turn?.start_ms),
         quote,
+        lineId,
       });
     }
   }
@@ -49,6 +53,7 @@ export default function SoapReviewPanel({
   readOnly,
   onSoap,
   onSelectEvidence,
+  onViewSource,
 }: {
   soap: SoapContent;
   caps: ClinicalAtomicProposition[];
@@ -58,11 +63,15 @@ export default function SoapReviewPanel({
   revisionStatus: string;
   onSoap: (soap: SoapContent) => void;
   onSelectEvidence: (item: SoapItem) => void;
+  onViewSource?: (lineId: string) => void;
 }) {
   const allItems = SOAP_SECTIONS.flatMap(({ key }) => soap[key]?.items ?? []);
-  const bulkReviewCount = allItems.filter(
-    (item) => item.origin !== "reviewer" && item.cap_ids.length > 0 && item.source_link_status === "valid" && item.support_status === "pending",
-  ).length;
+  const linkedPending = allItems.filter(
+    (item) => item.cap_ids.length > 0 && item.source_link_status === "valid" && item.support_status === "pending",
+  );
+  const manualPending = allItems.filter(
+    (item) => item.origin === "reviewer" && item.cap_ids.length === 0 && item.text.trim() && Boolean(item.manual_reason?.trim()) && item.review_status !== "reviewed",
+  );
 
   function updateItem(sectionKey: SoapSectionKey, itemId: string, change: Partial<SoapItem>, contentChanged = false) {
     const currentSection = soap[sectionKey];
@@ -104,20 +113,28 @@ export default function SoapReviewPanel({
   }
 
   function confirmSupportedItems() {
-    if (bulkReviewCount === 0 || !window.confirm(`Đánh dấu ${bulkReviewCount} câu có nguồn hợp lệ là đã được hỗ trợ? Hãy chỉ xác nhận sau khi đã đọc các trích dẫn.`)) return;
+    const total = linkedPending.length + manualPending.length;
+    if (total === 0) return;
+    const parts = [
+      linkedPending.length ? `${linkedPending.length} câu có nguồn` : "",
+      manualPending.length ? `${manualPending.length} câu bổ sung thủ công` : "",
+    ].filter(Boolean);
+    if (!window.confirm(`Đánh dấu ${parts.join(" và ")} là đã xem? Chỉ xác nhận sau khi đã đọc nội dung và nguồn.`)) return;
+    const linkedIds = new Set(linkedPending.map((item) => item.item_id));
+    const manualIds = new Set(manualPending.map((item) => item.item_id));
     const next = { ...soap };
     for (const { key } of SOAP_SECTIONS) {
       next[key] = {
         ...soap[key],
-        items: soap[key].items.map((item) =>
-          item.origin !== "reviewer" && item.cap_ids.length > 0 && item.source_link_status === "valid" && item.support_status === "pending"
-            ? { ...item, support_status: "supported", review_status: "reviewed" }
-            : item,
-        ),
+        items: soap[key].items.map((item) => {
+          if (linkedIds.has(item.item_id)) return { ...item, support_status: "supported", review_status: "reviewed" };
+          if (manualIds.has(item.item_id)) return { ...item, support_status: "unsupported", review_status: "reviewed" };
+          return item;
+        }),
       };
     }
     onSoap(next);
-    toast.success(`Đã xác nhận ${bulkReviewCount} câu`);
+    toast.success("Đã xác nhận. Bấm Lưu, rồi mới Duyệt.");
   }
 
   return (
@@ -131,7 +148,7 @@ export default function SoapReviewPanel({
                 <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-white text-[13px] font-extrabold text-ink ring-1 ring-line">{key}</span>
                 <span className="min-w-0">
                   <span className="block text-[13.5px] font-extrabold">{label}</span>
-                  <span className="block text-[11px] text-muted">{description}</span>
+                  {description && <span className="block text-[11px] text-muted">{description}</span>}
                 </span>
                 {!readOnly && (
                   <button type="button" onClick={() => addManualItem(key)} className="ml-auto shrink-0 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-ink ring-1 ring-line hover:bg-canvas">
@@ -163,7 +180,7 @@ export default function SoapReviewPanel({
                         className="min-h-6 flex-1 resize-none rounded border border-transparent bg-transparent px-1 py-0.5 text-[13px] leading-snug outline-none hover:border-line hover:bg-white focus:border-ink focus:bg-white read-only:hover:border-transparent"
                       />
                       {sources.length > 0 && (
-                        <EvidenceHint sources={sources} onOpen={() => onSelectEvidence(item)} />
+                        <EvidenceHint sources={sources} onOpen={() => onSelectEvidence(item)} onViewSource={onViewSource} />
                       )}
                       {!readOnly && (
                         <button type="button" aria-label="Xóa câu" onClick={() => removeItem(key, item.item_id)} className="mt-0.5 px-1 text-[11px] text-faint hover:text-ink">
@@ -186,7 +203,15 @@ export default function SoapReviewPanel({
                       <input
                         value={item.manual_reason ?? ""}
                         readOnly={readOnly}
-                        onChange={(event) => updateItem(key, item.item_id, { manual_reason: event.target.value, origin: "reviewer", review_status: "needs_review", support_status: "unsupported" })}
+                        onChange={(event) => {
+                          const reason = event.target.value;
+                          updateItem(key, item.item_id, {
+                            manual_reason: reason,
+                            origin: "reviewer",
+                            review_status: reason.trim() ? "reviewed" : "needs_review",
+                            support_status: "unsupported",
+                          });
+                        }}
                         placeholder="Nguồn ngoài transcript"
                         className="mt-1 h-8 w-full rounded-lg border border-line bg-white px-2 text-xs outline-none focus:border-ink"
                       />
@@ -198,10 +223,13 @@ export default function SoapReviewPanel({
           );
         })}
       </div>
-      {!readOnly && bulkReviewCount > 0 && (
+      {!readOnly && (linkedPending.length > 0 || manualPending.length > 0) && (
         <div className="border-t border-line-soft px-4 py-2.5 sm:px-5">
           <button type="button" onClick={confirmSupportedItems} className="text-[11.5px] font-semibold text-muted underline-offset-2 hover:text-ink hover:underline">
-            Xác nhận {bulkReviewCount} câu đã có nguồn
+            Xác nhận {[
+              linkedPending.length ? `${linkedPending.length} câu đã có nguồn` : "",
+              manualPending.length ? `${manualPending.length} câu bổ sung thủ công` : "",
+            ].filter(Boolean).join(" và ")}
           </button>
         </div>
       )}
@@ -212,9 +240,11 @@ export default function SoapReviewPanel({
 function EvidenceHint({
   sources,
   onOpen,
+  onViewSource,
 }: {
-  sources: { speaker: string; time: string; quote: string }[];
+  sources: { speaker: string; time: string; quote: string; lineId: string }[];
   onOpen: () => void;
+  onViewSource?: (lineId: string) => void;
 }) {
   return (
     <HoverCard.Root openDelay={180} closeDelay={120}>
@@ -224,8 +254,8 @@ function EvidenceHint({
           onClick={onOpen}
           className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-ink ring-1 ring-line hover:bg-ink hover:text-white"
         >
-          <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          Nguồn{sources.length > 1 ? ` · ${sources.length}` : ""}
+          <TextQuote size={12} strokeWidth={2} aria-hidden />
+          Nguồn
         </button>
       </HoverCard.Trigger>
       <HoverCard.Portal>
@@ -236,15 +266,24 @@ function EvidenceHint({
           className="z-50 w-80 rounded-2xl bg-ink px-3 py-2.5 text-white shadow-[0_12px_28px_rgb(28_31_35/0.28)]"
         >
           <p className="border-b border-white/15 pb-1 text-[10.5px] font-bold text-white/70">
-            Transcript{sources.length > 1 ? ` · ${sources.length} nguồn` : ""}
+            Nguồn
           </p>
           <div className="mt-1.5 max-h-64 space-y-2 overflow-auto">
             {sources.slice(0, 4).map((source, index) => (
-              <div key={`${source.time}-${index}`}>
+              <div key={`${source.lineId}-${index}`}>
                 <p className="text-[11px] font-bold text-white/80">
                   {source.speaker}{source.time ? ` · ${source.time}` : ""}
                 </p>
                 <p className="text-[11.5px] leading-snug text-white/95 italic">“{source.quote}”</p>
+                {onViewSource && (
+                  <button
+                    type="button"
+                    onClick={() => onViewSource(source.lineId)}
+                    className="mt-1 text-[11px] font-semibold text-white underline underline-offset-2"
+                  >
+                    Xem nguồn
+                  </button>
+                )}
               </div>
             ))}
           </div>

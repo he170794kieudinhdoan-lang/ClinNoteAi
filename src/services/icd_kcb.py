@@ -83,6 +83,21 @@ def normalize_code(code: str) -> str:
     return cleaned
 
 
+def query_code_param(code: str) -> str:
+    """Param tra cứu chỉ giữ 2 số sau dấu chấm khi phần thập phân dài hơn."""
+    head, dot, tail = code.partition(".")
+    if not dot:
+        return code
+    digits = ""
+    for char in tail:
+        if not char.isdigit():
+            break
+        digits += char
+    if len(digits) <= 2:
+        return code
+    return f"{head}.{digits[:2]}"
+
+
 async def _get(endpoint: str, params: dict[str, str], timeout: float) -> dict[str, Any]:
     settings = get_settings()
     if not settings.parse_api_key.strip():
@@ -110,7 +125,7 @@ async def lookup_code(code: str) -> dict[str, Any]:
     cached = _details.get(cleaned)
     if cached is not None:
         return cached
-    payload = await _get("query_code", {"code": cleaned}, 25)
+    payload = await _get("query_code", {"code": query_code_param(cleaned)}, 25)
     detail = detail_from_payload(payload)
     _details[cleaned] = detail
     return detail

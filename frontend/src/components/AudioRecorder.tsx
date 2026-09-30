@@ -5,7 +5,7 @@
  * Audio upload, recording placeholder, and JSON test import use separate tabs.
  */
 
-import { memo, useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import TranscriptPanel from "@/components/TranscriptPanel";
 import type { TranscriptLine } from "@/types";
 
@@ -60,8 +60,10 @@ function AudioRecorder({
   showTranscript?: boolean;
 }) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const submitted = useRef(false);
   const [over, setOver] = useState(false);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState<File | null>(null);
   const [playing, setPlaying] = useState(false);
   const [time, setTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -79,7 +81,7 @@ function AudioRecorder({
         return;
       }
       setError("");
-      onTranscriptJson(file);
+      setPending(file);
       return;
     }
     if (tab !== "upload" || locked) return;
@@ -91,8 +93,26 @@ function AudioRecorder({
     setPlaying(false);
     setTime(0);
     setDuration(0);
-    onFile(file);
+    setPending(file);
   }
+
+  function exportPending() {
+    if (!pending || isUploading || isProcessingTranscript || submitted.current) return;
+    submitted.current = true;
+    if (tab === "test") onTranscriptJson(pending);
+    else onFile(pending);
+  }
+
+  useEffect(() => {
+    if (!submitted.current || !pending) return;
+    if (isUploading || isProcessingTranscript) return;
+    submitted.current = false;
+    if (tab === "test") {
+      if (!uploadError) setPending(null);
+      return;
+    }
+    if (fileName === pending.name) setPending(null);
+  }, [fileName, isProcessingTranscript, isUploading, pending, tab, uploadError]);
 
   function toggle() {
     const audio = audioRef.current;
@@ -105,6 +125,8 @@ function AudioRecorder({
     setPlaying(false);
     setOver(false);
     setError("");
+    setPending(null);
+    submitted.current = false;
     onTab(next);
   }
 
@@ -149,10 +171,46 @@ function AudioRecorder({
           <p className="max-w-56 text-sm text-muted">Màn ghi âm trực tiếp ở bước sau. Dùng Tải lên để đưa file vào lượt khám.</p>
         </div>
       ) : isUploading || isProcessingTranscript ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-ink border-t-transparent" />
-          <p className="text-sm font-bold">{isProcessingTranscript ? "Đang tạo CAP và SOAP từ transcript JSON..." : "Đang xử lý âm thanh..."}</p>
-          <p className="max-w-64 text-xs text-muted">{isProcessingTranscript ? "Dùng nội dung đã phân vai; không chạy lại nhận dạng âm thanh." : "Đang nhận diện giọng nói (Blaze STT) và phân vai bác sĩ / bệnh nhân (Qwen)..."}</p>
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-ink/30 backdrop-blur-[2px]" />
+          <div
+            role="status"
+            className="absolute top-1/2 left-1/2 w-[min(16rem,calc(100%-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-md border border-line bg-white px-4 py-4 text-center"
+          >
+            <p className="text-sm font-bold">{isProcessingTranscript ? "Đang tạo CAP và SOAP từ transcript JSON..." : "Đang xử lý âm thanh..."}</p>
+            <div className="mt-3 h-1 overflow-hidden rounded-full bg-line" aria-hidden>
+              <span className="wf-cover-sweep block h-full w-1/3 rounded-full bg-ink" />
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-muted">
+              {isProcessingTranscript
+                ? "Dùng nội dung đã phân vai; không chạy lại nhận dạng âm thanh."
+                : "Đang nhận diện giọng nói (Blaze STT) và phân vai bác sĩ / bệnh nhân..."}
+            </p>
+          </div>
+        </div>
+      ) : pending ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 p-3.5">
+          <div className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-lg border border-line px-2.5 py-2">
+            <span className="grid h-7 w-7 place-items-center rounded-md border border-line bg-subtle text-sm" aria-hidden>
+              {tab === "test" ? "JSON" : "♪"}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold">{pending.name}</span>
+              <span className="text-[11px] text-muted">Đã chọn, chưa xuất transcript</span>
+            </span>
+            <button type="button" onClick={() => setPending(null)} aria-label="Bỏ file đã chọn" className="px-1 text-sm text-muted hover:text-ink">
+              ✕
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={exportPending}
+            disabled={locked}
+            className="h-9 rounded-md bg-ink text-sm font-semibold text-white disabled:opacity-45"
+          >
+            Xuất transcript
+          </button>
+          {(uploadError || error) && <p role="alert" className="text-sm text-rose-700">{uploadError || error}</p>}
         </div>
       ) : tab === "test" ? (
         <div className="flex flex-1 flex-col p-3.5">
@@ -243,6 +301,7 @@ function AudioRecorder({
       ) : (
         <div className="flex flex-1 flex-col p-3.5">
           <label
+            data-guide="upload"
             onDragOver={(event) => {
               event.preventDefault();
               setOver(true);

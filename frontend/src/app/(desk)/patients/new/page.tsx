@@ -1,11 +1,17 @@
 "use client";
 
+import * as Popover from "@radix-ui/react-popover";
+import * as Tooltip from "@radix-ui/react-tooltip";
+import { CircleHelp } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ReactNode, useRef, useState } from "react";
+import { ReactNode, useState } from "react";
+import { DayPicker } from "react-day-picker";
+import { vi } from "react-day-picker/locale";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import ClinicShell from "@/components/ClinicShell";
+import "react-day-picker/style.css";
+import { firstVisitGuideKey } from "@/components/FirstVisitGuide";
 import { saveEncounter } from "@/hooks/useEncounter";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
 import { createPatient } from "@/lib/api";
@@ -24,17 +30,23 @@ type PatientForm = {
 
 const GENDERS: Gender[] = ["Nam", "Nữ", "Khác"];
 
-function ageFromParts(day: string, month: string, year: string) {
-  if (!day && !month && !year) return null;
+function dateFromParts(day: string, month: string, year: string) {
+  if (!day || !month || year.length !== 4) return undefined;
   const d = Number(day);
   const m = Number(month);
   const y = Number(year);
-  if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y) || year.length !== 4) return null;
+  if (!Number.isInteger(d) || !Number.isInteger(m) || !Number.isInteger(y)) return undefined;
   const date = new Date(y, m - 1, d);
-  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+  if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return undefined;
+  return date;
+}
+
+function ageFromParts(day: string, month: string, year: string) {
+  const date = dateFromParts(day, month, year);
+  if (!date) return null;
   const now = new Date();
-  let age = now.getFullYear() - y;
-  const beforeBirthday = now.getMonth() < m - 1 || (now.getMonth() === m - 1 && now.getDate() < d);
+  let age = now.getFullYear() - date.getFullYear();
+  const beforeBirthday = now.getMonth() < date.getMonth() || (now.getMonth() === date.getMonth() && now.getDate() < date.getDate());
   if (beforeBirthday) age -= 1;
   if (age < 0 || age > 130) return null;
   return age;
@@ -43,10 +55,8 @@ function ageFromParts(day: string, month: string, year: string) {
 export default function AddPatientPage() {
   const authed = useRequireAuth();
   const router = useRouter();
-  const dayRef = useRef<HTMLInputElement>(null);
-  const monthRef = useRef<HTMLInputElement>(null);
-  const yearRef = useRef<HTMLInputElement>(null);
   const [apiError, setApiError] = useState("");
+  const [dobOpen, setDobOpen] = useState(false);
   const {
     handleSubmit,
     watch,
@@ -66,18 +76,43 @@ export default function AddPatientPage() {
   const gender = watch("gender");
 
   const age = ageFromParts(day, month, year);
+  const picked = dateFromParts(day, month, year);
+  const dobInvalid = Boolean(day || month || year) && age === null;
+  const canSubmit = /^\d{10}$/.test(code.trim()) && name.trim().length >= 2 && name.trim().length <= 30 && !dobInvalid;
 
-  function writePart(
-    field: "day" | "month" | "year",
-    raw: string,
-    max: number,
-    current: string,
-    next?: HTMLInputElement | null,
-  ) {
-    const value = raw.replace(/\D/g, "").slice(0, max);
-    setValue(field, value);
-    if (errors.dob) clearErrors("dob");
-    if (current.length < max && value.length === max) next?.focus();
+  function onPickDob(date: Date | undefined) {
+    if (!date) {
+      setValue("day", "");
+      setValue("month", "");
+      setValue("year", "");
+      setValue("dob", "");
+      clearErrors("dob");
+      setDobOpen(false);
+      return;
+    }
+    const d = String(date.getDate());
+    const m = String(date.getMonth() + 1);
+    const y = String(date.getFullYear());
+    setValue("day", d);
+    setValue("month", m);
+    setValue("year", y);
+    const next = ageFromParts(d, m, y);
+    if (next === null) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const chosen = new Date(date);
+      chosen.setHours(0, 0, 0, 0);
+      setValue("dob", "");
+      setError("dob", {
+        type: "validate",
+        message: chosen > today ? "Ngày sinh không được ở tương lai." : "Ngày sinh chưa hợp lệ.",
+      });
+      setDobOpen(false);
+      return;
+    }
+    clearErrors("dob");
+    setValue("dob", `${y}-${m.padStart(2, "0")}-${d.padStart(2, "0")}`);
+    setDobOpen(false);
   }
 
   async function onSubmit(values: PatientForm) {
@@ -154,6 +189,7 @@ export default function AddPatientPage() {
       };
 
       saveEncounter(encounter);
+      sessionStorage.setItem(firstVisitGuideKey(encounter.id), "1");
       toast.success("Đã tạo bệnh nhân");
       router.push(`/encounters/${encounter.id}`);
     } catch (err: unknown) {
@@ -163,11 +199,12 @@ export default function AddPatientPage() {
     }
   }
 
-  if (!authed) return <main className="min-h-dvh bg-canvas" />;
+  if (!authed) return null;
 
   return (
-    <ClinicShell section="new">
-      <section className="flex h-full items-center justify-center overflow-auto bg-canvas p-6">
+    <>
+      <div className="absolute inset-0 z-10 bg-black/45 backdrop-blur-[2px]" aria-hidden />
+      <section className="absolute inset-0 z-10 flex items-center justify-center overflow-auto p-6">
       <form
         onSubmit={handleSubmit(onSubmit)}
         noValidate
@@ -187,7 +224,13 @@ export default function AddPatientPage() {
 
         <div className="grid min-h-0 flex-1 overflow-auto md:grid-cols-[1fr_260px] md:items-stretch">
           <div className="grid grid-cols-1 content-start gap-x-4 gap-y-4 p-5 sm:grid-cols-2 md:border-r md:border-line">
-            <Field label="Mã định danh y tế" required error={errors.code?.message} count={`${code.length}/10`}>
+            <Field
+              label="Mã định danh y tế"
+              required
+              error={errors.code?.message}
+              count={`${code.length}/10`}
+              hint={<CodeHint />}
+            >
               <div className="flex h-10 items-center rounded-sm border border-line bg-white px-2.5">
                 <input
                   value={code}
@@ -218,39 +261,46 @@ export default function AddPatientPage() {
             </Field>
 
             <Field label="Ngày sinh" error={errors.dob?.message}>
-              <div className="grid grid-cols-3 gap-1.5">
-                <input
-                  ref={dayRef}
-                  value={day}
-                  onChange={(event) => writePart("day", event.target.value, 2, day, monthRef.current)}
-                  placeholder="dd"
-                  inputMode="numeric"
-                  aria-label="Ngày"
-                  className={`${inputClass} text-center`}
-                />
-                <input
-                  ref={monthRef}
-                  value={month}
-                  onChange={(event) => writePart("month", event.target.value, 2, month, yearRef.current)}
-                  placeholder="mm"
-                  inputMode="numeric"
-                  aria-label="Tháng"
-                  className={`${inputClass} text-center`}
-                />
-                <input
-                  ref={yearRef}
-                  value={year}
-                  onChange={(event) => writePart("year", event.target.value, 4, year)}
-                  placeholder="yyyy"
-                  inputMode="numeric"
-                  aria-label="Năm"
-                  className={`${inputClass} text-center`}
-                />
-              </div>
+              <Popover.Root open={dobOpen} onOpenChange={setDobOpen}>
+                <Popover.Trigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Chọn ngày sinh"
+                    className={`${inputClass} text-left ${picked ? "text-ink" : "text-faint"} ${errors.dob ? "border-danger" : ""}`}
+                  >
+                    {picked
+                      ? `${String(picked.getDate()).padStart(2, "0")}/${String(picked.getMonth() + 1).padStart(2, "0")}/${picked.getFullYear()}`
+                      : "Chọn ngày, tháng, năm"}
+                  </button>
+                </Popover.Trigger>
+                <Popover.Portal>
+                  <Popover.Content
+                    sideOffset={6}
+                    align="start"
+                    className="z-50 rounded-md border border-line bg-white p-2"
+                  >
+                    <DayPicker
+                      mode="single"
+                      locale={vi}
+                      captionLayout="dropdown"
+                      navLayout="around"
+                      startMonth={new Date(new Date().getFullYear() - 140, 0)}
+                      endMonth={new Date(new Date().getFullYear(), 11)}
+                      defaultMonth={picked ?? new Date(1990, 0)}
+                      selected={picked}
+                      onSelect={onPickDob}
+                      className="dob-cal"
+                    />
+                  </Popover.Content>
+                </Popover.Portal>
+              </Popover.Root>
             </Field>
             <Field label="Tuổi">
-              <div className="flex h-10 items-center gap-1.5 rounded-sm border border-line bg-white px-2.5 text-xs text-muted">
-                <b className="text-sm text-ink">{age === null ? "--" : age}</b>
+              <div
+                aria-disabled="true"
+                className="flex h-10 cursor-not-allowed items-center gap-1.5 rounded-sm border border-line bg-subtle px-2.5 text-xs text-faint"
+              >
+                <b className="text-sm font-medium text-muted">{age === null ? "--" : age}</b>
                 tuổi
               </div>
             </Field>
@@ -263,7 +313,7 @@ export default function AddPatientPage() {
                     type="button"
                     onClick={() => setValue("gender", item)}
                     className={`flex-1 border-r border-line text-xs transition-colors last:border-r-0 ${
-                      gender === item ? "bg-subtle font-semibold text-ink" : "text-muted hover:bg-subtle"
+                      gender === item ? "bg-ink font-semibold text-white" : "text-muted hover:bg-subtle"
                     }`}
                   >
                     {item}
@@ -273,18 +323,14 @@ export default function AddPatientPage() {
             </Field>
           </div>
 
-          <aside className="flex flex-col p-5">
-            <div className="flex flex-1 flex-col rounded-sm border border-line bg-white p-4">
+          <aside className="flex flex-col bg-subtle p-5">
+            <div className="flex flex-1 flex-col rounded-md border border-line bg-white p-4">
               <div className="flex items-start gap-3">
-                <img
-                  src="/default-avatar.jpg"
-                  alt=""
-                  className="h-14 w-12 shrink-0 rounded-sm border border-line object-cover"
-                />
+                <img src="/logo-mark.png" alt="" className="h-12 w-12 shrink-0 object-contain" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug">{name.trim() || "—"}</p>
-                    <span className="shrink-0 rounded-sm border border-line bg-white px-1.5 py-0.5 text-[10px] font-semibold tracking-wide">MỚI</span>
+                    <span className="shrink-0 rounded-full border border-line px-2 py-0.5 text-[11px] text-muted">Mới</span>
                   </div>
                   <p className="mt-1 font-mono text-xs tracking-wide text-muted">{code || "··········"}</p>
                 </div>
@@ -300,8 +346,8 @@ export default function AddPatientPage() {
         </div>
 
         {apiError && (
-          <div className="px-5 py-2 text-sm font-medium text-rose-700 bg-rose-50 border-t border-rose-200">
-            ❌ {apiError}
+          <div className="border-t border-line bg-subtle px-5 py-2 text-sm text-danger">
+            {apiError}
           </div>
         )}
         <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
@@ -320,8 +366,8 @@ export default function AddPatientPage() {
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="h-9 rounded-lg bg-ink px-4 text-sm font-semibold text-white transition-colors hover:bg-ink/90 disabled:opacity-60"
+              disabled={isSubmitting || !canSubmit}
+              className="h-9 rounded-md bg-ink px-4 text-sm font-semibold text-white disabled:opacity-60"
             >
               {isSubmitting ? "Đang tạo..." : "Đăng ký và tiếp tục →"}
             </button>
@@ -329,18 +375,43 @@ export default function AddPatientPage() {
         </footer>
       </form>
       </section>
-    </ClinicShell>
+    </>
   );
 }
 
 const inputClass =
   "h-10 w-full rounded-sm border border-line bg-white px-2.5 text-sm text-ink outline-none placeholder:text-faint";
 
+function CodeHint() {
+  return (
+    <Tooltip.Provider delayDuration={200}>
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <button type="button" aria-label="Gợi ý mã định danh" className="text-faint hover:text-ink">
+            <CircleHelp size={13} />
+          </button>
+        </Tooltip.Trigger>
+        <Tooltip.Portal>
+          <Tooltip.Content
+            side="top"
+            sideOffset={6}
+            className="z-50 max-w-[220px] rounded-sm bg-ink px-2.5 py-1.5 text-[11px] leading-snug text-white"
+          >
+            10 chữ số trên thẻ BHYT hoặc mã số BHXH. Không gồm chữ cái.
+            <Tooltip.Arrow className="fill-ink" />
+          </Tooltip.Content>
+        </Tooltip.Portal>
+      </Tooltip.Root>
+    </Tooltip.Provider>
+  );
+}
+
 function Field({
   label,
   required,
   error,
   count,
+  hint,
   className,
   children,
 }: {
@@ -348,20 +419,22 @@ function Field({
   required?: boolean;
   error?: string;
   count?: string;
+  hint?: ReactNode;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <div className={`flex flex-col gap-1.5 ${className ?? ""}`}>
       <span className="flex items-baseline justify-between gap-2 text-xs">
-        <span>
+        <span className="inline-flex items-center gap-1">
           {label}
-          {required && <span className="text-[#8a5a32]"> *</span>}
+          {required && <span className="text-danger"> *</span>}
+          {hint}
         </span>
         {count && <span className="text-muted">{count}</span>}
       </span>
       {children}
-      {error && <span className="text-sm text-rose-700">{error}</span>}
+      {error && <span className="text-sm text-danger">{error}</span>}
     </div>
   );
 }

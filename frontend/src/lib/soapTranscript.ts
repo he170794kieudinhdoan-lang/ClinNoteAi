@@ -7,7 +7,15 @@ export function soapTranscriptFromConsultation(response: GetTranscriptResponse):
     throw new Error("Lượt khám chưa có transcript để tạo CAP và SOAP.");
   }
 
-  const turns: SoapTranscriptTurn[] = response.segments.map((segment, index) => {
+  const seen = new Set<string>();
+  const segments = response.segments.filter((segment) => {
+    const key = `${segment.resolved_role}\0${segment.start_ms ?? ""}\0${segment.end_ms ?? ""}\0${segment.content}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const turns: SoapTranscriptTurn[] = segments.map((segment, index) => {
     if (segment.resolved_role !== "doctor" && segment.resolved_role !== "patient") {
       throw new Error(`Lượt nói ${index + 1} chưa xác định được vai bác sĩ hoặc bệnh nhân.`);
     }

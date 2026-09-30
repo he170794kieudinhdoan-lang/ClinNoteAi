@@ -4,7 +4,6 @@ import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
 import { ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { downloadNotePdf } from "@/lib/notePdf";
 import { getSupabase } from "@/lib/supabase";
 import type { Encounter } from "@/types";
 
@@ -18,10 +17,10 @@ const PARTS = [
 type Part = (typeof PARTS)[number][0];
 
 const SOAP = [
-  ["subjective", "S", "Chủ quan"],
-  ["objective", "O", "Khách quan"],
-  ["assessment", "A", "Đánh giá"],
-  ["plan", "P", "Kế hoạch"],
+  ["subjective", "S", "Subjective (Bệnh sử & Triệu chứng cơ năng)"],
+  ["objective", "O", "Objective (Thám khám thực thể & Dấu hiệu sinh tồn)"],
+  ["assessment", "A", "Assessment (Đánh giá & Chẩn đoán sơ bộ)"],
+  ["plan", "P", "Plan (Kế hoạch điều trị & Đề xuất)"],
 ] as const;
 
 function clock(total: number) {
@@ -85,6 +84,7 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
     setPdfError("");
     setSaving(true);
     try {
+      const { downloadNotePdf } = await import("@/lib/notePdf");
       await downloadNotePdf(encounter, doctor, parts, approved);
       toast.success("Đã xuất PDF");
     } catch (err) {

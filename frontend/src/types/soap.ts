@@ -151,10 +151,10 @@ export interface ApproveSoapRequest {
 }
 
 export const SOAP_SECTIONS = [
-  { key: "S", label: "Chủ quan", description: "Triệu chứng và thông tin do người bệnh kể." },
-  { key: "O", label: "Khách quan", description: "Dấu hiệu khám hoặc kết quả được ghi nhận." },
-  { key: "A", label: "Đánh giá", description: "Nhận định đã được nói trong hội thoại." },
-  { key: "P", label: "Kế hoạch", description: "Điều trị, chỉ định hoặc theo dõi được đề cập." },
+  { key: "S", label: "Subjective (Bệnh sử & Triệu chứng cơ năng)", description: "" },
+  { key: "O", label: "Objective (Thám khám thực thể & Dấu hiệu sinh tồn)", description: "" },
+  { key: "A", label: "Assessment (Đánh giá & Chẩn đoán sơ bộ)", description: "" },
+  { key: "P", label: "Plan (Kế hoạch điều trị & Đề xuất)", description: "" },
 ] as const;
 
 export type SoapSectionKey = (typeof SOAP_SECTIONS)[number]["key"];
