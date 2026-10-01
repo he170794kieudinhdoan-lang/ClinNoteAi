@@ -6,7 +6,7 @@ from src.config import get_settings
 from src.schemas.soap import Cap, SoapRevision, Transcript
 from src.services.soap import extractor, renderer
 from src.services.soap.errors import SoapFailure
-from src.services.soap.validation import validate_caps, validate_soap
+from src.services.soap.validation import filter_usable_caps, validate_caps, validate_soap
 from src.services.transcript.normalizer import TranscriptNormalizationError, parse_soap_transcript
 
 
@@ -14,7 +14,7 @@ def make_nodes(store, llm):
     def failure(exc, stage: str, run_id: str | None = None) -> dict:
         if isinstance(exc, SoapFailure):
             return {**exc.as_dict(), "status": exc.status, "run_id": exc.run_id or run_id}
-        return {"stage": stage, "code": "internal_error", "message": type(exc).__name__,
+        return {"stage": stage, "code": "internal_error", "message": f"{type(exc).__name__}: {exc}",
                 "status": 500, "run_id": run_id}
 
     async def normalize(state):
@@ -92,9 +92,10 @@ def make_nodes(store, llm):
 
     async def render_soap(state):
         try:
+            usable_caps = filter_usable_caps([Cap.model_validate(cap) for cap in state["caps"]])
             raw, meta = await renderer.render_once(
                 llm, Transcript.model_validate(state["transcript"]),
-                [Cap.model_validate(cap) for cap in state["caps"]], state.get("cap_warnings", []),
+                usable_caps, state.get("cap_warnings", []),
                 get_settings().soap_llm_timeout)
             store.save_attempt(state["run_id"], "render_soap", {"output": raw, "metadata": meta,
                                                                  "prompt_version": renderer.PROMPT_VERSION})
@@ -109,23 +110,24 @@ def make_nodes(store, llm):
 
     async def repair_soap(state):
         try:
+            usable_caps = filter_usable_caps([Cap.model_validate(cap) for cap in state["caps"]])
             raw, meta = await renderer.render_once(
                 llm, Transcript.model_validate(state["transcript"]),
-                [Cap.model_validate(cap) for cap in state["caps"]], state.get("cap_warnings", []),
+                usable_caps, state.get("cap_warnings", []),
                 get_settings().soap_llm_timeout, state.get("raw_model_output"))
             store.save_attempt(state["run_id"], "repair_soap_json", {"output": raw, "metadata": meta,
                                                                      "prompt_version": renderer.PROMPT_VERSION})
             soap = renderer.parse_soap(raw)
             return {"soap_draft": soap.model_dump(mode="json"), "raw_model_output": raw,
-                    "model_metadata": meta, "soap_repair_count": 1, "error": None}
+                    "model_metadata": meta, "soap_repair_count": state.get("soap_repair_count", 0) + 1, "error": None}
         except Exception as exc:
-            return {"soap_repair_count": 1, "error": failure(exc, "repair_soap_json", state["run_id"])}
+            return {"soap_repair_count": state.get("soap_repair_count", 0) + 1, "error": failure(exc, "repair_soap_json", state["run_id"])}
 
     async def check_soap(state):
         try:
             soap = validate_soap(renderer.SoapDocument.model_validate(state["soap_draft"]),
                                  [Cap.model_validate(cap) for cap in state["caps"]], generated=True)
-            return {"soap_draft": soap.model_dump(mode="json")}
+            return {"soap_draft": soap.model_dump(mode="json"), "error": None}
         except Exception as exc:
             return {"error": failure(exc, "validate_soap", state["run_id"])}
 

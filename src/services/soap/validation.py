@@ -4,6 +4,19 @@ from __future__ import annotations
 
 from src.schemas.soap import Cap, SoapDocument, Transcript
 from src.services.soap.errors import SoapFailure
+from src.services.soap.semantic_validator import check_item_safety
+from src.services.soap.text_utils import resolve_conservative_evidence_quote
+
+
+def filter_usable_caps(caps: list[Cap]) -> list[Cap]:
+    """
+    Sanitize CAP list for SOAP rendering.
+
+    Filters out CAPs with resolution_status == 'superseded' so that
+    the renderer only receives current / usable CAPs.
+    Returns a new list without mutating the original input caps list.
+    """
+    return [cap for cap in caps if cap.resolution_status != "superseded"]
 
 
 def validate_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], list[str]]:
@@ -24,8 +37,12 @@ def validate_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], l
             raise SoapFailure("validate_caps", "speaker_mismatch", f"CAP {cap.prop_id} has no evidence from its source speaker")
         for ev in cap.evidence:
             turn = turns.get(ev.turn_id)
-            if turn is None or not ev.quote.strip() or ev.quote not in turn.text:
+            if turn is None or not ev.quote.strip():
                 raise SoapFailure("validate_caps", "invalid_quote", f"CAP {cap.prop_id} quote is absent from turn {ev.turn_id}")
+            resolved_quote, _ = resolve_conservative_evidence_quote(ev.quote, turn.text)
+            if resolved_quote is None:
+                raise SoapFailure("validate_caps", "invalid_quote", f"CAP {cap.prop_id} quote is absent from turn {ev.turn_id}")
+            ev.quote = resolved_quote
             ev.source_segment_id = turn.source_segment_id
             ev.speaker = turn.speaker
             ev.start_ms = turn.start_ms
@@ -86,28 +103,45 @@ def validate_soap(soap: SoapDocument, caps: list[Cap], *, generated: bool) -> So
                 raise SoapFailure("validate_soap", "duplicate_cap_link", f"Item {item.item_id} repeats CAP IDs", invalid_status)
             if generated and not item.cap_ids:
                 raise SoapFailure("validate_soap", "missing_cap_link", f"Item {item.item_id} lacks CAP")
+            linked_caps = []
             for cap_id in item.cap_ids:
                 cap = current.get(cap_id)
                 if cap is None:
                     raise SoapFailure("validate_soap", "invalid_cap_link", f"Item {item.item_id} links missing or superseded CAP", invalid_status)
-                if section_name == "A" and cap.speaker_source != "clinician":
+                linked_caps.append(cap)
+                if section_name == "S":
+                    if linked_caps and any(c.speaker_source != "patient" for c in linked_caps):
+                        raise SoapFailure("validate_soap", "subjective_source", "Subjective item requires patient-reported source", invalid_status)
+                if section_name == "A" and (cap.speaker_source != "clinician" or cap.cap_type not in {"Problem", "ProblemHistory"}):
                     raise SoapFailure("validate_soap", "assessment_source", "Assessment requires clinician source", invalid_status)
-                if section_name == "O" and cap.cap_type not in {"ExamFinding", "TestResult"}:
+                if section_name == "O" and (cap.speaker_source != "clinician" or cap.cap_type not in {"ExamFinding", "TestResult"}):
                     raise SoapFailure("validate_soap", "objective_source", "Objective item requires exam or test source", invalid_status)
-                if section_name == "P" and cap.speaker_source != "clinician":
-                    raise SoapFailure("validate_soap", "plan_source", "Plan requires clinician source", invalid_status)
+                if section_name == "P" and (cap.speaker_source != "clinician" or cap.cap_type not in {"MedicationRequest", "Order", "FollowUp", "Counseling"}):
+                    raise SoapFailure("validate_soap", "plan_source", "Plan requires clinician-directed plan source", invalid_status)
             if generated:
                 item.origin = "ai"
                 item.review_status = "needs_review"
-                item.support_status = "pending"
                 item.source_link_status = "valid"
                 item.manual_reason = None
+                # Tier 1 Deterministic Safety & Grounding Check
+                if linked_caps:
+                    violations = check_item_safety(item, section_name, linked_caps)
+                    if violations:
+                        item.support_status = "unsupported"
+                    else:
+                        item.support_status = "pending"
+                else:
+                    item.support_status = "pending"
             elif not item.cap_ids:
                 if item.origin != "reviewer" or not item.manual_reason or not item.manual_reason.strip():
                     raise SoapFailure("validate_soap", "manual_reason_required", "Unlinked reviewer item needs a reason", 422)
                 item.source_link_status = "invalid"
             else:
                 item.source_link_status = "valid"
+                if linked_caps:
+                    violations = check_item_safety(item, section_name, linked_caps)
+                    if violations:
+                        item.support_status = "unsupported"
     return soap
 
 

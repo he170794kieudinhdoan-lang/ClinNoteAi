@@ -6,6 +6,9 @@ from src.agents.nodes.soap_nodes import make_nodes
 from src.agents.soap_state import SoapPipelineState
 
 
+from src.services.soap.repair_policy import is_repairable_error
+
+
 def create_soap_pipeline(store, llm):
     nodes = make_nodes(store, llm)
     graph = StateGraph(SoapPipelineState)
@@ -44,13 +47,27 @@ def create_soap_pipeline(store, llm):
 
     async def after_render(state):
         error = state.get("error")
-        if error and error.get("code") == "invalid_model_output" and not state.get("soap_repair_count"):
-            return "repair_soap"
-        return "record_error" if error else "check_soap"
+        if error:
+            code = error.get("code")
+            repair_count = state.get("soap_repair_count", 0)
+            if is_repairable_error(code, repair_count):
+                return "repair_soap"
+            return "record_error"
+        return "check_soap"
+
+    async def after_check_soap(state):
+        error = state.get("error")
+        if error:
+            code = error.get("code")
+            repair_count = state.get("soap_repair_count", 0)
+            if is_repairable_error(code, repair_count):
+                return "repair_soap"
+            return "record_error"
+        return "save_draft"
 
     graph.add_conditional_edges("render_soap", after_render)
     graph.add_conditional_edges("repair_soap", next_or_error("check_soap"))
-    graph.add_conditional_edges("check_soap", next_or_error("save_draft"))
+    graph.add_conditional_edges("check_soap", after_check_soap)
     graph.add_conditional_edges("save_draft", next_or_error(END))
     graph.add_edge("record_error", END)
     return graph.compile()

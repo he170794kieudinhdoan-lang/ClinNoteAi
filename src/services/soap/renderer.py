@@ -18,9 +18,29 @@ PROMPT_VERSION = "soap-1"
 PROMPT = (Path(__file__).parent / "prompts" / "soap_renderer.txt").read_text(encoding="utf-8")
 
 
+def compute_section_candidates(caps: list[Cap]) -> dict[str, list[str]]:
+    """
+    Computes deterministic section candidates for S, O, A, and P sections:
+    - S: speaker_source == 'patient'
+    - O: speaker_source == 'clinician' AND cap_type in {'ExamFinding', 'TestResult'}
+    - A: speaker_source == 'clinician' AND cap_type in {'Problem', 'ProblemHistory'}
+    - P: speaker_source == 'clinician' AND cap_type in {'MedicationRequest', 'Order', 'FollowUp', 'Counseling'}
+    """
+    return {
+        "S": [c.prop_id for c in caps if c.speaker_source == "patient"],
+        "O": [c.prop_id for c in caps if c.speaker_source == "clinician" and c.cap_type in {"ExamFinding", "TestResult"}],
+        "A": [c.prop_id for c in caps if c.speaker_source == "clinician" and c.cap_type in {"Problem", "ProblemHistory"}],
+        "P": [c.prop_id for c in caps if c.speaker_source == "clinician" and c.cap_type in {"MedicationRequest", "Order", "FollowUp", "Counseling"}],
+    }
+
+
 async def render_once(llm, transcript: Transcript, caps: list[Cap], warnings: list[str], timeout: float, repair: str | None = None) -> tuple[str, dict]:
-    payload = {"transcript": transcript.model_dump(mode="json"),
-               "caps": [cap.model_dump(mode="json") for cap in caps], "warnings": warnings}
+    payload = {
+        "transcript": transcript.model_dump(mode="json"),
+        "caps": [cap.model_dump(mode="json") for cap in caps],
+        "section_candidates": compute_section_candidates(caps),
+        "warnings": warnings,
+    }
     if repair is not None:
         payload["previous_invalid_output"] = repair[:12_000]
         payload["repair_instruction"] = "Return corrected JSON only with all CAP links."
@@ -42,6 +62,21 @@ async def render_once(llm, transcript: Transcript, caps: list[Cap], warnings: li
                               "provider": (getattr(llm, "metadata", None) or {}).get("pipeline_provider", settings.llm_provider), "duration_ms": round((time.monotonic() - started) * 1000)}
 
 
+def assign_deterministic_item_ids(soap: SoapDocument) -> SoapDocument:
+    """
+    Overwrite all SoapItem item_ids with deterministic section-prefixed IDs:
+    S -> S1, S2, S3...
+    O -> O1, O2, O3...
+    A -> A1, A2, A3...
+    P -> P1, P2, P3...
+    """
+    for section_name in ("S", "O", "A", "P"):
+        section = getattr(soap, section_name)
+        for index, item in enumerate(section.items, start=1):
+            item.item_id = f"{section_name}{index}"
+    return soap
+
+
 def parse_soap(text: str) -> SoapDocument:
     cleaned = text.strip()
     if cleaned.startswith("```json\n") and cleaned.endswith("```"):
@@ -49,6 +84,7 @@ def parse_soap(text: str) -> SoapDocument:
     elif cleaned.startswith("```\n") and cleaned.endswith("```"):
         cleaned = cleaned[4:-3].strip()
     try:
-        return SoapDocument.model_validate(json.loads(cleaned))
+        soap = SoapDocument.model_validate(json.loads(cleaned))
+        return assign_deterministic_item_ids(soap)
     except (ValueError, ValidationError) as exc:
         raise SoapFailure("parse_soap", "invalid_model_output", "SOAP model returned invalid JSON/schema") from exc
