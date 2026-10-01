@@ -1,3 +1,4 @@
+import { modelPreferenceForRequest } from "@/lib/modelPreferences";
 import type { TranscriptLine } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -194,6 +195,7 @@ export async function uploadConsultationAudio(
 ): Promise<UploadAudioResponse> {
   const formData = new FormData();
   formData.append("audio_file", file);
+  formData.append("model_preferences", JSON.stringify({ stt: modelPreferenceForRequest("stt"), roles: modelPreferenceForRequest("roles") }));
 
   const res = await fetch(`${API_BASE}/api/v1/consultations/${consultationId}/audio`, {
     method: "POST",
@@ -231,5 +233,4 @@ export function updateTranscriptSegment(segmentId: string, content: string) {
     body: JSON.stringify({ content }),
   });
 }
-
 

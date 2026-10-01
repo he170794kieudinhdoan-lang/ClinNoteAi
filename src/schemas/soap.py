@@ -8,6 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from src.schemas.model_settings import ModelPreference
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -145,10 +147,12 @@ class RunMetadata(StrictModel):
 class ExtractRequest(StrictModel):
     input_format: Literal["qwen_role_result", "canonical", "text"]
     content: dict[str, Any] | str
+    model_config_override: ModelPreference | None = None
 
 
 class GenerateRequest(StrictModel):
     expected_revision: int = Field(ge=0)
+    model_config_override: ModelPreference | None = None
 
 
 class RevisionRequest(StrictModel):

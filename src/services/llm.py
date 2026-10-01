@@ -1,6 +1,8 @@
 from langchain_openai import ChatOpenAI
 
 from src.config import get_settings
+from src.schemas.model_settings import ModelPreference
+from src.services.model_runtime import create_model
 
 
 def get_llm() -> ChatOpenAI:
@@ -21,8 +23,10 @@ def get_llm() -> ChatOpenAI:
     )
 
 
-def get_soap_llm() -> ChatOpenAI:
+def get_soap_llm(preference: ModelPreference | None = None) -> ChatOpenAI:
     """One call per graph attempt; LangGraph owns the single repair attempt."""
+    if preference is not None:
+        return create_model("soap", preference)
     settings = get_settings()
     common = {
         "temperature": settings.soap_llm_temperature,

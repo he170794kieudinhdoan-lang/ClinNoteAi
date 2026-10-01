@@ -1,4 +1,5 @@
 import { getApiBase } from "@/lib/api";
+import { modelPreferenceForRequest } from "@/lib/modelPreferences";
 import type {
   ApproveSoapRequest,
   ExtractCapsRequest,
@@ -78,7 +79,7 @@ function runPath(runId: string) {
 export function extractCaps(input: ExtractCapsRequest) {
   return requestJson<ExtractCapsResponse>("/api/v1/soap/extract-caps", {
     method: "POST",
-    body: JSON.stringify(input),
+    body: JSON.stringify({ ...input, model_config_override: modelPreferenceForRequest("caps") }),
   });
 }
 
@@ -89,7 +90,7 @@ export function getSoapRun(runId: string) {
 export function generateSoap(runId: string, expectedRevision: number) {
   return requestJson<SoapRevisionResponse>(`${runPath(runId)}/generate`, {
     method: "POST",
-    body: JSON.stringify({ expected_revision: expectedRevision }),
+    body: JSON.stringify({ expected_revision: expectedRevision, model_config_override: modelPreferenceForRequest("soap") }),
   });
 }
 

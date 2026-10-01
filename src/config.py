@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     app_port: int = Field(default=8000, ge=1, le=65535)
     app_host: str = "0.0.0.0"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # LLM Provider selection: "9router" or "ollama" or "openai"
     llm_provider: Literal["9router", "ollama", "openai"] = "9router"
@@ -26,6 +26,12 @@ class Settings(BaseSettings):
     # OpenAI - dùng cho clinical/LLM flow sau này
     openai_api_key: str = ""
     model_name: str = "gpt-4o-mini"
+    gemini_api_key: str = ""
+    gemini_model: str = ""
+    openrouter_api_key: str = ""
+    openrouter_model: str = ""
+    groq_api_key: str = ""
+    groq_model: str = ""
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
     # 9Router configuration
@@ -46,7 +52,7 @@ class Settings(BaseSettings):
     ollama_model: str = "kamekichi128/qwen3-4b-instruct-2507:latest"
 
     # Local, single-process SOAP demonstration
-    soap_enabled: bool = False
+    soap_enabled: bool = True
     db_auto_create_tables: bool = True
     soap_data_dir: str = "./data/soap_mvp"
     soap_max_turns: int = Field(default=200, ge=1)

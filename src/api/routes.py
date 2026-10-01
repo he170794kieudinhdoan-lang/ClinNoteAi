@@ -1,21 +1,10 @@
 from pathlib import Path
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
-from src.services.audio.temp_storage import save_temp_audio
-from src.services.icd_kcb import IcdNotFound, IcdUnavailable, IcdUpstream, lookup_code, search_codes
-from src.services.blaze.stt_async import BlazeSTTError, blaze_stt
-from src.services.speaker.role_classifier import (
-    SpeakerRoleError,
-    speaker_role_classifier,
-)
-from src.services.transcript.normalizer import (
-    TranscriptNormalizationError,
-    normalize_transcript,
-)
-from src.services.transcript.repository import (
-    save_transcript_for_consultation,
-)
+
 from src.agents.graph import agent
 from src.database import get_db
 from src.models.consultation import Consultation
@@ -31,9 +20,25 @@ from src.models.schemas import (
     TranscriptSegmentResponse,
     TranscriptSegmentUpdateRequest,
 )
-from src.models.user import User
-from uuid import UUID
 from src.models.transcript_segment import TranscriptSegment
+from src.models.user import User
+from src.schemas.model_settings import AudioModelPreferences
+from src.services.audio.temp_storage import save_temp_audio
+from src.services.blaze.stt_async import BlazeSTTAsync, BlazeSTTError, blaze_stt
+from src.services.icd_kcb import IcdNotFound, IcdUnavailable, IcdUpstream, lookup_code, search_codes
+from src.services.model_runtime import ModelConfigurationError, resolve_connection
+from src.services.speaker.role_classifier import (
+    SpeakerRoleError,
+    speaker_role_classifier,
+)
+from src.services.stt import create_stt
+from src.services.transcript.normalizer import (
+    TranscriptNormalizationError,
+    normalize_transcript,
+)
+from src.services.transcript.repository import (
+    save_transcript_for_consultation,
+)
 
 router = APIRouter()
 
@@ -157,9 +162,19 @@ async def create_consultation(
 async def upload_consultation_audio(
     consultation_id: UUID,
     audio_file: UploadFile = File(...),
+    model_preferences: str | None = Form(default=None),
     db: Session = Depends(get_db),
 ):
     """Upload audio và xử lý transcript cho consultation."""
+
+    preferences = None
+    if model_preferences is not None:
+        try:
+            preferences = AudioModelPreferences.model_validate_json(model_preferences)
+            resolve_connection("stt", preferences.stt)
+            resolve_connection("roles", preferences.roles)
+        except (ValidationError, ModelConfigurationError):
+            raise HTTPException(status_code=422, detail="Cấu hình STT hoặc phân vai không hợp lệ.") from None
 
     consultation = (
         db.query(Consultation)
@@ -180,7 +195,11 @@ async def upload_consultation_audio(
         temp_path = await save_temp_audio(audio_file)
 
         # 2. Blaze STT
-        stt_result = await blaze_stt.transcribe(temp_path)
+        if preferences and preferences.stt.provider in {"9router", "groq"}:
+            stt_client = create_stt(preferences.stt)
+        else:
+            stt_client = BlazeSTTAsync(preferences.stt) if preferences else blaze_stt
+        stt_result = await stt_client.transcribe(temp_path)
 
         segments = stt_result.get("segments", [])
 
@@ -191,9 +210,12 @@ async def upload_consultation_audio(
             )
 
         # 3. Qwen Speaker Role
-        role_result = await speaker_role_classifier.classify(
-            segments
-        )
+        if stt_result.get("speaker_source") == "text_inference":
+            segments, role_result = await speaker_role_classifier.classify_unlabelled(
+                segments, preferences.roles if preferences else None,
+            )
+        else:
+            role_result = await speaker_role_classifier.classify(segments, preferences.roles) if preferences else await speaker_role_classifier.classify(segments)
 
         # 4. Normalize
         normalized_segments = normalize_transcript(
@@ -212,6 +234,7 @@ async def upload_consultation_audio(
             "consultation_id": str(consultation.id),
             "status": consultation.status,
             "segments_count": len(saved_segments),
+            "speaker_source": stt_result.get("speaker_source", "audio"),
             "transcript": [
                 {
                     "id": str(segment.id),
@@ -249,7 +272,8 @@ async def upload_consultation_audio(
 
         raise HTTPException(
             status_code=502,
-            detail="Speaker role classification failed",
+            detail=("Không phân vai được đoạn Whisper. Có thể đoạn chứa nhiều vai, thiếu ngữ cảnh hoặc model trả JSON sai. Thử Blaze để tách người nói theo audio."
+                    if stt_result.get("speaker_source") == "text_inference" else "Speaker role classification failed"),
         ) from exc
 
     except TranscriptNormalizationError as exc:

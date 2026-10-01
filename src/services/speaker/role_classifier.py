@@ -6,6 +6,8 @@ from typing import Any
 import httpx
 
 from src.config import get_settings
+from src.schemas.model_settings import ModelPreference
+from src.services.model_runtime import create_model
 
 
 class SpeakerRoleError(Exception):
@@ -13,6 +15,50 @@ class SpeakerRoleError(Exception):
 
 
 class SpeakerRoleClassifier:
+    async def classify_unlabelled(self, segments, preference=None):
+        """Infer roles from text once, without changing quotes or timestamps."""
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        try:
+            response = await create_model("roles", preference).ainvoke([
+                SystemMessage(content=(
+                    "Phân vai từng đoạn hội thoại y tế dựa trên nội dung. Không suy vai từ thứ tự. "
+                    "Không chia hoặc sửa text. Nếu một đoạn chứa cả hai vai hoặc không đủ thông tin, dùng unknown. "
+                    'Trả JSON {"segment_roles":[{"index":0,"role":"doctor|patient|unknown","confidence":0.0}]}. '
+                    "Trả đúng một phần tử cho mỗi index; confidence chỉ là tự đánh giá, không phải đo từ audio."
+                )),
+                HumanMessage(content=json.dumps([
+                    {"index": index, "text": segment["text"]} for index, segment in enumerate(segments)
+                ], ensure_ascii=False)),
+            ], response_format={"type": "json_object"})
+            assignments = self._extract_json(response.content)["segment_roles"]
+            if not isinstance(assignments, list) or len(assignments) != len(segments):
+                raise ValueError("incomplete roles")
+            by_index = {}
+            for assignment in assignments:
+                index = assignment["index"]
+                confidence = assignment["confidence"]
+                if type(index) is not int or index in by_index or not 0 <= index < len(segments):
+                    raise ValueError("invalid index")
+                if assignment["role"] not in {"doctor", "patient"}:
+                    raise SpeakerRoleError("Whisper chưa tách người nói: có đoạn chứa nhiều vai hoặc chưa xác định được vai. Hãy dùng Blaze để tách người nói.")
+                if type(confidence) not in {int, float} or not 0 <= confidence <= 1:
+                    raise ValueError("invalid confidence")
+                by_index[index] = assignment
+            labelled = []
+            roles = {}
+            for index, segment in enumerate(segments):
+                assignment = by_index[index]
+                speaker = "1" if assignment["role"] == "doctor" else "2"
+                labelled.append({**segment, "speaker": speaker})
+                previous = roles.get(speaker, {}).get("confidence", 1)
+                roles[speaker] = {"role": assignment["role"], "confidence": min(previous, assignment["confidence"])}
+            return labelled, {"speaker_roles": roles, "reason": "Vai được suy từ văn bản; không phải phân biệt giọng nói."}
+        except SpeakerRoleError:
+            raise
+        except Exception as exc:
+            raise SpeakerRoleError("Không phân vai được các đoạn Whisper hoặc phản hồi JSON không hợp lệ.") from exc
+
     def __init__(self) -> None:
         self._load_settings()
 
@@ -30,6 +76,7 @@ class SpeakerRoleClassifier:
     async def classify(
         self,
         segments: list[dict[str, Any]],
+        preference: ModelPreference | None = None,
     ) -> dict[str, Any]:
         self._load_settings()
 
@@ -116,7 +163,20 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
 {conversation}
 """
 
-        if self.provider == "ollama":
+        if preference is not None:
+            from langchain_core.messages import HumanMessage, SystemMessage
+
+            try:
+                response = await create_model("roles", preference).ainvoke([
+                    SystemMessage(content=system_prompt.strip()), HumanMessage(content=user_prompt.strip()),
+                ], response_format={"type": "json_object"})
+                text = response.content.strip()
+                if text.startswith("```"):
+                    text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                result = json.loads(text)
+            except Exception as exc:
+                raise SpeakerRoleError("Không gọi được model phân vai hoặc JSON phản hồi không hợp lệ.") from exc
+        elif self.provider == "ollama":
             result = await self._classify_ollama(system_prompt, user_prompt)
         elif self.provider == "9router":
             result = await self._classify_9router(system_prompt, user_prompt)

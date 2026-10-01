@@ -39,7 +39,7 @@ async def render_once(llm, transcript: Transcript, caps: list[Cap], warnings: li
     settings = get_settings()
     return response.content, {"usage": getattr(response, "usage_metadata", None),
                               "model": getattr(response, "response_metadata", {}).get("model_name") or getattr(llm, "model_name", None) or settings.soap_llm_model or None,
-                              "provider": settings.llm_provider, "duration_ms": round((time.monotonic() - started) * 1000)}
+                              "provider": (getattr(llm, "metadata", None) or {}).get("pipeline_provider", settings.llm_provider), "duration_ms": round((time.monotonic() - started) * 1000)}
 
 
 def parse_soap(text: str) -> SoapDocument:

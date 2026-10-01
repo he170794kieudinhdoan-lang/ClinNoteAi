@@ -13,14 +13,14 @@ const NAV = [
   { href: "/patients", label: "Bệnh nhân", id: "patients", count: "128" },
   { label: "Mẫu", id: "templates" },
   { label: "Tài liệu", id: "knowledge" },
-  { label: "Cài đặt", id: "settings" },
+  { href: "/settings", label: "Cài đặt", id: "settings" },
 ] as const;
 
 export default function ClinicShell({
   section,
   children,
 }: {
-  section: "home" | "patients" | "new" | "encounter";
+  section: "home" | "patients" | "new" | "encounter" | "settings";
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -77,7 +77,7 @@ export default function ClinicShell({
             {NAV.map((item) => {
               const active = item.id === "home"
                 ? section === "home" || section === "new" || section === "encounter"
-                : item.id === "patients" && section === "patients";
+                : item.id === section;
               const className = cn(
                 "flex w-full items-center gap-2.5 rounded-xl text-[13.5px] font-semibold",
                 collapsed ? "justify-center px-0 py-2.5" : "px-3 py-2.5",
@@ -94,7 +94,7 @@ export default function ClinicShell({
               );
               if ("href" in item && item.href) {
                 return (
-                  <Link key={item.id} href={item.href} title={item.label} className={className}>
+                  <Link key={item.id} href={item.href} title={item.label} aria-current={active ? "page" : undefined} className={className}>
                     {body}
                   </Link>
                 );

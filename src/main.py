@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from src.api.routes import router
 from src.config import get_settings
@@ -31,6 +33,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+
+@app.exception_handler(RequestValidationError)
+async def validation_error(request: Request, exc: RequestValidationError):
+    # Validation errors must not echo transient model credentials from input.
+    return JSONResponse(status_code=422, content={"detail": [
+        {key: error[key] for key in ("loc", "msg", "type") if key in error}
+        for error in exc.errors()
+    ]})
+
 settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
@@ -41,6 +52,10 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+if settings.app_env in {"development", "test"}:
+    from src.api.model_settings_routes import model_settings_router
+
+    app.include_router(model_settings_router, prefix="/api/v1/model-settings")
 if settings.soap_enabled and settings.app_env in {"development", "test"}:
     from src.api.soap_routes import soap_router
 

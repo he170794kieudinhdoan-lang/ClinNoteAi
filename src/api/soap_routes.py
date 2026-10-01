@@ -8,6 +8,7 @@ from src.agents.soap_graph import create_soap_pipeline
 from src.config import get_settings
 from src.schemas.soap import ApproveRequest, ExtractRequest, GenerateRequest, RevisionRequest
 from src.services.llm import get_soap_llm
+from src.services.model_runtime import ModelConfigurationError, create_model
 from src.services.soap.errors import SoapFailure
 from src.services.soap.review import approve, export_revision, read_run, revise
 from src.services.soap.store import SoapStore
@@ -37,7 +38,11 @@ def _raise_failure(exc: SoapFailure):
 
 @soap_router.post("/extract-caps")
 async def extract_caps(request: ExtractRequest, store: SoapStore = Depends(get_soap_store)):
-    graph = create_soap_pipeline(store, get_soap_llm())
+    try:
+        llm = create_model("caps", request.model_config_override) if request.model_config_override is not None else get_soap_llm()
+    except ModelConfigurationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    graph = create_soap_pipeline(store, llm)
     result = await graph.ainvoke({"operation": "extract", "input_format": request.input_format,
                                   "content": request.content, "cap_repair_count": 0})
     if result.get("error"):
@@ -50,7 +55,11 @@ async def extract_caps(request: ExtractRequest, store: SoapStore = Depends(get_s
 
 @soap_router.post("/runs/{run_id}/generate")
 async def generate(run_id: str, request: GenerateRequest, store: SoapStore = Depends(get_soap_store)):
-    graph = create_soap_pipeline(store, get_soap_llm())
+    try:
+        llm = create_model("soap", request.model_config_override) if request.model_config_override is not None else get_soap_llm()
+    except ModelConfigurationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    graph = create_soap_pipeline(store, llm)
     result = await graph.ainvoke({"operation": "render", "run_id": run_id,
                                   "expected_revision": request.expected_revision, "soap_repair_count": 0})
     if result.get("error"):
