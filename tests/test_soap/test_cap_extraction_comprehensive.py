@@ -310,3 +310,99 @@ def test_14_full_soap_rendering_representation_and_cap_traceability():
     assert "nghi ngờ" in a_text.lower() or "khả năng" in a_text.lower()
 
 
+def test_15_clinical_note_style_excludes_conversational_markers():
+    """15. Proves that clinical-note style rendering excludes conversational markers."""
+    caps = build_comprehensive_caps()
+    soap_dict = make_soap_dict(
+        s_items=[
+            {"item_id": "S1", "text": "Đau khớp gối trái mức độ vừa đến dữ dội kéo dài 3 tuần; đau tăng khi vận động, đi bộ, leo cầu thang và đứng lâu.", "cap_ids": ["C1", "C2"]},
+            {"item_id": "S2", "text": "Thỉnh thoảng sưng và cứng khớp, rõ hơn vào buổi sáng; đau làm mất ngủ.", "cap_ids": ["C3", "C4"]},
+            {"item_id": "S3", "text": "Tiền sử tăng huyết áp được kiểm soát tốt, đang dùng thuốc hạ huyết áp đều đặn.", "cap_ids": ["C5", "C6"]},
+        ],
+        o_items=[{"item_id": "O1", "text": "Huyết áp 128/82 mmHg, nhịp tim 72 lần/phút", "cap_ids": ["C7", "C8"]}],
+        a_items=[{"item_id": "A1", "text": "Nghi ngờ đợt bùng phát thoái hóa khớp gối mức độ nhẹ", "cap_ids": ["C17"]}],
+        p_items=[{"item_id": "P1", "text": "Tập vật lý trị liệu, dùng NSAID khi đau nhiều", "cap_ids": ["C20", "C23"]}],
+    )
+    soap = parse_soap(json.dumps(soap_dict))
+    validated_soap = validate_soap(soap, caps, generated=True)
+
+    conversational_markers = ["có chứ", "vâng", "bác sĩ", "của tôi", "tôi bị", "nhé", "nãy bác có nói"]
+    for item in validated_soap.S.items:
+        text_lower = item.text.lower()
+        for marker in conversational_markers:
+            assert marker not in text_lower, f"Conversational marker '{marker}' found in S item text: {item.text}"
+
+
+def test_16_patient_stiffness_regression_and_clinician_swelling_separation(run_transcript: Transcript):
+    """16. Dedicated regression test for T8 patient stiffness vs T23 clinician physical exam swelling."""
+    caps = build_comprehensive_caps()
+    cands = compute_section_candidates(caps)
+
+    # 1. Patient stiffness CAP (C4) from T8
+    c4_stiffness = next(c for c in caps if c.prop_id == "C4")
+    assert c4_stiffness.speaker_source == "patient"
+    assert c4_stiffness.cap_type in {"ChiefComplaint", "Problem", "ProblemHistory"}
+    assert c4_stiffness.cap_type != "ExamFinding"
+    assert c4_stiffness.evidence[0].turn_id == "T8"
+    assert "cứng khớp" in c4_stiffness.evidence[0].quote
+
+    # Verify quote exists in T8 turn
+    t8_turn = next(t for t in run_transcript.turns if t.turn_id == "T8")
+    assert t8_turn.speaker == "patient"
+    assert c4_stiffness.evidence[0].quote in t8_turn.text
+
+    # Candidate routing assertions for patient stiffness
+    assert "C4" in cands["S"]
+    assert "C4" not in cands["O"]
+
+    # 2. Clinician physical exam swelling CAP (C11) from T23
+    c11_swelling = next(c for c in caps if c.prop_id == "C11")
+    assert c11_swelling.speaker_source == "clinician"
+    assert c11_swelling.cap_type == "ExamFinding"
+    assert c11_swelling.evidence[0].turn_id == "T23"
+    assert c11_swelling.evidence[0].quote == "Khớp gối trái hơi sưng nhẹ"
+
+    t23_turn = next(t for t in run_transcript.turns if t.turn_id == "T23")
+    assert t23_turn.speaker == "clinician"
+    assert c11_swelling.evidence[0].quote in t23_turn.text
+
+    # Candidate routing assertions for clinician exam swelling
+    assert "C11" in cands["O"]
+    assert "C11" not in cands["S"]
+
+
+def test_17_patient_aggravating_factor_self_report_regression(run_transcript: Transcript):
+    """17. Dedicated regression test for T5/T6 patient self-reported aggravating factor."""
+    cap_movement_pain = make_cap(
+        prop_id="C30",
+        cap_type="Problem",
+        canonical_concept="đau khớp gối",
+        proposition_text="Cơn đau tăng khi vận động",
+        speaker_source="patient",
+        temporality="current",
+        verification_status="affirmed",
+        clinical_status="active",
+        turn_id="T6",
+        quote="cứ hễ vận động là đau tăng rõ rệt.",
+    )
+
+    # 1. Assert patient source and affirmed status
+    assert cap_movement_pain.speaker_source == "patient"
+    assert cap_movement_pain.verification_status == "affirmed"
+    assert cap_movement_pain.verification_status != "uncertain"
+    assert cap_movement_pain.evidence[0].turn_id == "T6"
+
+    # 2. Assert quote exists in T6 turn
+    t6_turn = next(t for t in run_transcript.turns if t.turn_id == "T6")
+    assert t6_turn.speaker == "patient"
+    assert cap_movement_pain.evidence[0].quote in t6_turn.text
+
+    # 3. Assert candidate routing places it in S, NOT in O
+    cands = compute_section_candidates([cap_movement_pain])
+    assert "C30" in cands["S"]
+    assert "C30" not in cands["O"]
+
+
+
+
+

@@ -14,14 +14,31 @@ Allowed literal values:
 
 CRITICAL EXTRACTION RULES & CLINICAL MAPPING:
 
-1. SPEAKER SOURCE & SOURCE OF FACT:
-- `speaker_source` represents SOURCE OF FACT (the origin of the clinical claim), NOT simply the speaker of every evidence turn.
-- "patient": Patient-reported symptoms, chief complaints, pain, stiffness, and history.
-  * Clinician asks + patient confirms (e.g. Clinician: "Bác có đau chân không?", Patient: "Ừ.") -> speaker_source="patient".
-  * Patient reports symptom + clinician repeats/asks about it -> speaker_source="patient".
+1. PATIENT SELF-REPORT & SOURCE OF FACT (speaker_source="patient"):
+- If a clinical fact is directly self-reported by the patient in a transcript turn with speaker = "patient" (e.g. chief complaint, pain, pain severity, pain duration, aggravating factors like "cơn đau tăng khi vận động", relieving factors, associated symptoms, functional/sleep impact, past medical history, medication history, patient-reported swelling/stiffness):
+  * MUST set speaker_source = "patient"
+  * MUST select a patient cap_type: ChiefComplaint, Problem, or ProblemHistory.
+  * MUST set verification_status = "affirmed" when the patient describes/confirms their own symptom/experience.
+  * DO NOT set speaker_source = "clinician" or verification_status = "uncertain" merely because a clinician asked a question beforehand! Clinician questions DO NOT make clinician the source of fact.
+  * Clinician asks + patient confirms (e.g. Clinician T5: "Có vận động làm cơn đau tăng lên không?", Patient T6: "Cứ hễ vận động là đau tăng rõ rệt") -> speaker_source = "patient", verification_status = "affirmed", evidence MUST include patient turn T6.
   * Clinician asks a question and patient gives an unrelated answer or denies it -> DO NOT create the implied CAP.
-- "clinician": Direct clinician examination findings, vital sign measurements, diagnostic assessments, orders, medication prescriptions/recommendations, counseling, and follow-up plans.
-- NEVER change speaker_source (source_of_fact) merely because another speaker repeats, asks about, summarizes, or confirms the fact.
+
+- CLINICIAN OBJECTIVE EXAM FINDINGS (speaker_source="clinician"):
+  * Use cap_type = "ExamFinding" or "TestResult" with speaker_source = "clinician" ONLY when the clinician directly observes, measures, performs physical examination, or states vital signs (e.g. "Khớp gối trái hơi sưng nhẹ.", "Không thấy biến dạng khớp.", "Biên độ gập duỗi bị hạn chế.", "Lachman âm tính.", "McMurray âm tính.").
+
+- SAME CONCEPT CAN HAVE TWO DIFFERENT SOURCES:
+  * Do NOT merge or change source just because two statements share the same clinical concept.
+  * Example: Patient T8 "có sưng và bị cứng khớp..." -> patient-reported (S). Clinician T23 "khớp gối trái hơi sưng nhẹ..." -> clinician objective (O). Both CAPs must co-exist representing different evidence sources.
+
+- SPECIFIC REGRESSION CASES:
+  * Case 1 (Aggravating Factor T5/T6):
+    - Clinician T5 asks about movement pain; Patient T6: "Có chứ, cứ hễ vận động là đau tăng rõ rệt..."
+    ❌ FORBIDDEN: {"speaker_source": "clinician", "verification_status": "uncertain"}
+    ✅ MUST EXTRACT: {"cap_type": "Problem", "proposition_text": "Cơn đau tăng khi vận động", "speaker_source": "patient", "verification_status": "affirmed", "evidence": [{"turn_id": "T6", "quote": "Cứ hễ vận động là đau tăng rõ rệt."}]}
+  * Case 2 (Patient Stiffness T8 vs Clinician Swelling T23):
+    - For Patient T8 ("Có, thỉnh thoảng có sưng và bị cứng khớp nhiều, nhất là vào các buổi sáng."):
+    ❌ FORBIDDEN: {"cap_type": "ExamFinding", "speaker_source": "clinician", "evidence": [{"turn_id": "T23", ...}]}
+    ✅ MUST EXTRACT: {"cap_type": "ProblemHistory", "speaker_source": "patient", "proposition_text": "Thỉnh thoảng sưng và cứng khớp nhiều vào buổi sáng", "evidence": [{"turn_id": "T8", "quote": "Có, thỉnh thoảng có sưng và bị cứng khớp nhiều, nhất là vào các buổi sáng."}]}
 
 2. EVIDENCE GROUNDING — STRICT:
 - The `quote` MUST be copied verbatim from the referenced transcript turn.
@@ -31,16 +48,11 @@ CRITICAL EXTRACTION RULES & CLINICAL MAPPING:
 - NEVER reorder words.
 - NEVER merge text from multiple turns into one quote.
 - NEVER normalize, rewrite, summarize, or shorten the quote.
-- If you cannot provide an exact contiguous quote from the selected turn, do not create the evidence item; select a valid exact span instead.
-- Example:
-  Transcript: "bác có thể dùng thuốc giảm đau kháng viêm không steroid không kê đơn khi thấy đau nhiều."
-  Valid quote: "bác có thể dùng thuốc giảm đau kháng viêm không steroid không kê đơn khi thấy đau nhiều."
-  Invalid quote: "bác có thể dùng thuốc giảm đau kháng viêm không steroid khi thấy đau nhiều." (Invalid because "không kê đơn" was removed from the middle of the original sentence).
+- EVIDENCE MUST SUPPORT THE ACTUAL PROPOSITION: Quote MUST directly contain the concept (e.g. DO NOT assign quote "không thấy biến dạng khớp" in T23 to proposition "cứng khớp"). If a turn does not contain evidence for a proposition, DO NOT use that turn.
 - Supporting evidence rule:
   * A patient-sourced CAP MUST contain at least one direct supporting evidence turn from the patient (speaker="patient").
   * A clinician-sourced CAP MUST contain at least one direct supporting evidence turn from the clinician (speaker="clinician").
 - Contextual Evidence: Evidence from the other speaker MAY be included as contextual evidence when necessary to interpret a short response (e.g. Clinician: "Bác có sưng khớp không?", Patient: "Có, thỉnh thoảng có sưng" -> Turn T7 question is contextual evidence, Turn T8 answer is source evidence).
-- Do NOT allow arbitrary cross-speaker evidence without at least one direct supporting turn from the source speaker.
 
 3. OBJECTIVE FINDINGS (ExamFinding / TestResult):
 - Clinician physical examination findings and vital sign measurements MUST be extracted as cap_type="ExamFinding" or "TestResult" with speaker_source="clinician".
@@ -68,5 +80,6 @@ CRITICAL EXTRACTION RULES & CLINICAL MAPPING:
 
 Example JSON output structure:
 {"caps":[{"prop_id":"C1","cap_type":"ChiefComplaint","canonical_concept":"đau khớp gối","proposition_text":"Đau khớp gối trái kéo dài 3 tuần","speaker_source":"patient","temporality":"current","verification_status":"affirmed","clinical_status":"active","medication_state":null,"evidence":[{"turn_id":"T1","quote":"Bác có đau chân không?"},{"turn_id":"T2","quote":"khớp gối trái của tôi bị đau nhiều quá"}],"supersedes":[],"resolution_status":"current"},{"prop_id":"C2","cap_type":"ExamFinding","canonical_concept":"huyết áp","proposition_text":"Huyết áp 128/82 mmHg","speaker_source":"clinician","temporality":"current","verification_status":"affirmed","clinical_status":"active","medication_state":null,"evidence":[{"turn_id":"T21","quote":"Huyết áp của bác là 128/82"}],"supersedes":[],"resolution_status":"current"},{"prop_id":"C3","cap_type":"ExamFinding","canonical_concept":"nghiệm pháp Lachman","proposition_text":"Nghiệm pháp Lachman âm tính","speaker_source":"clinician","temporality":"current","verification_status":"negated","clinical_status":"active","medication_state":null,"evidence":[{"turn_id":"T31","quote":"Nghiệm pháp Lachman âm tính"}],"supersedes":[],"resolution_status":"current"},{"prop_id":"C4","cap_type":"Problem","canonical_concept":"thoái hóa khớp gối","proposition_text":"Nghi ngờ đợt bùng phát thoái hóa khớp gối mức độ nhẹ","speaker_source":"clinician","temporality":"current","verification_status":"uncertain","clinical_status":"active","medication_state":null,"evidence":[{"turn_id":"T37","quote":"có khả năng bác đang bị đợt bùng phát thoái hóa khớp gối mức độ nhẹ"}],"supersedes":[],"resolution_status":"current"},{"prop_id":"C5","cap_type":"Counseling","canonical_concept":"vật lý trị liệu","proposition_text":"Khuyên tập vật lý trị liệu","speaker_source":"clinician","temporality":"future","verification_status":"affirmed","clinical_status":"planned","medication_state":null,"evidence":[{"turn_id":"T39","quote":"bắt đầu tập vật lý trị liệu"}],"supersedes":[],"resolution_status":"current"}],"warnings":[]}
+
 
 
