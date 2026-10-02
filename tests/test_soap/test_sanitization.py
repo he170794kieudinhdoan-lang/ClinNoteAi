@@ -78,16 +78,22 @@ def test_sanitization_filters_superseded_cap(superseded_cap):
     assert len(usable) == 0
 
 
+def test_sanitization_filters_needs_review_cap(needs_review_cap):
+    """TEST 2b: CAP with resolution_status == 'needs_review' is filtered out."""
+    usable = filter_usable_caps([needs_review_cap])
+    assert len(usable) == 0
+
+
 def test_sanitization_mixture_returns_only_usable(current_cap, superseded_cap, needs_review_cap):
-    """TEST 3: Mixture of current, superseded, and needs_review returns only non-superseded CAPs."""
+    """TEST 3: Mixture of current, superseded, and needs_review returns only active current CAPs."""
     raw_list = [current_cap, superseded_cap, needs_review_cap]
     usable = filter_usable_caps(raw_list)
 
-    assert len(usable) == 2
+    assert len(usable) == 1
     usable_ids = [cap.prop_id for cap in usable]
-    assert "C1" in usable_ids
-    assert "C3" in usable_ids
+    assert usable_ids == ["C1"]
     assert "C2" not in usable_ids
+    assert "C3" not in usable_ids
 
 
 def test_sanitization_does_not_mutate_original_list(current_cap, superseded_cap):

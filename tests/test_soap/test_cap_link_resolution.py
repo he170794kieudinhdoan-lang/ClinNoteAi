@@ -113,7 +113,7 @@ def test_7_quarantined_cap_partitioning_and_filtering():
     c3 = make_cap("C3", status="superseded")
 
     usable = filter_usable_caps([c1, c2, c3])
-    assert [c.prop_id for c in usable] == ["C1", "C2"]
+    assert [c.prop_id for c in usable] == ["C1"]
 
 
 def test_8_existing_invalid_cap_link_behavior_not_weakened():

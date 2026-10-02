@@ -12,10 +12,10 @@ def filter_usable_caps(caps: list[Cap]) -> list[Cap]:
     """
     Sanitize CAP list for SOAP rendering.
 
-    Filters out CAPs with resolution_status == 'superseded'.
+    Filters out CAPs with resolution_status == 'superseded' or 'needs_review'.
     Returns a new list without mutating the original input caps list.
     """
-    return [cap for cap in caps if cap.resolution_status != "superseded"]
+    return [cap for cap in caps if cap.resolution_status not in {"superseded", "needs_review"}]
 
 
 def resolve_superseded_cap_links(soap: SoapDocument, caps: list[Cap]) -> tuple[SoapDocument, list[str]]:
