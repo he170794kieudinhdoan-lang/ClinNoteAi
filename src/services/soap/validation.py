@@ -12,10 +12,10 @@ def filter_usable_caps(caps: list[Cap]) -> list[Cap]:
     """
     Sanitize CAP list for SOAP rendering.
 
-    Filters out CAPs with resolution_status == 'superseded'.
+    Filters out CAPs with resolution_status != 'current' (superseded, needs_review/quarantined).
     Returns a new list without mutating the original input caps list.
     """
-    return [cap for cap in caps if cap.resolution_status != "superseded"]
+    return [cap for cap in caps if cap.resolution_status == "current"]
 
 
 def validate_and_partition_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], list[Cap], list[str]]:
@@ -183,9 +183,28 @@ def validate_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], l
     return usable, warnings
 
 
+def normalize_cap_links(soap: SoapDocument, caps: list[Cap]) -> SoapDocument:
+    """Deterministically trim/casefold cap_ids to canonical prop_ids before validation."""
+    valid = {c.prop_id: c.prop_id for c in caps}
+    folded: dict[str, str] = {}
+    for c in caps:
+        folded.setdefault(c.prop_id.casefold().strip(), c.prop_id)
+    for section_name in ("S", "O", "A", "P"):
+        for item in getattr(soap, section_name).items:
+            normalized: list[str] = []
+            for cap_id in item.cap_ids:
+                cap_id = str(cap_id).strip().casefold()
+                canonical = valid.get(cap_id) or folded.get(cap_id)
+                if canonical and canonical not in normalized:
+                    normalized.append(canonical)
+            item.cap_ids = normalized
+    return soap
+
+
 def validate_soap(soap: SoapDocument, caps: list[Cap], *, generated: bool) -> SoapDocument:
     invalid_status = 502 if generated else 422
-    current = {cap.prop_id: cap for cap in caps if cap.resolution_status != "superseded"}
+    soap = normalize_cap_links(soap, caps)
+    current = {cap.prop_id: cap for cap in caps if cap.resolution_status == "current"}
     seen = set()
     for section_name in ("S", "O", "A", "P"):
         section = getattr(soap, section_name)
