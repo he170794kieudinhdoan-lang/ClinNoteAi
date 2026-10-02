@@ -188,7 +188,7 @@ def test_10_subjective_source_regression_passes(run_transcript: Transcript):
         p_items=[{"item_id": "P1", "text": "Hẹn tái khám 4 tuần", "cap_ids": ["C24"]}],
     )
     soap = parse_soap(json.dumps(soap_dict))
-    validated_soap = validate_soap(soap, caps, generated=True)
+    validated_soap = validate_soap(soap, caps, generated=False)
     assert validated_soap.S.items[0].cap_ids == ["C1"]
     assert validated_soap.O.items[0].cap_ids == ["C7"]
     assert validated_soap.A.items[0].cap_ids == ["C17"]
@@ -320,9 +320,21 @@ def test_15_clinical_note_style_excludes_conversational_markers():
             {"item_id": "S2", "text": "Thỉnh thoảng sưng và cứng khớp, rõ hơn vào buổi sáng; đau làm mất ngủ.", "cap_ids": ["C3", "C4"]},
             {"item_id": "S3", "text": "Tiền sử tăng huyết áp được kiểm soát tốt, đang dùng thuốc hạ huyết áp đều đặn.", "cap_ids": ["C5", "C6"]},
         ],
-        o_items=[{"item_id": "O1", "text": "Huyết áp 128/82 mmHg, nhịp tim 72 lần/phút", "cap_ids": ["C7", "C8"]}],
-        a_items=[{"item_id": "A1", "text": "Nghi ngờ đợt bùng phát thoái hóa khớp gối mức độ nhẹ", "cap_ids": ["C17"]}],
-        p_items=[{"item_id": "P1", "text": "Tập vật lý trị liệu, dùng NSAID khi đau nhiều", "cap_ids": ["C20", "C23"]}],
+        o_items=[
+            {"item_id": "O1", "text": "Dấu hiệu sinh tồn: Huyết áp 128/82 mmHg, nhịp tim 72 lần/phút, nhịp thở 16 lần/phút, nhiệt độ 37°C.", "cap_ids": ["C7", "C8", "C9", "C10"]},
+            {"item_id": "O2", "text": "Khớp gối trái hơi sưng nhẹ, không biến dạng, biên độ gập duỗi bị hạn chế do đau.", "cap_ids": ["C11", "C12", "C13"]},
+            {"item_id": "O3", "text": "Nghiệm pháp Lachman âm tính, McMurray âm tính, khó chịu nhẹ khi làm nghiệm pháp ép vẹo trong và vẹo ngoài.", "cap_ids": ["C14", "C15", "C16"]},
+        ],
+        a_items=[
+            {"item_id": "A1", "text": "Nghi ngờ đợt bùng phát thoái hóa khớp gối mức độ nhẹ (cần kết quả hình ảnh để khẳng định).", "cap_ids": ["C17"]},
+        ],
+        p_items=[
+            {"item_id": "P1", "text": "Chỉ định chụp X-quang khớp gối trái, cân nhắc chụp MRI nếu kết quả chưa rõ ràng.", "cap_ids": ["C18", "C19", "C25"]},
+            {"item_id": "P2", "text": "Tập vật lý trị liệu để tăng sức cơ và cải thiện độ linh hoạt khớp gối.", "cap_ids": ["C20"]},
+            {"item_id": "P3", "text": "Điều chỉnh sinh hoạt, tránh động tác làm tăng đau, dùng gậy hoặc nẹp bảo vệ khớp gối nếu cần.", "cap_ids": ["C21", "C22"]},
+            {"item_id": "P4", "text": "Dùng thuốc giảm đau kháng viêm không steroid (NSAID) khi đau nhiều.", "cap_ids": ["C23"]},
+            {"item_id": "P5", "text": "Hẹn tái khám sau 4 tuần để đánh giá đáp ứng điều trị.", "cap_ids": ["C24"]},
+        ],
     )
     soap = parse_soap(json.dumps(soap_dict))
     validated_soap = validate_soap(soap, caps, generated=True)

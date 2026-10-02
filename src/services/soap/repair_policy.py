@@ -6,6 +6,8 @@ REPAIRABLE_STRUCTURAL_CODES = {
     "invalid_model_output",
     "missing_cap_link",
     "invalid_cap_link",
+    "candidate_boundary_violation",
+    "candidate_coverage_violation",
     "subjective_source",
     "assessment_source",
     "objective_source",
