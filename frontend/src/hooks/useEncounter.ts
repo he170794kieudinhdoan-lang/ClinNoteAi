@@ -2,73 +2,66 @@
 
 /**
  * Danh sách lượt khám cho trang chủ, bệnh nhân, và màn khám.
- * MOCK: queryFn đọc sessionStorage + MOCK_ENCOUNTERS.
- * Khi có API thì chỉ đổi loadEncounters / saveEncounter / removeEncounter sang lib/api.ts:
- *   GET    /api/v1/encounters
- *   POST   /api/v1/encounters
- *   GET    /api/v1/encounters/:id
- *   POST   /api/v1/encounters/:id/approve
+ * Nguồn dữ liệu: GET /api/v1/consultations?doctor_id= — lưu theo từng bác sĩ trên backend DB.
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { MOCK_ENCOUNTERS } from "@/lib/mock";
-import { getQueryClient } from "@/lib/queryClient";
 import type { Encounter } from "@/types";
+import { listConsultations, mapConsultationToEncounter } from "@/lib/api";
+import { getSupabase } from "@/lib/supabase";
+import { getQueryClient } from "@/lib/queryClient";
 
 const ENCOUNTERS_KEY = ["encounters"] as const;
-const STORAGE_KEY = "clinnote-encounters";
-const REMOVED_KEY = "clinnote-removed-ids";
+const REMOVED_KEY_PREFIX = "clinnote-removed-ids";
 
-function readStored(): Encounter[] {
+async function getDoctorId(): Promise<string> {
+  const supabase = getSupabase();
+  if (!supabase) return "";
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id ?? "";
+}
+
+function removedKey(doctorId: string) {
+  return `${REMOVED_KEY_PREFIX}:${doctorId}`;
+}
+
+function readRemoved(doctorId: string): string[] {
   if (typeof window === "undefined") return [];
   try {
-    return JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "[]") as Encounter[];
+    return JSON.parse(sessionStorage.getItem(removedKey(doctorId)) || "[]") as string[];
   } catch {
     return [];
   }
 }
 
-function readRemoved(): string[] {
-  if (typeof window === "undefined") return [];
-  try {
-    return JSON.parse(sessionStorage.getItem(REMOVED_KEY) || "[]") as string[];
-  } catch {
-    return [];
-  }
-}
-
-// MOCK: ghép lượt tạo trên tab này với danh sách mẫu. Bỏ nhánh MOCK_ENCOUNTERS khi API trả đủ list.
-function merge(extra: Encounter[], removedIds: string[]) {
-  const removed = new Set(removedIds);
-  const kept = extra.filter((item) => !removed.has(item.id));
-  const ids = new Set(kept.map((item) => item.id));
-  return [...kept, ...MOCK_ENCOUNTERS.filter((item) => !ids.has(item.id) && !removed.has(item.id))];
-}
-
-// MOCK: nguồn tạm. Thay thân hàm bằng getEncounters() khi có GET /api/v1/encounters.
-async function loadEncounters() {
-  return merge(readStored(), readRemoved());
+async function loadEncounters(): Promise<Encounter[]> {
+  const doctorId = await getDoctorId();
+  if (!doctorId) return [];
+  const items = await listConsultations(doctorId);
+  const removed = new Set(readRemoved(doctorId));
+  return items.map(mapConsultationToEncounter).filter((enc) => !removed.has(enc.id));
 }
 
 function writeCache(list: Encounter[]) {
   getQueryClient().setQueryData<Encounter[]>(ENCOUNTERS_KEY, list);
 }
 
+/** Optimistic update: ghi vào React Query cache, chỉ phục vụ hiển thị tức thời. */
 export function saveEncounter(encounter: Encounter) {
-  // MOCK: chưa có POST /api/v1/encounters. Giữ trên tab này tới khi có API.
-  const rest = readStored().filter((item) => item.id !== encounter.id);
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify([encounter, ...rest]));
-  const current = getQueryClient().getQueryData<Encounter[]>(ENCOUNTERS_KEY) ?? merge(readStored(), readRemoved());
+  const current = getQueryClient().getQueryData<Encounter[]>(ENCOUNTERS_KEY);
+  if (!current) return;
   writeCache([encounter, ...current.filter((item) => item.id !== encounter.id)]);
 }
 
+/** Chưa có DELETE backend: ẩn locally, key theo doctorId để không ảnh hưởng bác sĩ khác. */
 export function removeEncounter(id: string) {
-  // MOCK: chưa có DELETE /api/v1/encounters/:id.
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(readStored().filter((item) => item.id !== id)));
-  const removed = readRemoved().filter((item) => item !== id);
-  sessionStorage.setItem(REMOVED_KEY, JSON.stringify([...removed, id]));
-  const current = getQueryClient().getQueryData<Encounter[]>(ENCOUNTERS_KEY);
-  if (current) writeCache(current.filter((item) => item.id !== id));
+  void getDoctorId().then((doctorId) => {
+    if (!doctorId) return;
+    const removed = readRemoved(doctorId);
+    sessionStorage.setItem(removedKey(doctorId), JSON.stringify([...new Set([...removed, id])]));
+    const current = getQueryClient().getQueryData<Encounter[]>(ENCOUNTERS_KEY);
+    if (current) writeCache(current.filter((item) => item.id !== id));
+  });
 }
 
 export function useEncounterList() {

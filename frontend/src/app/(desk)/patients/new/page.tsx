@@ -14,7 +14,7 @@ import "react-day-picker/style.css";
 import { firstVisitGuideKey } from "@/components/FirstVisitGuide";
 import { saveEncounter } from "@/hooks/useEncounter";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
-import { createPatient } from "@/lib/api";
+import { createConsultation, createPatient } from "@/lib/api";
 import { getSupabase } from "@/lib/supabase";
 import type { Encounter, Gender } from "@/types";
 
@@ -166,11 +166,18 @@ export default function AddPatientPage() {
 
       const realPatientId = patientRes.id;
 
-      // 4. Save encounter with real patientId and doctorId
+      // 4. Create consultation NOW so the encounter is stored in DB per-doctor
+      const consultation = await createConsultation({
+        patient_id: realPatientId,
+        doctor_id: doctorId,
+      });
+
+      // 5. Encounter keyed by backend consultation id
       const encounter: Encounter = {
-        id: crypto.randomUUID(), // FE route ID
-        patientId: realPatientId, // REAL patients.id from DB
-        doctorId: doctorId,       // Supabase auth user.id
+        id: consultation.id, // REAL consultations.id from DB
+        patientId: realPatientId,
+        doctorId: doctorId,
+        consultationId: consultation.id,
         patient: {
           id: realPatientId,
           name: values.name.trim(),

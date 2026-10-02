@@ -1,5 +1,5 @@
 import { modelPreferenceForRequest } from "@/lib/modelPreferences";
-import type { TranscriptLine } from "@/types";
+import type { Encounter, Gender, TranscriptLine } from "@/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -183,6 +183,76 @@ export function createConsultation(data: CreateConsultationRequest) {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+export interface ConsultationListItemBackend {
+  id: string;
+  patient_id: string;
+  doctor_id: string;
+  status: string;
+  created_at: string;
+  started_at: string | null;
+  ended_at: string | null;
+  has_transcript: boolean;
+  patient: {
+    full_name: string;
+    patient_code: string;
+    date_of_birth: string | null;
+    sex: string | null;
+  };
+}
+
+/**
+ * 5. GET /api/v1/consultations?doctor_id=
+ * Danh sách lượt khám lưu theo từng bác sĩ trên backend DB.
+ */
+export function listConsultations(doctorId: string) {
+  return request<ConsultationListItemBackend[]>(
+    `/api/v1/consultations?doctor_id=${encodeURIComponent(doctorId)}`
+  );
+}
+
+const SEX_TO_GENDER: Record<string, Gender> = {
+  MALE: "Nam",
+  FEMALE: "Nữ",
+  OTHER: "Khác",
+};
+
+function ageFromDob(dob: string | null): number {
+  if (!dob) return 0;
+  const d = Number(dob.slice(8, 10));
+  const m = Number(dob.slice(5, 7));
+  const y = Number(dob.slice(0, 4));
+  if (!d || !m || !y) return 0;
+  const now = new Date();
+  let age = now.getFullYear() - y;
+  if (now.getMonth() + 1 < m || (now.getMonth() + 1 === m && now.getDate() < d)) age -= 1;
+  return Math.max(age, 0);
+}
+
+/** Map backend ConsultationListItem -> FE Encounter. */
+export function mapConsultationToEncounter(item: ConsultationListItemBackend): Encounter {
+  return {
+    id: item.id,
+    patientId: item.patient_id,
+    doctorId: item.doctor_id,
+    consultationId: item.id,
+    patient: {
+      id: item.patient_id,
+      name: item.patient.full_name,
+      age: ageFromDob(item.patient.date_of_birth),
+      gender: item.patient.sex ? SEX_TO_GENDER[item.patient.sex.toUpperCase()] : undefined,
+      reason: "",
+      code: item.patient.patient_code,
+      dob: item.patient.date_of_birth ?? undefined,
+    },
+    status: item.has_transcript ? "uploaded" : "empty",
+    createdAt: item.created_at,
+    transcript: [],
+    soap: { subjective: "", objective: "", assessment: "", plan: "" },
+    icdSuggestions: [],
+    missingFields: item.has_transcript ? [] : ["Audio / transcript"],
+  };
 }
 
 /**
