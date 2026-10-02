@@ -1,0 +1,106 @@
+{
+  "body": {
+    "cap_repair_count": 0,
+    "cap_warnings": [],
+    "caps": [
+      {
+        "canonical_concept": "thuốc giảm đau",
+        "cap_type": "MedicationStatement",
+        "clinical_status": "active",
+        "evidence": [
+          {
+            "end_ms": null,
+            "quote": "Tôi đang dùng thuốc giảm đau vào mỗi tối.",
+            "source_segment_id": "syn-med-correction-01",
+            "speaker": "patient",
+            "start_ms": null,
+            "turn_id": "T01"
+          }
+        ],
+        "medication_state": "taking",
+        "prop_id": "C1",
+        "proposition_text": "Đang dùng thuốc giảm đau vào mỗi tối",
+        "resolution_status": "current",
+        "speaker_source": "patient",
+        "supersedes": [],
+        "temporality": "current",
+        "verification_status": "affirmed"
+      },
+      {
+        "canonical_concept": "thuốc giảm đau",
+        "cap_type": "MedicationStatement",
+        "clinical_status": "resolved",
+        "evidence": [
+          {
+            "end_ms": null,
+            "quote": "tôi đã ngừng loại thuốc đó từ tối qua, hiện giờ không uống nữa",
+            "source_segment_id": "syn-med-correction-02",
+            "speaker": "patient",
+            "start_ms": null,
+            "turn_id": "T02"
+          }
+        ],
+        "medication_state": "not_taking",
+        "prop_id": "C2",
+        "proposition_text": "Đã ngừng loại thuốc đó từ tối qua",
+        "resolution_status": "current",
+        "speaker_source": "patient",
+        "supersedes": [],
+        "temporality": "past",
+        "verification_status": "affirmed"
+      }
+    ],
+    "model_metadata": {
+      "duration_ms": 6359,
+      "model": "gpt-4o-mini-2024-07-18",
+      "provider": "openai",
+      "usage": {
+        "input_token_details": {
+          "audio": 0,
+          "cache_read": 2176
+        },
+        "input_tokens": 2854,
+        "output_token_details": {
+          "audio": 0,
+          "reasoning": 0
+        },
+        "output_tokens": 212,
+        "total_tokens": 3066
+      }
+    },
+    "run_id": "c0362066-ba0d-45b7-a2ef-6ea03ecbdbaa",
+    "transcript": {
+      "language": "vi",
+      "schema_version": "1.0",
+      "source_metadata": {
+        "case_id": "synthetic_medication_correction",
+        "kind": "synthetic_fixture"
+      },
+      "turns": [
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-med-correction-01",
+          "source_speaker_id": "patient-1",
+          "speaker": "patient",
+          "start_ms": null,
+          "text": "Tôi đang dùng thuốc giảm đau vào mỗi tối.",
+          "turn_id": "T01"
+        },
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-med-correction-02",
+          "source_speaker_id": "patient-1",
+          "speaker": "patient",
+          "start_ms": null,
+          "text": "Tôi xin đính chính: tôi đã ngừng loại thuốc đó từ tối qua, hiện giờ không uống nữa.",
+          "turn_id": "T02"
+        }
+      ]
+    }
+  },
+  "duration_ms": 6453.0,
+  "http_status": 200,
+  "stage": "extract"
+}

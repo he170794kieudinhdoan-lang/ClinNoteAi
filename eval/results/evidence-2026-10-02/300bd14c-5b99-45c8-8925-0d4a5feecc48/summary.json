@@ -1,0 +1,15 @@
+{
+  "cases_selected": 1,
+  "completed_at": "2026-10-02T09:42:27.494+00:00",
+  "evaluation_id": "300bd14c-5b99-45c8-8925-0d4a5feecc48",
+  "failed_or_invalid_cases": {
+    "baseline_direct": 0,
+    "cap_pipeline": 0
+  },
+  "review_time": "not measured by this runner",
+  "scores": "not computed; complete review files and report numerators/denominators",
+  "successes": {
+    "baseline_direct": 1,
+    "cap_pipeline": 1
+  }
+}

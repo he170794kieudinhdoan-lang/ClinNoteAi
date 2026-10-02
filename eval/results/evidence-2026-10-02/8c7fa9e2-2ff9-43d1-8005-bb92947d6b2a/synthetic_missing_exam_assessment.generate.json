@@ -1,0 +1,69 @@
+{
+  "body": {
+    "model_metadata": {
+      "duration_ms": 2172,
+      "model": "gpt-4o-mini-2024-07-18",
+      "provider": "openai",
+      "usage": {
+        "input_token_details": {
+          "audio": 0,
+          "cache_read": 0
+        },
+        "input_tokens": 1404,
+        "output_token_details": {
+          "audio": 0,
+          "reasoning": 0
+        },
+        "output_tokens": 60,
+        "total_tokens": 1464
+      }
+    },
+    "revision": {
+      "approved_at": null,
+      "created_at": "2026-10-02T09:42:51.586018Z",
+      "model": "gpt-4o-mini-2024-07-18",
+      "parent_revision": null,
+      "prompt_version": "soap-1",
+      "reviewer_name": null,
+      "revision": 1,
+      "soap": {
+        "A": {
+          "items": [],
+          "missing": true
+        },
+        "O": {
+          "items": [],
+          "missing": true
+        },
+        "P": {
+          "items": [],
+          "missing": true
+        },
+        "S": {
+          "items": [
+            {
+              "cap_ids": [
+                "C1"
+              ],
+              "item_id": "S1",
+              "manual_reason": null,
+              "origin": "ai",
+              "review_status": "needs_review",
+              "source_link_status": "valid",
+              "support_status": "pending",
+              "text": "Nhức đầu từ sáng nay"
+            }
+          ],
+          "missing": false
+        }
+      },
+      "status": "draft",
+      "warning_decisions": {}
+    },
+    "run_id": "f610b685-73cb-4825-83a6-3bf7024a9879",
+    "soap_repair_count": 0
+  },
+  "duration_ms": 2265.0,
+  "http_status": 200,
+  "stage": "render"
+}

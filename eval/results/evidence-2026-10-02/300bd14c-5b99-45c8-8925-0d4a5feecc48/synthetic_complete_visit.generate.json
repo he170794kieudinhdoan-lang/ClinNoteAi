@@ -1,0 +1,109 @@
+{
+  "body": {
+    "model_metadata": {
+      "duration_ms": 2891,
+      "model": "gpt-4o-mini-2024-07-18",
+      "provider": "openai",
+      "usage": {
+        "input_token_details": {
+          "audio": 0,
+          "cache_read": 0
+        },
+        "input_tokens": 2301,
+        "output_token_details": {
+          "audio": 0,
+          "reasoning": 0
+        },
+        "output_tokens": 168,
+        "total_tokens": 2469
+      }
+    },
+    "revision": {
+      "approved_at": null,
+      "created_at": "2026-10-02T09:42:27.410083Z",
+      "model": "gpt-4o-mini-2024-07-18",
+      "parent_revision": null,
+      "prompt_version": "soap-1",
+      "reviewer_name": null,
+      "revision": 1,
+      "soap": {
+        "A": {
+          "items": [
+            {
+              "cap_ids": [
+                "C4"
+              ],
+              "item_id": "A1",
+              "manual_reason": null,
+              "origin": "ai",
+              "review_status": "needs_review",
+              "source_link_status": "valid",
+              "support_status": "pending",
+              "text": "Có khả năng là căng cơ nhẹ, nhưng hiện chưa đủ căn cứ để kết luận."
+            }
+          ],
+          "missing": false
+        },
+        "O": {
+          "items": [
+            {
+              "cap_ids": [
+                "C3"
+              ],
+              "item_id": "O1",
+              "manual_reason": null,
+              "origin": "ai",
+              "review_status": "needs_review",
+              "source_link_status": "valid",
+              "support_status": "pending",
+              "text": "Cổ tay phải không sưng và vận động đủ tầm."
+            }
+          ],
+          "missing": false
+        },
+        "P": {
+          "items": [
+            {
+              "cap_ids": [
+                "C5"
+              ],
+              "item_id": "P1",
+              "manual_reason": null,
+              "origin": "ai",
+              "review_status": "needs_review",
+              "source_link_status": "valid",
+              "support_status": "pending",
+              "text": "Tạm nghỉ các động tác gây đau và chườm lạnh."
+            }
+          ],
+          "missing": false
+        },
+        "S": {
+          "items": [
+            {
+              "cap_ids": [
+                "C1",
+                "C2"
+              ],
+              "item_id": "S1",
+              "manual_reason": null,
+              "origin": "ai",
+              "review_status": "needs_review",
+              "source_link_status": "valid",
+              "support_status": "pending",
+              "text": "Đau cổ tay phải khoảng hai ngày, đau tăng khi xoay cổ tay."
+            }
+          ],
+          "missing": false
+        }
+      },
+      "status": "draft",
+      "warning_decisions": {}
+    },
+    "run_id": "708756b3-8bef-4000-9841-3c44b09483ce",
+    "soap_repair_count": 0
+  },
+  "duration_ms": 2954.0,
+  "http_status": 200,
+  "stage": "render"
+}
