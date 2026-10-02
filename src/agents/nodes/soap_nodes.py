@@ -6,7 +6,7 @@ from src.config import get_settings
 from src.schemas.soap import Cap, SoapRevision, Transcript
 from src.services.soap import extractor, renderer
 from src.services.soap.errors import SoapFailure
-from src.services.soap.validation import filter_usable_caps, validate_caps, validate_soap
+from src.services.soap.validation import filter_usable_caps, validate_and_partition_caps, validate_caps, validate_soap
 from src.services.transcript.normalizer import TranscriptNormalizationError, parse_soap_transcript
 
 
@@ -66,9 +66,10 @@ def make_nodes(store, llm):
 
     async def check_caps(state):
         try:
-            caps, warnings = validate_caps(
+            usable, quarantined, warnings = validate_and_partition_caps(
                 [Cap.model_validate(cap) for cap in state["caps"]], Transcript.model_validate(state["transcript"]))
-            return {"caps": [cap.model_dump(mode="json") for cap in caps],
+            all_caps = usable + quarantined
+            return {"caps": [cap.model_dump(mode="json") for cap in all_caps],
                     "cap_warnings": list(dict.fromkeys(state.get("cap_warnings", []) + warnings))}
         except Exception as exc:
             return {"error": failure(exc, "validate_caps", state["run_id"])}
@@ -93,9 +94,25 @@ def make_nodes(store, llm):
     async def render_soap(state):
         try:
             usable_caps = filter_usable_caps([Cap.model_validate(cap) for cap in state["caps"]])
+            warnings = state.get("cap_warnings", [])
+            if not usable_caps:
+                if "No usable CAPs available" not in warnings:
+                    warnings = list(warnings) + ["No usable CAPs available"]
+                safe_fallback = renderer.SoapDocument(
+                    S=renderer.SoapSection(items=[], missing=True),
+                    O=renderer.SoapSection(items=[], missing=True),
+                    A=renderer.SoapSection(items=[], missing=True),
+                    P=renderer.SoapSection(items=[], missing=True),
+                )
+                return {
+                    "soap_draft": safe_fallback.model_dump(mode="json"),
+                    "raw_model_output": json.dumps(safe_fallback.model_dump(mode="json")),
+                    "model_metadata": {"model": "safe_fallback", "provider": "fallback"},
+                    "cap_warnings": warnings,
+                }
             raw, meta = await renderer.render_once(
                 llm, Transcript.model_validate(state["transcript"]),
-                usable_caps, state.get("cap_warnings", []),
+                usable_caps, warnings,
                 get_settings().soap_llm_timeout)
             store.save_attempt(state["run_id"], "render_soap", {"output": raw, "metadata": meta,
                                                                  "prompt_version": renderer.PROMPT_VERSION})
