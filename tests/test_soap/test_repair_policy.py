@@ -9,7 +9,7 @@ import pytest
 
 from src.agents.soap_graph import create_soap_pipeline
 from src.schemas.soap import Cap, Evidence, SoapDocument, SoapItem, SoapSection, Transcript, TranscriptTurn
-from src.services.soap.renderer import assign_deterministic_item_ids, parse_soap
+from src.services.soap.renderer import parse_soap
 from src.services.soap.repair_policy import is_repairable_error
 from src.services.soap.validation import filter_usable_caps, validate_soap
 
@@ -85,9 +85,10 @@ def test_duplicate_item_id_not_repairable():
     assert is_repairable_error("duplicate_item_id", repair_count=0) is False
 
 
-# TEST 4: superseded_cap_link -> sanitization/backend handling, NO LLM repair
-def test_superseded_cap_link_not_repairable():
-    assert is_repairable_error("invalid_cap_link", repair_count=0) is False
+# TEST 4: invalid_cap_link -> structural linking error, allowed to route to LLM repair
+# (safety still holds: repair only receives usable CAPs and validate_soap re-runs after repair)
+def test_invalid_cap_link_repairable():
+    assert is_repairable_error("invalid_cap_link", repair_count=0) is True
 
 
 # TEST 5: ambiguous_quote -> NO LLM repair
@@ -264,6 +265,7 @@ def test_repair_cannot_create_new_caps():
 
     with pytest.raises(Exception) as exc_info:
         validate_soap(soap, [c1], generated=True)
+    # Non-existent CAP IDs are kept by normalize_cap_links and rejected by validate_soap
     assert exc_info.value.code == "invalid_cap_link"
 
 

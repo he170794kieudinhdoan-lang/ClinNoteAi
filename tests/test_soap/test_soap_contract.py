@@ -16,6 +16,7 @@ TEST 12: SOAP item generated without cap_ids -> rejected (missing_cap_link).
 """
 
 import pytest
+
 from src.schemas.soap import Cap, SoapDocument, SoapItem, SoapSection
 from src.services.soap.errors import SoapFailure
 from src.services.soap.validation import validate_soap
@@ -92,7 +93,7 @@ def base_caps():
     ]
 
 
-def test_patient_reported_problem_valid_in_S(base_caps):
+def test_patient_reported_problem_valid_in_s(base_caps):
     """TEST 1: Patient-reported Problem -> S is valid."""
     soap = SoapDocument(
         S=SoapSection(items=[SoapItem(item_id="S1", text="Đau đầu từ sáng", cap_ids=["C_S1"])], missing=False),
@@ -104,7 +105,7 @@ def test_patient_reported_problem_valid_in_S(base_caps):
     assert validated.S.items[0].cap_ids == ["C_S1"]
 
 
-def test_exam_finding_and_test_result_valid_in_O(base_caps):
+def test_exam_finding_and_test_result_valid_in_o(base_caps):
     """TEST 2 & 3: ExamFinding and TestResult -> O is valid."""
     soap = SoapDocument(
         S=SoapSection(items=[], missing=True),
@@ -122,7 +123,7 @@ def test_exam_finding_and_test_result_valid_in_O(base_caps):
     assert len(validated.O.items) == 2
 
 
-def test_patient_problem_rejected_in_O(base_caps):
+def test_patient_problem_rejected_in_o(base_caps):
     """TEST 4: Patient Problem -> O is rejected (objective_source)."""
     soap = SoapDocument(
         S=SoapSection(items=[], missing=True),
@@ -135,7 +136,7 @@ def test_patient_problem_rejected_in_O(base_caps):
     assert exc.value.code == "objective_source"
 
 
-def test_clinician_assessment_valid_in_A(base_caps):
+def test_clinician_assessment_valid_in_a(base_caps):
     """TEST 5 & 8: Clinician diagnosis/assessment (source_of_fact=clinician) -> A is valid."""
     soap = SoapDocument(
         S=SoapSection(items=[], missing=True),
@@ -147,7 +148,7 @@ def test_clinician_assessment_valid_in_A(base_caps):
     assert validated.A.items[0].cap_ids == ["C_A1"]
 
 
-def test_patient_reported_problem_rejected_in_A(base_caps):
+def test_patient_reported_problem_rejected_in_a(base_caps):
     """TEST 6 & 7: Patient-reported Problem (even if spoken in clinician turn) has source_of_fact=patient -> rejected in A."""
     soap = SoapDocument(
         S=SoapSection(items=[], missing=True),
@@ -160,7 +161,7 @@ def test_patient_reported_problem_rejected_in_A(base_caps):
     assert exc.value.code == "assessment_source"
 
 
-def test_clinician_plan_valid_in_P(base_caps):
+def test_clinician_plan_valid_in_p(base_caps):
     """TEST 9: Clinician treatment/order/follow-up -> valid in P."""
     soap = SoapDocument(
         S=SoapSection(items=[], missing=True),
@@ -172,7 +173,7 @@ def test_clinician_plan_valid_in_P(base_caps):
     assert validated.P.items[0].cap_ids == ["C_P1"]
 
 
-def test_non_plan_cap_rejected_in_P(base_caps):
+def test_non_plan_cap_rejected_in_p(base_caps):
     """TEST 10: Non-plan CAP (e.g. ChiefComplaint or Problem) -> rejected for P (plan_source)."""
     soap = SoapDocument(
         S=SoapSection(items=[], missing=True),
@@ -185,7 +186,7 @@ def test_non_plan_cap_rejected_in_P(base_caps):
     assert exc.value.code == "plan_source"
 
 
-def test_objective_only_cap_rejected_in_S(base_caps):
+def test_objective_only_cap_rejected_in_s(base_caps):
     """TEST 11: Pure ExamFinding/TestResult CAP without patient basis -> rejected for S (subjective_source)."""
     soap = SoapDocument(
         S=SoapSection(items=[SoapItem(item_id="S1", text="Gối sưng nhẹ", cap_ids=["C_O1"])], missing=False),

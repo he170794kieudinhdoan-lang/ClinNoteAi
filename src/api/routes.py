@@ -3,7 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
-from sqlalchemy import exists, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.agents.graph import agent
@@ -28,7 +28,7 @@ from src.models.user import User
 from src.schemas.model_settings import AudioModelPreferences
 from src.services.audio.temp_storage import save_temp_audio
 from src.services.blaze.stt_async import BlazeSTTAsync, BlazeSTTError, blaze_stt
-from src.services.icd_kcb import IcdNotFound, IcdUnavailable, IcdUpstream, lookup_code, search_codes
+from src.services.icd_kcb import IcdNotFoundError, IcdUnavailableError, IcdUpstreamError, lookup_code, search_codes
 from src.services.model_runtime import ModelConfigurationError, resolve_connection
 from src.services.speaker.role_classifier import (
     SpeakerRoleError,
@@ -434,11 +434,11 @@ async def update_transcript_segment(
 
 
 def _icd_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, IcdNotFound):
+    if isinstance(exc, IcdNotFoundError):
         return HTTPException(status_code=404, detail="Không có mã ICD này.")
-    if isinstance(exc, IcdUnavailable):
+    if isinstance(exc, IcdUnavailableError):
         return HTTPException(status_code=503, detail=str(exc))
-    return HTTPException(status_code=502, detail=str(exc) if isinstance(exc, IcdUpstream) else "Không tra được ICD.")
+    return HTTPException(status_code=502, detail=str(exc) if isinstance(exc, IcdUpstreamError) else "Không tra được ICD.")
 
 
 @router.get("/icd/codes/{code}")
@@ -446,7 +446,7 @@ async def icd_code(code: str):
     """Chi tiết một mã ICD-10 từ icd.kcb.vn."""
     try:
         return await lookup_code(code)
-    except (IcdNotFound, IcdUnavailable, IcdUpstream) as exc:
+    except (IcdNotFoundError, IcdUnavailableError, IcdUpstreamError) as exc:
         raise _icd_error(exc) from exc
 
 
@@ -455,5 +455,5 @@ async def icd_search(q: str = ""):
     """Tìm mã hoặc tên bệnh tiếng Việt. Danh mục chương được tải một lần rồi lọc tại server."""
     try:
         return await search_codes(q)
-    except (IcdNotFound, IcdUnavailable, IcdUpstream) as exc:
+    except (IcdNotFoundError, IcdUnavailableError, IcdUpstreamError) as exc:
         raise _icd_error(exc) from exc

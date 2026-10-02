@@ -15,6 +15,7 @@ TEST 11: CAP semantic fields (proposition_text, canonical_concept, etc.) are unm
 """
 
 import pytest
+
 from src.schemas.soap import Cap, Transcript, TranscriptTurn
 from src.services.soap.errors import SoapFailure
 from src.services.soap.text_utils import conservative_normalize, resolve_conservative_evidence_quote

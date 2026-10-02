@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from src.schemas.soap import Cap, SoapDocument, Transcript
 from src.services.soap.errors import SoapFailure
+from src.services.soap.renderer import compute_section_candidates
 from src.services.soap.semantic_validator import check_item_safety
 from src.services.soap.text_utils import resolve_conservative_evidence_quote
 
@@ -12,10 +13,10 @@ def filter_usable_caps(caps: list[Cap]) -> list[Cap]:
     """
     Sanitize CAP list for SOAP rendering.
 
-    Filters out CAPs with resolution_status == 'superseded' or 'needs_review'.
+    Filters out CAPs with resolution_status != 'current' (superseded, needs_review/quarantined).
     Returns a new list without mutating the original input caps list.
     """
-    return [cap for cap in caps if cap.resolution_status not in {"superseded", "needs_review"}]
+    return [cap for cap in caps if cap.resolution_status == "current"]
 
 
 def resolve_superseded_cap_links(soap: SoapDocument, caps: list[Cap]) -> tuple[SoapDocument, list[str]]:
@@ -237,13 +238,74 @@ def validate_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], l
     return usable, warnings
 
 
+def normalize_cap_links(soap: SoapDocument, caps: list[Cap]) -> SoapDocument:
+    """Deterministically trim/casefold cap_ids to canonical prop_ids before validation."""
+    valid = {c.prop_id: c.prop_id for c in caps}
+    folded: dict[str, str] = {}
+    for c in caps:
+        folded.setdefault(c.prop_id.casefold().strip(), c.prop_id)
+    for section_name in ("S", "O", "A", "P"):
+        for item in getattr(soap, section_name).items:
+            normalized: list[str] = []
+            for cap_id in item.cap_ids:
+                candidate = str(cap_id).strip().casefold()
+                canonical = valid.get(candidate) or folded.get(candidate) or cap_id
+                if canonical not in normalized:
+                    normalized.append(canonical)
+            item.cap_ids = normalized
+    return soap
+
+
+def check_candidate_coverage(soap: SoapDocument, section_candidates: dict[str, list[str]], caps: list[Cap], invalid_status: int = 502) -> None:
+    cap_map = {c.prop_id: c for c in caps if c.resolution_status == "current"}
+    for section_name in ("S", "O", "A", "P"):
+        section = getattr(soap, section_name)
+        if section.missing:
+            continue
+        allowed_candidates = set(section_candidates.get(section_name, []))
+        if not allowed_candidates:
+            continue
+        used_candidates = {cid for item in section.items for cid in item.cap_ids if cid in allowed_candidates}
+        omitted_candidates = allowed_candidates - used_candidates
+        
+        if not omitted_candidates:
+            continue
+
+        used_caps = [cap_map[cid] for cid in used_candidates if cid in cap_map]
+        used_concepts = {c.canonical_concept.casefold().strip() for c in used_caps}
+        
+        truly_omitted = []
+        for om_id in sorted(omitted_candidates):
+            om_cap = cap_map.get(om_id)
+            if not om_cap:
+                continue
+            om_concept = om_cap.canonical_concept.casefold().strip()
+            if om_concept not in used_concepts:
+                truly_omitted.append(om_id)
+            else:
+                om_text = om_cap.proposition_text.casefold().strip()
+                if not any(om_text in c.proposition_text.casefold().strip() or c.proposition_text.casefold().strip() in om_text for c in used_caps):
+                    truly_omitted.append(om_id)
+                    
+        if truly_omitted:
+            raise SoapFailure(
+                "validate_soap",
+                "candidate_coverage_violation",
+                f"Section {section_name} omitted meaningful candidate CAPs: {sorted(truly_omitted)}",
+                invalid_status,
+            )
+
+
 def validate_soap(soap: SoapDocument, caps: list[Cap], *, generated: bool) -> SoapDocument:
     invalid_status = 502 if generated else 422
     soap, _ = resolve_superseded_cap_links(soap, caps)
-    current = {cap.prop_id: cap for cap in caps if cap.resolution_status not in {"superseded", "needs_review"}}
+    soap = normalize_cap_links(soap, caps)
+    current = {cap.prop_id: cap for cap in caps if cap.resolution_status == "current"}
+    section_candidates = compute_section_candidates(list(current.values()))
     seen = set()
 
     for section_name in ("S", "O", "A", "P"):
+        allowed_candidates = set(section_candidates.get(section_name, []))
         section = getattr(soap, section_name)
         for item in section.items:
             if item.item_id in seen:
@@ -259,15 +321,16 @@ def validate_soap(soap: SoapDocument, caps: list[Cap], *, generated: bool) -> So
                 if cap is None:
                     raise SoapFailure("validate_soap", "invalid_cap_link", f"Item {item.item_id} links missing or superseded CAP", invalid_status)
                 linked_caps.append(cap)
-                if section_name == "S":
-                    if linked_caps and any(c.speaker_source != "patient" for c in linked_caps):
-                        raise SoapFailure("validate_soap", "subjective_source", "Subjective item requires patient-reported source", invalid_status)
+                if section_name == "S" and cap.speaker_source != "patient":
+                    raise SoapFailure("validate_soap", "subjective_source", "Subjective item requires patient-reported source", invalid_status)
                 if section_name == "A" and (cap.speaker_source != "clinician" or cap.cap_type not in {"Problem", "ProblemHistory"}):
                     raise SoapFailure("validate_soap", "assessment_source", "Assessment requires clinician source", invalid_status)
                 if section_name == "O" and (cap.speaker_source != "clinician" or cap.cap_type not in {"ExamFinding", "TestResult"}):
                     raise SoapFailure("validate_soap", "objective_source", "Objective item requires exam or test source", invalid_status)
                 if section_name == "P" and (cap.speaker_source != "clinician" or cap.cap_type not in {"MedicationRequest", "Order", "FollowUp", "Counseling"}):
                     raise SoapFailure("validate_soap", "plan_source", "Plan requires clinician-directed plan source", invalid_status)
+                if cap_id not in allowed_candidates:
+                    raise SoapFailure("validate_soap", "candidate_boundary_violation", f"Item {item.item_id} in section {section_name} links CAP {cap_id} outside section candidate allowlist", invalid_status)
             if generated:
                 item.origin = "ai"
                 item.review_status = "needs_review"
@@ -292,6 +355,10 @@ def validate_soap(soap: SoapDocument, caps: list[Cap], *, generated: bool) -> So
                     violations = check_item_safety(item, section_name, linked_caps)
                     if violations:
                         item.support_status = "unsupported"
+
+    if generated:
+        check_candidate_coverage(soap, section_candidates, list(current.values()), invalid_status)
+
     return soap
 
 

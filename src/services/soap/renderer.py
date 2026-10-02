@@ -39,11 +39,15 @@ async def render_once(llm, transcript: Transcript, caps: list[Cap], warnings: li
         "transcript": transcript.model_dump(mode="json"),
         "caps": [cap.model_dump(mode="json") for cap in caps],
         "section_candidates": compute_section_candidates(caps),
+        "valid_cap_ids": sorted({c.prop_id for c in caps}),
         "warnings": warnings,
     }
     if repair is not None:
         payload["previous_invalid_output"] = repair[:12_000]
-        payload["repair_instruction"] = "Return corrected JSON only with all CAP links."
+        payload["repair_instruction"] = (
+            "Return corrected JSON only. Link each item ONLY to CAP IDs present in section_candidates/valid_cap_ids; "
+            "remove any cap_id not in those lists. Keep all text and clinical meaning unchanged."
+        )
     try:
         started = time.monotonic()
         response = await asyncio.wait_for(llm.ainvoke([

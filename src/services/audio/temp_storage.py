@@ -5,7 +5,6 @@ from pathlib import Path
 
 from fastapi import UploadFile
 
-
 TEMP_AUDIO_DIR = Path("audio/temp")
 
 ALLOWED_EXTENSIONS = {

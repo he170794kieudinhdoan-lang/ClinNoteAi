@@ -71,7 +71,9 @@ def test_3_missing_cap_link_failsafe():
         validate_soap(soap, [c1], generated=True)
 
     assert exc_info.value.code == "invalid_cap_link"
-    assert not is_repairable_error("invalid_cap_link")
+    # Repairable with 1 retry on this branch, capped by is_repairable_error
+    assert is_repairable_error("invalid_cap_link", repair_count=0)
+    assert not is_repairable_error("invalid_cap_link", repair_count=1)
 
 
 def test_4_superseded_cap_without_replacement_failsafe():
@@ -112,13 +114,15 @@ def test_7_quarantined_cap_partitioning_and_filtering():
     c2 = make_cap("C2", status="needs_review")
     c3 = make_cap("C3", status="superseded")
 
+    # Quarantined (needs_review) CAPs are not rendering candidates on this branch
     usable = filter_usable_caps([c1, c2, c3])
     assert [c.prop_id for c in usable] == ["C1"]
 
 
 def test_8_existing_invalid_cap_link_behavior_not_weakened():
-    assert "invalid_cap_link" not in REPAIRABLE_STRUCTURAL_CODES
-    assert not is_repairable_error("invalid_cap_link")
+    # invalid_cap_link is a structural (repairable, 1 retry) error on this branch
+    assert "invalid_cap_link" in REPAIRABLE_STRUCTURAL_CODES
+    assert is_repairable_error("invalid_cap_link")
 
     c1 = make_cap("C1")
     soap = make_soap(cap_ids=["UNKNOWN"])

@@ -14,16 +14,21 @@ CLINICAL-NOTE STYLE & WORDING RULES (STRICT):
 6. Semantic Integrity: You may rephrase/normalize `proposition_text` into concise clinical documentation terminology, but NEVER add new clinical facts, and NEVER alter temporality, negation, uncertainty, severity, or speaker source.
 7. Multi-CAP Synthesis: Combine closely related candidate CAPs into concise, compound clinical statements (e.g. combining chief complaint + duration + severity into one Subjective item), making sure to preserve ALL linked CAP IDs in the `cap_ids` array. Do NOT create a separate bullet for every transcript turn.
 
-SECTION CANDIDATES & STRICT LINKING RULES:
-1. S (Subjective): Items in S MUST ONLY link CAP IDs listed in section_candidates['S']. Include all patient-reported chief complaints, symptom duration, severity, aggravating factors, associated symptoms, pertinent negatives, impact on sleep/function, medical history, and medication history in clinical-note style. NEVER include clinician questions or exam findings in S.
-2. O (Objective): Items in O MUST ONLY link CAP IDs listed in section_candidates['O']. Include all clinician vital signs (BP, HR, RR, Temp), physical examination inspection, range of motion, and special maneuver test results (both positive and negative findings). NEVER include clinician questions (e.g. "Bác có thấy đau trói không?") as objective items.
-3. A (Assessment): Items in A MUST ONLY link CAP IDs listed in section_candidates['A']. Include clinician diagnostic impressions and assessments. Preserve provisional/uncertain nature (e.g. "Có khả năng đợt bùng phát thoái hóa khớp gối mức độ nhẹ (cần kết quả hình ảnh để khẳng định)"). Never upgrade uncertain assessments to confirmed diagnoses. If section_candidates['A'] is empty, set items: [] and missing: true.
-4. P (Plan): Items in P MUST ONLY link CAP IDs listed in section_candidates['P']. Include ALL clinician plan items: diagnostic orders (X-ray, MRI), physical therapy, lifestyle/load modifications, pain avoidance, supportive devices (brace/cane), medication recommendations (OTC NSAID), follow-ups, and referrals. Do NOT arbitrarily select only 2-3 plan items when more candidate CAPs exist.
+SECTION CANDIDATES & HARD ALLOWLIST RULES (STRICT):
+1. `section_candidates` provided in the input payload is a HARD ALLOWLIST for each section.
+2. S (Subjective): Items in S MUST ONLY link CAP IDs listed in section_candidates['S']. NEVER link CAP IDs outside section_candidates['S']. Include all patient-reported complaints, duration, severity, aggravating factors, relieving factors, associated symptoms, sleep/functional impact, and medical history.
+3. O (Objective): Items in O MUST ONLY link CAP IDs listed in section_candidates['O']. NEVER link CAP IDs outside section_candidates['O']. Include ALL clinician vital signs (BP, HR, RR, Temp, SpO2), physical inspection, palpation, range of motion, and special maneuvers (positive and negative findings). Do NOT omit vital signs.
+4. A (Assessment): Items in A MUST ONLY link CAP IDs listed in section_candidates['A']. NEVER link CAP IDs outside section_candidates['A']. Include clinician diagnostic impressions and working diagnoses. Preserve provisional/uncertain nature. If section_candidates['A'] is empty, set items: [] and missing: true.
+5. P (Plan): Items in P MUST ONLY link CAP IDs listed in section_candidates['P']. NEVER link CAP IDs outside section_candidates['P']. Include ALL clinician plan items: diagnostic orders, physical therapy/counseling, lifestyle load modifications, medication prescriptions, and follow-ups.
+6. NEVER invent, guess, hallucinate, or create new CAP IDs.
+7. NEVER use quarantined (needs_review) or superseded CAP IDs.
+8. Every valid SOAP item MUST contain at least one valid candidate CAP ID from its section allowlist in `cap_ids`.
+9. If section_candidates for a section is empty, set items: [] and missing: true for that section.
 
 DEDUPLICATION & CAP LINKING TRACEABILITY:
-- You may combine closely related candidate CAPs into a single coherent SOAP item (e.g. combining chief complaint + duration + severity into one Subjective item), BUT you MUST retain ALL linked CAP IDs in the `cap_ids` array.
-- Do NOT collapse unrelated facts into one item merely to reduce item count.
-- Every usable candidate CAP in `section_candidates` MUST be linked by at least one SOAP item unless it is an exact duplicate of another CAP.
+- Grouping Allowed: You MAY combine closely related candidate CAPs into a single coherent SOAP item (e.g. combining chief complaint + duration + severity + aggravating factor into one Subjective item, or grouping all vitals into an Objective item), BUT you MUST retain ALL linked CAP IDs in the `cap_ids` array.
+- No Silent Omission: Every usable candidate CAP in `section_candidates` MUST be linked by at least one SOAP item. Do NOT drop vital signs, physical findings, or patient-reported symptoms.
+- Semantic Modifier Preservation: You MUST preserve all clinical modifiers (severity, duration, body site, frequency, exact vital sign values, positive/negative status) in the rendered text.
 
 COVERAGE CHECK BEFORE RETURNING:
 Verify that every candidate CAP in `section_candidates` is represented in its corresponding section. If candidate CAPs exist for a section, missing MUST be false. If no candidate CAPs exist for a section, items MUST be [] and missing MUST be true.

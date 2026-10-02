@@ -18,15 +18,15 @@ _index: list[dict[str, str]] | None = None
 _index_lock = asyncio.Lock()
 
 
-class IcdNotFound(Exception):
+class IcdNotFoundError(Exception):
     pass
 
 
-class IcdUnavailable(Exception):
+class IcdUnavailableError(Exception):
     pass
 
 
-class IcdUpstream(Exception):
+class IcdUpstreamError(Exception):
     pass
 
 
@@ -43,9 +43,9 @@ def node(value: Any) -> dict[str, str]:
 def detail_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     if not isinstance(data, dict) or not data.get("icd10_code"):
-        raise IcdNotFound
+        raise IcdNotFoundError
     if str(payload.get("status") or "success") not in {"success", ""}:
-        raise IcdNotFound
+        raise IcdNotFoundError
     return {
         "icd10_code": str(data["icd10_code"]),
         "disease_name_vi": str(data.get("disease_name_vi") or ""),
@@ -79,7 +79,7 @@ def match_rows(rows: list[dict[str, str]], query: str, limit: int = 12) -> list[
 def normalize_code(code: str) -> str:
     cleaned = code.strip().upper().replace(" ", "")
     if not CODE_RE.fullmatch(cleaned):
-        raise IcdNotFound
+        raise IcdNotFoundError
     return cleaned
 
 
@@ -101,7 +101,7 @@ def query_code_param(code: str) -> str:
 async def _get(endpoint: str, params: dict[str, str], timeout: float) -> dict[str, Any]:
     settings = get_settings()
     if not settings.parse_api_key.strip():
-        raise IcdUnavailable("Chưa có PARSE_API_KEY trên server.")
+        raise IcdUnavailableError("Chưa có PARSE_API_KEY trên server.")
     url = f"{settings.parse_icd_base_url.rstrip('/')}/{endpoint}"
     try:
         async with httpx.AsyncClient(timeout=timeout) as client:
@@ -110,13 +110,13 @@ async def _get(endpoint: str, params: dict[str, str], timeout: float) -> dict[st
             payload = response.json()
     except httpx.HTTPStatusError as exc:
         body = exc.response.text[:180]
-        raise IcdUpstream(f"ICD từ chối ({exc.response.status_code}). {body}") from exc
+        raise IcdUpstreamError(f"ICD từ chối ({exc.response.status_code}). {body}") from exc
     except httpx.HTTPError as exc:
-        raise IcdUpstream("Không gọi được danh mục ICD.") from exc
+        raise IcdUpstreamError("Không gọi được danh mục ICD.") from exc
     if not isinstance(payload, dict):
-        raise IcdUpstream("ICD trả về dữ liệu không đọc được.")
+        raise IcdUpstreamError("ICD trả về dữ liệu không đọc được.")
     if payload.get("status") not in {None, "success"}:
-        raise IcdNotFound
+        raise IcdNotFoundError
     return payload
 
 
@@ -148,7 +148,7 @@ async def search_codes(query: str) -> list[dict[str, str]]:
         return []
     try:
         detail = await lookup_code(text)
-    except IcdNotFound:
+    except IcdNotFoundError:
         detail = None
     if detail is not None:
         return [{"code": detail["icd10_code"], "title": detail["disease_name_vi"]}]
