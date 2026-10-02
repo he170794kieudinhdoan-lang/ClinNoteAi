@@ -12,67 +12,145 @@ def filter_usable_caps(caps: list[Cap]) -> list[Cap]:
     """
     Sanitize CAP list for SOAP rendering.
 
-    Filters out CAPs with resolution_status == 'superseded' so that
-    the renderer only receives current / usable CAPs.
+    Filters out CAPs with resolution_status == 'superseded'.
     Returns a new list without mutating the original input caps list.
     """
     return [cap for cap in caps if cap.resolution_status != "superseded"]
 
 
-def validate_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], list[str]]:
+def validate_and_partition_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], list[Cap], list[str]]:
+    """
+    Validates each CAP individually, partitioning them into usable_caps and quarantined_caps.
+
+    - Usable CAPs: Pass strict evidence grounding and source validation checks.
+    - Quarantined CAPs: Encounter recoverable validation errors (e.g. speaker_mismatch, invalid_quote).
+      Their resolution_status is set to 'needs_review', and detailed warning logs are recorded.
+
+    Returns:
+        (usable_caps, quarantined_caps, warnings)
+    """
     turns = {turn.turn_id: turn for turn in transcript.turns}
-    ids = [cap.prop_id for cap in caps]
-    if len(ids) != len(set(ids)):
-        raise SoapFailure("validate_caps", "duplicate_prop_id", "CAP IDs must be unique")
-    by_id = {cap.prop_id: cap for cap in caps}
-    warnings = []
+    warnings: list[str] = []
+    quarantined: list[Cap] = []
+    usable: list[Cap] = []
+
+    seen_ids: set[str] = set()
+    by_id: dict[str, Cap] = {}
+
     for cap in caps:
+        # Check duplicate prop_id
+        if cap.prop_id in seen_ids:
+            cap.resolution_status = "needs_review"
+            quarantined.append(cap)
+            warnings.append(f"CAP {cap.prop_id} quarantined: duplicate_prop_id (Duplicate CAP ID {cap.prop_id})")
+            continue
+
+        # Check planned_time_state
         if cap.clinical_status == "planned" and cap.temporality != "future":
-            raise SoapFailure("validate_caps", "planned_time_state", f"Planned CAP {cap.prop_id} must be future")
+            cap.resolution_status = "needs_review"
+            quarantined.append(cap)
+            warnings.append(f"CAP {cap.prop_id} quarantined: planned_time_state (Planned CAP {cap.prop_id} must be future)")
+            continue
+
+        # Check future_action_state
         if cap.temporality == "future" and cap.cap_type in {"Order", "MedicationRequest", "FollowUp"} and cap.clinical_status != "planned":
-            raise SoapFailure("validate_caps", "future_action_state", f"Future action {cap.prop_id} must be planned")
+            cap.resolution_status = "needs_review"
+            quarantined.append(cap)
+            warnings.append(f"CAP {cap.prop_id} quarantined: future_action_state (Future action {cap.prop_id} must be planned)")
+            continue
+
+        # Check medication_plan_state
         if cap.medication_state in {"start_planned", "stop_planned", "change_planned"} and cap.clinical_status != "planned":
-            raise SoapFailure("validate_caps", "medication_plan_state", f"Medication plan {cap.prop_id} must be planned")
+            cap.resolution_status = "needs_review"
+            quarantined.append(cap)
+            warnings.append(f"CAP {cap.prop_id} quarantined: medication_plan_state (Medication plan {cap.prop_id} must be planned)")
+            continue
+
+        # Check speaker_mismatch
         if not any(turns.get(ev.turn_id) and turns[ev.turn_id].speaker == cap.speaker_source for ev in cap.evidence):
-            raise SoapFailure("validate_caps", "speaker_mismatch", f"CAP {cap.prop_id} has no evidence from its source speaker")
+            cap.resolution_status = "needs_review"
+            quarantined.append(cap)
+            warnings.append(f"CAP {cap.prop_id} quarantined: speaker_mismatch (CAP {cap.prop_id} has no evidence from its source speaker '{cap.speaker_source}')")
+            continue
+
+        # Check invalid_quote & resolve quote
+        quote_error = False
+        resolved_evidences = []
         for ev in cap.evidence:
             turn = turns.get(ev.turn_id)
             if turn is None or not ev.quote.strip():
-                raise SoapFailure("validate_caps", "invalid_quote", f"CAP {cap.prop_id} quote is absent from turn {ev.turn_id}")
+                quote_error = True
+                warnings.append(f"CAP {cap.prop_id} quarantined: invalid_quote (CAP {cap.prop_id} quote is absent from turn {ev.turn_id})")
+                break
             resolved_quote, _ = resolve_conservative_evidence_quote(ev.quote, turn.text)
             if resolved_quote is None:
-                raise SoapFailure("validate_caps", "invalid_quote", f"CAP {cap.prop_id} quote is absent from turn {ev.turn_id}")
+                quote_error = True
+                warnings.append(f"CAP {cap.prop_id} quarantined: invalid_quote (CAP {cap.prop_id} quote is absent from turn {ev.turn_id})")
+                break
             ev.quote = resolved_quote
             ev.source_segment_id = turn.source_segment_id
             ev.speaker = turn.speaker
             ev.start_ms = turn.start_ms
             ev.end_ms = turn.end_ms
+            resolved_evidences.append(ev)
+
+        if quote_error:
+            cap.resolution_status = "needs_review"
+            quarantined.append(cap)
+            continue
+
+        seen_ids.add(cap.prop_id)
+        by_id[cap.prop_id] = cap
+        usable.append(cap)
+
+    # Check invalid_supersedes & supersedes_cycle safely
+    for cap in usable:
+        valid_supersedes = []
+        has_invalid_supersedes = False
         for old_id in cap.supersedes:
             if old_id not in by_id or old_id == cap.prop_id:
-                raise SoapFailure("validate_caps", "invalid_supersedes", f"CAP {cap.prop_id} has invalid supersedes")
+                has_invalid_supersedes = True
+            else:
+                valid_supersedes.append(old_id)
+        if has_invalid_supersedes:
+            cap.supersedes = valid_supersedes
+            warnings.append(f"CAP {cap.prop_id} had invalid supersedes links cleaned")
+
     visiting, visited = set(), set()
 
-    def visit(prop_id: str) -> None:
+    def visit(prop_id: str) -> bool:
         if prop_id in visiting:
-            raise SoapFailure("validate_caps", "supersedes_cycle", "CAP supersedes contains a cycle")
+            return True
         if prop_id in visited:
-            return
+            return False
         visiting.add(prop_id)
         for previous in by_id[prop_id].supersedes:
-            visit(previous)
+            if previous in by_id and visit(previous):
+                visiting.remove(prop_id)
+                return True
         visiting.remove(prop_id)
         visited.add(prop_id)
+        return False
 
-    for prop_id in ids:
-        visit(prop_id)
-    superseded = {old for cap in caps for old in cap.supersedes}
-    for cap in caps:
+    final_usable: list[Cap] = []
+    for cap in usable:
+        visiting.clear()
+        if visit(cap.prop_id):
+            cap.resolution_status = "needs_review"
+            cap.supersedes = []
+            quarantined.append(cap)
+            warnings.append(f"CAP {cap.prop_id} quarantined: supersedes_cycle (Cycle detected in supersedes chain)")
+        else:
+            final_usable.append(cap)
+
+    superseded = {old for cap in final_usable for old in cap.supersedes}
+    for cap in final_usable:
         cap.resolution_status = "superseded" if cap.prop_id in superseded else cap.resolution_status
         if cap.supersedes:
             warnings.append(f"Review correction asserted by {cap.prop_id}: {', '.join(cap.supersedes)}")
-    # Same concept and time with contradictory polarity remains visible for review.
+
     groups: dict[tuple[str, str], list[Cap]] = {}
-    for cap in caps:
+    for cap in final_usable:
         if cap.resolution_status != "superseded":
             groups.setdefault((cap.canonical_concept.casefold().strip(), cap.temporality), []).append(cap)
     for group in groups.values():
@@ -81,12 +159,28 @@ def validate_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], l
             for cap in group:
                 cap.resolution_status = "needs_review"
             warnings.append("Conflicting CAPs need review: " + ", ".join(cap.prop_id for cap in group))
-    for cap in caps:
+
+    for cap in final_usable:
         if cap.resolution_status == "needs_review":
             label = f"CAP {cap.prop_id} needs review"
             if label not in warnings:
                 warnings.append(label)
-    return caps, warnings
+
+    return final_usable, quarantined, warnings
+
+
+def validate_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], list[str]]:
+    usable, quarantined, warnings = validate_and_partition_caps(caps, transcript)
+    if quarantined:
+        first_q = quarantined[0]
+        # Raise SoapFailure for existing direct unit test callers expecting exception
+        for w in warnings:
+            if f"CAP {first_q.prop_id} quarantined:" in w:
+                code = w.split("quarantined: ", 1)[1].split(" ", 1)[0]
+                msg = w.split("(", 1)[1].rstrip(")") if "(" in w else w
+                raise SoapFailure("validate_caps", code, msg)
+        raise SoapFailure("validate_caps", "invalid_cap", f"CAP {first_q.prop_id} is invalid")
+    return usable, warnings
 
 
 def validate_soap(soap: SoapDocument, caps: list[Cap], *, generated: bool) -> SoapDocument:

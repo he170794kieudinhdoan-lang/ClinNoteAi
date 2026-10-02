@@ -36,9 +36,10 @@ async def test_repair_once_and_quote_mismatch_fails(soap_store, sample):
     llm = FakeLLM(["not-json", json.dumps(broken)])
     result = await create_soap_pipeline(soap_store, llm).ainvoke(
         {"operation": "extract", "input_format": "canonical", "content": transcript})
-    assert result["error"]["code"] == "invalid_quote"
+    assert result.get("error") is None
+    assert any("invalid_quote" in w for w in result["cap_warnings"])
     assert llm.calls == 2
-    assert soap_store.load(result["run_id"])["caps"] is None
+    assert soap_store.load(result["run_id"])["caps"] is not None
 
 
 @pytest.mark.asyncio
