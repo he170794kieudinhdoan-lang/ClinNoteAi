@@ -1,6 +1,6 @@
 import pytest
 
-from src.services.icd_kcb import detail_from_payload, match_rows, normalize_code, query_code_param, IcdNotFound
+from src.services.icd_kcb import IcdNotFoundError, detail_from_payload, match_rows, normalize_code, query_code_param
 
 
 def test_detail_drops_html_and_keeps_hierarchy():
@@ -34,7 +34,7 @@ def test_search_ignores_vietnamese_marks():
 def test_normalize_code_rejects_junk():
     assert normalize_code(" m17.9 ") == "M17.9"
     assert normalize_code("M25.562") == "M25.562"
-    with pytest.raises(IcdNotFound):
+    with pytest.raises(IcdNotFoundError):
         normalize_code("khớp gối")
 
 

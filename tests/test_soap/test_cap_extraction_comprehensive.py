@@ -20,11 +20,10 @@ from pathlib import Path
 
 import pytest
 
-from src.schemas.soap import Cap, Evidence, Transcript, TranscriptTurn
+from src.schemas.soap import Cap, Evidence, Transcript
 from src.services.soap.renderer import compute_section_candidates
 from src.services.soap.validation import validate_caps, validate_soap
 from tests.test_soap.test_candidate_routing import make_cap, make_soap_dict, parse_soap
-
 
 # Load real transcript for run 0d82e6ec-8e63-46e3-aec6-3f4d1234d26a
 TRANSCRIPT_PATH = Path(__file__).parents[2] / "data" / "soap_mvp" / "0d82e6ec-8e63-46e3-aec6-3f4d1234d26a" / "transcript.json"

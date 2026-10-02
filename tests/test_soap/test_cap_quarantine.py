@@ -16,11 +16,12 @@ Verifies:
 """
 
 from unittest.mock import AsyncMock
+
 import pytest
 
 from src.schemas.soap import Cap, Evidence, SoapDocument, SoapItem, SoapSection, Transcript, TranscriptTurn
 from src.services.soap.renderer import compute_section_candidates
-from src.services.soap.validation import validate_and_partition_caps, filter_usable_caps, validate_soap
+from src.services.soap.validation import validate_and_partition_caps, validate_soap
 
 
 @pytest.fixture
@@ -208,7 +209,7 @@ async def test_11_e2e_pipeline_with_recoverable_cap_error(sample_transcript, soa
     mock_llm.model_name = "test-model"
     extract_json = '{"caps": [' + c1.model_dump_json() + ', ' + c10.model_dump_json() + ']}'
     soap_json = '{"S": {"items": [{"item_id": "S1", "text": "Bệnh nhân đau gối trái 3 tuần.", "cap_ids": ["C1"]}], "missing": false}, "O": {"items": [], "missing": true}, "A": {"items": [], "missing": true}, "P": {"items": [], "missing": true}}'
-    
+
     response_extract = AsyncMock(content=extract_json, response_metadata={"model_name": "test-model"})
     response_soap = AsyncMock(content=soap_json, response_metadata={"model_name": "test-model"})
     mock_llm.ainvoke.side_effect = [response_extract, response_soap]
