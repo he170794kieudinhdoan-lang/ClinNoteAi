@@ -18,6 +18,60 @@ def filter_usable_caps(caps: list[Cap]) -> list[Cap]:
     return [cap for cap in caps if cap.resolution_status != "superseded"]
 
 
+def resolve_superseded_cap_links(soap: SoapDocument, caps: list[Cap]) -> tuple[SoapDocument, list[str]]:
+    """
+    Deterministically resolves links to superseded CAPs in SOAP items.
+
+    For any cap_id in item.cap_ids that is superseded, if there is EXACTLY ONE active/usable
+    CAP in caps whose `supersedes` chain points to it, the cap_id is updated to the active
+    replacement CAP ID.
+
+    If 0 or >1 replacement CAPs exist, no replacement is made (fail-safe / HITL).
+    """
+    active_caps = {cap.prop_id: cap for cap in caps if cap.resolution_status not in {"superseded", "needs_review"}}
+
+    # Build mapping from old_id -> set of active replacement prop_ids
+    supersedes_map: dict[str, set[str]] = {}
+    for active_id, active_cap in active_caps.items():
+        visited = set()
+        queue = list(active_cap.supersedes)
+        while queue:
+            old_id = queue.pop(0)
+            if old_id in visited:
+                continue
+            visited.add(old_id)
+            supersedes_map.setdefault(old_id, set()).add(active_id)
+            past_cap = next((c for c in caps if c.prop_id == old_id), None)
+            if past_cap and past_cap.supersedes:
+                queue.extend(past_cap.supersedes)
+
+    resolutions: list[str] = []
+    for section_name in ("S", "O", "A", "P"):
+        section = getattr(soap, section_name)
+        for item in section.items:
+            new_cap_ids = []
+            for cap_id in item.cap_ids:
+                if cap_id in active_caps:
+                    new_cap_ids.append(cap_id)
+                else:
+                    replacements = supersedes_map.get(cap_id, set())
+                    if len(replacements) == 1:
+                        rep_id = next(iter(replacements))
+                        new_cap_ids.append(rep_id)
+                        resolutions.append(f"Item {item.item_id}: resolved superseded CAP {cap_id} -> {rep_id}")
+                    else:
+                        new_cap_ids.append(cap_id)
+            seen_ids = set()
+            deduped = []
+            for cid in new_cap_ids:
+                if cid not in seen_ids:
+                    seen_ids.add(cid)
+                    deduped.append(cid)
+            item.cap_ids = deduped
+
+    return soap, resolutions
+
+
 def validate_and_partition_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], list[Cap], list[str]]:
     """
     Validates each CAP individually, partitioning them into usable_caps and quarantined_caps.
@@ -185,8 +239,10 @@ def validate_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], l
 
 def validate_soap(soap: SoapDocument, caps: list[Cap], *, generated: bool) -> SoapDocument:
     invalid_status = 502 if generated else 422
-    current = {cap.prop_id: cap for cap in caps if cap.resolution_status != "superseded"}
+    soap, _ = resolve_superseded_cap_links(soap, caps)
+    current = {cap.prop_id: cap for cap in caps if cap.resolution_status not in {"superseded", "needs_review"}}
     seen = set()
+
     for section_name in ("S", "O", "A", "P"):
         section = getattr(soap, section_name)
         for item in section.items:

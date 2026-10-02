@@ -141,18 +141,33 @@ def test_regression_superseded_cap_link_error(sample_caps, sample_transcript):
     c1_validated = next(c for c in validated_caps if c.prop_id == "C1")
     assert c1_validated.resolution_status == "superseded"
 
-    # SOAP item in S links C1 (which is superseded)
+    # SOAP item in S links C1 (which is superseded by C5) -> Deterministically resolved to C5
     invalid_soap = SoapDocument(
         S=SoapSection(items=[SoapItem(item_id="item-s1", text="Đau đầu từ sáng", cap_ids=["C1"])], missing=False),
         O=SoapSection(items=[], missing=True),
         A=SoapSection(items=[], missing=True),
         P=SoapSection(items=[], missing=True),
     )
+    resolved_soap = validate_soap(invalid_soap, validated_caps, generated=True)
+    assert resolved_soap.S.items[0].cap_ids == ["C5"]
+
+    # SOAP item linking a superseded CAP with NO replacement -> raises invalid_cap_link
+    c_orphan = Cap(
+        prop_id="C_ORPHAN", cap_type="ChiefComplaint", canonical_concept="đau gối",
+        proposition_text="Đau gối", speaker_source="patient", evidence=[{"turn_id": "T1", "quote": "Tôi bị đau gối."}],
+        resolution_status="superseded",
+    )
+    unresolvable_soap = SoapDocument(
+        S=SoapSection(items=[SoapItem(item_id="item-s2", text="Đau gối", cap_ids=["C_ORPHAN"])], missing=False),
+        O=SoapSection(items=[], missing=True),
+        A=SoapSection(items=[], missing=True),
+        P=SoapSection(items=[], missing=True),
+    )
     with pytest.raises(SoapFailure) as exc_info:
-        validate_soap(invalid_soap, validated_caps, generated=True)
+        validate_soap(unresolvable_soap, validated_caps + [c_orphan], generated=True)
 
     assert exc_info.value.code == "invalid_cap_link"
-    assert "Item item-s1 links missing or superseded CAP" in exc_info.value.message
+    assert "Item item-s2 links missing or superseded CAP" in exc_info.value.message
 
 
 def test_regression_invalid_quote_error(sample_transcript):
