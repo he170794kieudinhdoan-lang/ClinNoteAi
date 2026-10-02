@@ -85,9 +85,10 @@ def test_duplicate_item_id_not_repairable():
     assert is_repairable_error("duplicate_item_id", repair_count=0) is False
 
 
-# TEST 4: superseded_cap_link -> sanitization/backend handling, NO LLM repair
-def test_superseded_cap_link_not_repairable():
-    assert is_repairable_error("invalid_cap_link", repair_count=0) is False
+# TEST 4: invalid_cap_link -> structural linking error, allowed to route to LLM repair
+# (safety still holds: repair only receives usable CAPs and validate_soap re-runs after repair)
+def test_invalid_cap_link_repairable():
+    assert is_repairable_error("invalid_cap_link", repair_count=0) is True
 
 
 # TEST 5: ambiguous_quote -> NO LLM repair
