@@ -1,12 +1,13 @@
 """Node implementations are built with explicit store and model dependencies."""
 
+import json
 from datetime import UTC, datetime
 
 from src.config import get_settings
 from src.schemas.soap import Cap, SoapRevision, Transcript
 from src.services.soap import extractor, renderer
 from src.services.soap.errors import SoapFailure
-from src.services.soap.validation import filter_usable_caps, validate_and_partition_caps, validate_caps, validate_soap
+from src.services.soap.validation import filter_usable_caps, validate_and_partition_caps, validate_soap
 from src.services.transcript.normalizer import TranscriptNormalizationError, parse_soap_transcript
 
 

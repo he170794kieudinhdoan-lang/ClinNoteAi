@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from src.schemas.soap import Cap, Evidence, SoapDocument, SoapItem, SoapSection, Transcript, TranscriptTurn
+from src.schemas.soap import Cap, Evidence, SoapDocument, SoapItem, SoapSection, TranscriptTurn
 from src.services.soap.errors import SoapFailure
 from src.services.soap.semantic_validator import check_item_safety
 from src.services.soap.validation import validate_soap
@@ -316,10 +316,8 @@ def test_safety_violation_no_llm_repair_trigger():
 # TEST 23: CAP evidence chain is traceable
 def test_cap_evidence_chain_traceability():
     turn = make_turn("t1", "clinician", "Bệnh nhân đường huyết 120 mg/dL")
-    transcript = Transcript(turns=[turn])
     cap = make_cap("C1", "TestResult", "Đường huyết", "Đường huyết 120 mg/dL", "clinician", turn_id="t1", quote="đường huyết 120 mg/dL")
     item = SoapItem(item_id="O1", text="Đường huyết 120 mg/dL", cap_ids=["C1"])
-    soap = make_soap(o_items=[item])
 
     # SOAP -> cap_ids -> CAP -> evidence -> transcript turn
     assert item.cap_ids == ["C1"]

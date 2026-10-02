@@ -10,6 +10,7 @@ TEST 6: assign_deterministic_item_ids helper preserves all other fields (text, c
 """
 
 import json
+
 from src.schemas.soap import SoapDocument, SoapItem, SoapSection
 from src.services.soap.renderer import assign_deterministic_item_ids, parse_soap
 

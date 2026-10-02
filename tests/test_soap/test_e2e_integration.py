@@ -8,7 +8,13 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from src.agents.soap_graph import create_soap_pipeline
-from src.schemas.soap import Cap, Evidence, SoapDocument, SoapItem, SoapRevision, SoapSection, Transcript, TranscriptTurn
+from src.schemas.soap import (
+    Cap,
+    Evidence,
+    SoapDocument,
+    Transcript,
+    TranscriptTurn,
+)
 from src.services.soap.errors import SoapFailure
 from src.services.soap.renderer import parse_soap
 from src.services.soap.text_utils import resolve_conservative_evidence_quote
