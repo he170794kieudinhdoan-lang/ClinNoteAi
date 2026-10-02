@@ -5,6 +5,7 @@ from __future__ import annotations
 REPAIRABLE_STRUCTURAL_CODES = {
     "invalid_model_output",
     "missing_cap_link",
+    "invalid_cap_link",
     "subjective_source",
     "assessment_source",
     "objective_source",

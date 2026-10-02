@@ -12,10 +12,64 @@ def filter_usable_caps(caps: list[Cap]) -> list[Cap]:
     """
     Sanitize CAP list for SOAP rendering.
 
-    Filters out CAPs with resolution_status == 'superseded'.
+    Filters out CAPs with resolution_status != 'current' (superseded, needs_review/quarantined).
     Returns a new list without mutating the original input caps list.
     """
-    return [cap for cap in caps if cap.resolution_status != "superseded"]
+    return [cap for cap in caps if cap.resolution_status == "current"]
+
+
+def resolve_superseded_cap_links(soap: SoapDocument, caps: list[Cap]) -> tuple[SoapDocument, list[str]]:
+    """
+    Deterministically resolves links to superseded CAPs in SOAP items.
+
+    For any cap_id in item.cap_ids that is superseded, if there is EXACTLY ONE active/usable
+    CAP in caps whose `supersedes` chain points to it, the cap_id is updated to the active
+    replacement CAP ID.
+
+    If 0 or >1 replacement CAPs exist, no replacement is made (fail-safe / HITL).
+    """
+    active_caps = {cap.prop_id: cap for cap in caps if cap.resolution_status not in {"superseded", "needs_review"}}
+
+    # Build mapping from old_id -> set of active replacement prop_ids
+    supersedes_map: dict[str, set[str]] = {}
+    for active_id, active_cap in active_caps.items():
+        visited = set()
+        queue = list(active_cap.supersedes)
+        while queue:
+            old_id = queue.pop(0)
+            if old_id in visited:
+                continue
+            visited.add(old_id)
+            supersedes_map.setdefault(old_id, set()).add(active_id)
+            past_cap = next((c for c in caps if c.prop_id == old_id), None)
+            if past_cap and past_cap.supersedes:
+                queue.extend(past_cap.supersedes)
+
+    resolutions: list[str] = []
+    for section_name in ("S", "O", "A", "P"):
+        section = getattr(soap, section_name)
+        for item in section.items:
+            new_cap_ids = []
+            for cap_id in item.cap_ids:
+                if cap_id in active_caps:
+                    new_cap_ids.append(cap_id)
+                else:
+                    replacements = supersedes_map.get(cap_id, set())
+                    if len(replacements) == 1:
+                        rep_id = next(iter(replacements))
+                        new_cap_ids.append(rep_id)
+                        resolutions.append(f"Item {item.item_id}: resolved superseded CAP {cap_id} -> {rep_id}")
+                    else:
+                        new_cap_ids.append(cap_id)
+            seen_ids = set()
+            deduped = []
+            for cid in new_cap_ids:
+                if cid not in seen_ids:
+                    seen_ids.add(cid)
+                    deduped.append(cid)
+            item.cap_ids = deduped
+
+    return soap, resolutions
 
 
 def validate_and_partition_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], list[Cap], list[str]]:
@@ -183,10 +237,31 @@ def validate_caps(caps: list[Cap], transcript: Transcript) -> tuple[list[Cap], l
     return usable, warnings
 
 
+def normalize_cap_links(soap: SoapDocument, caps: list[Cap]) -> SoapDocument:
+    """Deterministically trim/casefold cap_ids to canonical prop_ids before validation."""
+    valid = {c.prop_id: c.prop_id for c in caps}
+    folded: dict[str, str] = {}
+    for c in caps:
+        folded.setdefault(c.prop_id.casefold().strip(), c.prop_id)
+    for section_name in ("S", "O", "A", "P"):
+        for item in getattr(soap, section_name).items:
+            normalized: list[str] = []
+            for cap_id in item.cap_ids:
+                candidate = str(cap_id).strip().casefold()
+                canonical = valid.get(candidate) or folded.get(candidate) or cap_id
+                if canonical not in normalized:
+                    normalized.append(canonical)
+            item.cap_ids = normalized
+    return soap
+
+
 def validate_soap(soap: SoapDocument, caps: list[Cap], *, generated: bool) -> SoapDocument:
     invalid_status = 502 if generated else 422
-    current = {cap.prop_id: cap for cap in caps if cap.resolution_status != "superseded"}
+    soap, _ = resolve_superseded_cap_links(soap, caps)
+    soap = normalize_cap_links(soap, caps)
+    current = {cap.prop_id: cap for cap in caps if cap.resolution_status == "current"}
     seen = set()
+
     for section_name in ("S", "O", "A", "P"):
         section = getattr(soap, section_name)
         for item in section.items:

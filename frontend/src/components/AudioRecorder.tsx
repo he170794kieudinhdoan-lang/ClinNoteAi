@@ -184,7 +184,7 @@ function AudioRecorder({
             <p className="mt-3 text-xs leading-relaxed text-muted">
               {isProcessingTranscript
                 ? "Dùng nội dung đã phân vai; không chạy lại nhận dạng âm thanh."
-                : "Đang nhận diện giọng nói (Blaze STT) và phân vai bác sĩ / bệnh nhân..."}
+                : "Đang nhận diện giọng nói và phân vai bác sĩ / bệnh nhân..."}
             </p>
           </div>
         </div>
