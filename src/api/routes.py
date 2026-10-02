@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from src.agents.graph import agent
@@ -13,9 +14,11 @@ from src.models.schemas import (
     ChatRequest,
     ChatResponse,
     ConsultationCreateRequest,
+    ConsultationListItem,
     ConsultationResponse,
     PatientCreateRequest,
     PatientResponse,
+    PatientSummary,
     TranscriptResponse,
     TranscriptSegmentResponse,
     TranscriptSegmentUpdateRequest,
@@ -154,6 +157,54 @@ async def create_consultation(
     db.refresh(consultation)
 
     return consultation
+
+
+@router.get("/consultations", response_model=list[ConsultationListItem])
+async def list_consultations(
+    doctor_id: UUID | None = None,
+    patient_id: UUID | None = None,
+    db: Session = Depends(get_db),
+) -> list[ConsultationListItem]:
+    """Danh sách consultations, lọc theo bác sĩ (để danh sách lượt khám per-doctor)."""
+
+    transcript_exists = (
+        select(TranscriptSegment.id)
+        .where(TranscriptSegment.consultation_id == Consultation.id)
+        .exists()
+    )
+
+    query = db.query(Consultation, transcript_exists.label("has_transcript"), Patient).join(
+        Patient, Consultation.patient_id == Patient.id
+    )
+
+    if doctor_id is not None:
+        query = query.filter(Consultation.doctor_id == doctor_id)
+    if patient_id is not None:
+        query = query.filter(Consultation.patient_id == patient_id)
+
+    rows = query.order_by(Consultation.created_at.desc()).all()
+
+    items: list[ConsultationListItem] = []
+    for c, has_transcript, patient in rows:
+        items.append(
+            ConsultationListItem(
+                id=c.id,
+                patient_id=c.patient_id,
+                doctor_id=c.doctor_id,
+                status=c.status,
+                created_at=c.created_at,
+                started_at=c.started_at,
+                ended_at=c.ended_at,
+                has_transcript=has_transcript,
+                patient=PatientSummary(
+                    full_name=c.patient.full_name,
+                    patient_code=c.patient.patient_code,
+                    date_of_birth=c.patient.date_of_birth,
+                    sex=c.patient.sex,
+                ),
+            )
+        )
+    return items
 
 
 @router.post(
