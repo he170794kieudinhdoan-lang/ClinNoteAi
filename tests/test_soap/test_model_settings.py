@@ -161,7 +161,7 @@ async def test_cap_and_soap_route_independent_choices(client, soap_override, sam
     assert generated.json()["model_metadata"]["provider"] == "ollama"
     assert generated.json()["revision"]["model"] == "soap-test"
     for artifact in soap_override.root.rglob("*.json"):
-        assert "private-cap-test" not in artifact.read_text()
+        assert "private-cap-test" not in artifact.read_text(encoding="utf-8")
 
 
 @pytest.mark.asyncio
