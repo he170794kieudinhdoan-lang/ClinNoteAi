@@ -31,6 +31,8 @@ TRANSCRIPT_PATH = Path(__file__).parents[2] / "data" / "soap_mvp" / "0d82e6ec-8e
 
 @pytest.fixture
 def run_transcript() -> Transcript:
+    if not TRANSCRIPT_PATH.exists():
+        pytest.skip(f"fixture transcript not available: {TRANSCRIPT_PATH}")
     raw = json.loads(TRANSCRIPT_PATH.read_text(encoding="utf-8"))
     return Transcript.model_validate(raw)
 

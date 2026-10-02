@@ -79,8 +79,12 @@ def test_supersedes_and_contradiction(sample):
     assert any("correction" in warning for warning in warnings)
 
 
+QWEN_RESULT_PATH = Path(__file__).parents[2] / "SOAP" / "qwen_role_result.json"
+
+
+@pytest.mark.skipif(not QWEN_RESULT_PATH.exists(), reason="fixture SOAP/qwen_role_result.json not available")
 def test_qwen_adapter_keeps_source_identity():
-    raw = json.loads((Path(__file__).parents[2] / "SOAP" / "qwen_role_result.json").read_text(encoding="utf-8"))
+    raw = json.loads(QWEN_RESULT_PATH.read_text(encoding="utf-8"))
     transcript = parse_soap_transcript(raw)
     assert len(transcript.turns) == 55
     assert transcript.turns[21].turn_id == "T22"
@@ -89,8 +93,9 @@ def test_qwen_adapter_keeps_source_identity():
     assert transcript.turns[21].source_segment_id == 22
 
 
+@pytest.mark.skipif(not QWEN_RESULT_PATH.exists(), reason="fixture SOAP/qwen_role_result.json not available")
 def test_uploaded_json_text_is_preserved_byte_for_byte(soap_store):
-    raw = json.loads((Path(__file__).parents[2] / "SOAP" / "qwen_role_result.json").read_text(encoding="utf-8"))
+    raw = json.loads(QWEN_RESULT_PATH.read_text(encoding="utf-8"))
     content = json.dumps(raw, ensure_ascii=False, indent=2)
     transcript = parse_soap_transcript(content)
     run_id = soap_store.create_run(content, transcript, "qwen_role_result")
