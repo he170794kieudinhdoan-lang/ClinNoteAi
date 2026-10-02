@@ -1,0 +1,83 @@
+{
+  "body": {
+    "cap_repair_count": 0,
+    "cap_warnings": [],
+    "caps": [
+      {
+        "canonical_concept": "nhức đầu",
+        "cap_type": "ChiefComplaint",
+        "clinical_status": "active",
+        "evidence": [
+          {
+            "end_ms": null,
+            "quote": "Tôi bị nhức đầu từ sáng nay.",
+            "source_segment_id": "syn-missing-01",
+            "speaker": "patient",
+            "start_ms": null,
+            "turn_id": "T01"
+          }
+        ],
+        "medication_state": null,
+        "prop_id": "C1",
+        "proposition_text": "Nhức đầu từ sáng nay",
+        "resolution_status": "current",
+        "speaker_source": "patient",
+        "supersedes": [],
+        "temporality": "current",
+        "verification_status": "affirmed"
+      }
+    ],
+    "model_metadata": {
+      "duration_ms": 1797,
+      "model": "gpt-4o-mini-2024-07-18",
+      "provider": "openai",
+      "usage": {
+        "input_token_details": {
+          "audio": 0,
+          "cache_read": 2176
+        },
+        "input_tokens": 2859,
+        "output_token_details": {
+          "audio": 0,
+          "reasoning": 0
+        },
+        "output_tokens": 100,
+        "total_tokens": 2959
+      }
+    },
+    "run_id": "f610b685-73cb-4825-83a6-3bf7024a9879",
+    "transcript": {
+      "language": "vi",
+      "schema_version": "1.0",
+      "source_metadata": {
+        "case_id": "synthetic_missing_exam_assessment",
+        "kind": "synthetic_fixture"
+      },
+      "turns": [
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-missing-01",
+          "source_speaker_id": "patient-1",
+          "speaker": "patient",
+          "start_ms": null,
+          "text": "Tôi bị nhức đầu từ sáng nay.",
+          "turn_id": "T01"
+        },
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-missing-02",
+          "source_speaker_id": "clinician-1",
+          "speaker": "clinician",
+          "start_ms": null,
+          "text": "Hôm nay tôi chưa thăm khám trực tiếp và chưa đưa ra nhận định. Nếu ngày mai vẫn không đỡ, hãy liên hệ lại.",
+          "turn_id": "T02"
+        }
+      ]
+    }
+  },
+  "duration_ms": 1969.0,
+  "http_status": 200,
+  "stage": "extract"
+}

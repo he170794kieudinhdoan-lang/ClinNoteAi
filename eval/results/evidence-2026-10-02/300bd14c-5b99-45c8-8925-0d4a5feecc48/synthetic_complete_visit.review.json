@@ -1,0 +1,191 @@
+{
+  "approval_duration_seconds": null,
+  "cap_link_checks": {
+    "links_checked": null,
+    "not_applicable_to_baseline": true,
+    "valid_links": null
+  },
+  "case_id": "synthetic_complete_visit",
+  "methods": {
+    "baseline_direct": {
+      "assertions_reviewed": null,
+      "facts": [
+        {
+          "cap_status_correct": "not_applicable",
+          "evidence_supported": null,
+          "fact_id": "c1",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": "not_applicable",
+          "evidence_supported": null,
+          "fact_id": "c2",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": "not_applicable",
+          "evidence_supported": null,
+          "fact_id": "c3",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": "not_applicable",
+          "evidence_supported": null,
+          "fact_id": "c4",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": "not_applicable",
+          "evidence_supported": null,
+          "fact_id": "c5",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": "not_applicable",
+          "evidence_supported": null,
+          "fact_id": "c6",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": "not_applicable",
+          "evidence_supported": null,
+          "fact_id": "c7",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": "not_applicable",
+          "evidence_supported": null,
+          "fact_id": "c8",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        }
+      ],
+      "items_requiring_edit": null,
+      "items_reviewed": null,
+      "unsupported_assertions": null
+    },
+    "cap_pipeline": {
+      "assertions_reviewed": null,
+      "facts": [
+        {
+          "cap_status_correct": null,
+          "evidence_supported": null,
+          "fact_id": "c1",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": null,
+          "evidence_supported": null,
+          "fact_id": "c2",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": null,
+          "evidence_supported": null,
+          "fact_id": "c3",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": null,
+          "evidence_supported": null,
+          "fact_id": "c4",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": null,
+          "evidence_supported": null,
+          "fact_id": "c5",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": null,
+          "evidence_supported": null,
+          "fact_id": "c6",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": null,
+          "evidence_supported": null,
+          "fact_id": "c7",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        },
+        {
+          "cap_status_correct": null,
+          "evidence_supported": null,
+          "fact_id": "c8",
+          "notes": "",
+          "section_correct": null,
+          "soap_presence_expected": "present",
+          "soap_present": null,
+          "soap_state_correct": null
+        }
+      ],
+      "items_requiring_edit": null,
+      "items_reviewed": null,
+      "unsupported_assertions": null
+    }
+  },
+  "review_duration_seconds": null,
+  "review_status": "pending_human_review",
+  "reviewed_at": null,
+  "reviewer": null
+}

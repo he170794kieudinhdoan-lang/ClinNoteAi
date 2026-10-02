@@ -1,0 +1,42 @@
+{
+  "duration_ms": 2328.0,
+  "model_metadata": {
+    "duration_ms": 2328.0,
+    "model": "gpt-4o-mini-2024-07-18",
+    "provider": "openai"
+  },
+  "parsed_output": {
+    "assessment": {
+      "items": [
+        "Có thể là kích ứng da do tiếp xúc, nhưng hiện chưa thể khẳng định nguyên nhân."
+      ],
+      "missing": false
+    },
+    "objective": {
+      "items": [],
+      "missing": true
+    },
+    "plan": {
+      "items": [
+        "Tạm ngừng dùng loại xà phòng mới và theo dõi; nếu nổi mẩn lan rộng thì đi khám."
+      ],
+      "missing": false
+    },
+    "subjective": {
+      "items": [
+        "Tôi ngứa hai cẳng tay sau khi đổi loại xà phòng hôm qua."
+      ],
+      "missing": false
+    }
+  },
+  "provider_invocation_attempts": 1,
+  "raw_output": "{\n  \"subjective\": {\"items\": [\"Tôi ngứa hai cẳng tay sau khi đổi loại xà phòng hôm qua.\"], \"missing\": false},\n  \"objective\": {\"items\": [], \"missing\": true},\n  \"assessment\": {\"items\": [\"Có thể là kích ứng da do tiếp xúc, nhưng hiện chưa thể khẳng định nguyên nhân.\"], \"missing\": false},\n  \"plan\": {\"items\": [\"Tạm ngừng dùng loại xà phòng mới và theo dõi; nếu nổi mẩn lan rộng thì đi khám.\"], \"missing\": false}\n}",
+  "status": "success",
+  "usage": {
+    "completion_tokens": 121,
+    "input_tokens": 573,
+    "output_tokens": 121,
+    "prompt_tokens": 573,
+    "total_tokens": 694
+  }
+}

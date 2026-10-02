@@ -1,0 +1,115 @@
+{
+  "body": {
+    "cap_warnings": [],
+    "caps": [
+      {
+        "canonical_concept": "nhức đầu",
+        "cap_type": "ChiefComplaint",
+        "clinical_status": "active",
+        "evidence": [
+          {
+            "end_ms": null,
+            "quote": "Tôi bị nhức đầu từ sáng nay.",
+            "source_segment_id": "syn-missing-01",
+            "speaker": "patient",
+            "start_ms": null,
+            "turn_id": "T01"
+          }
+        ],
+        "medication_state": null,
+        "prop_id": "C1",
+        "proposition_text": "Nhức đầu từ sáng nay",
+        "resolution_status": "current",
+        "speaker_source": "patient",
+        "supersedes": [],
+        "temporality": "current",
+        "verification_status": "affirmed"
+      }
+    ],
+    "metadata": {
+      "created_at": "2026-10-02T09:42:47.392024+00:00",
+      "input_format": "canonical",
+      "raw_hash_mode": "canonical_json",
+      "raw_sha256": "7e6f9da175b083599f7e0900f03f7090bb419ddc52b80db86a5018142e9bb1af",
+      "run_id": "f610b685-73cb-4825-83a6-3bf7024a9879",
+      "transcript_sha256": "45002be22f325956ac25f7976a5ed86ade42320bcb4cdc2f8a1dc13457697268"
+    },
+    "revision": {
+      "approved_at": null,
+      "created_at": "2026-10-02T09:42:51.586018Z",
+      "model": "gpt-4o-mini-2024-07-18",
+      "parent_revision": null,
+      "prompt_version": "soap-1",
+      "reviewer_name": null,
+      "revision": 1,
+      "soap": {
+        "A": {
+          "items": [],
+          "missing": true
+        },
+        "O": {
+          "items": [],
+          "missing": true
+        },
+        "P": {
+          "items": [],
+          "missing": true
+        },
+        "S": {
+          "items": [
+            {
+              "cap_ids": [
+                "C1"
+              ],
+              "item_id": "S1",
+              "manual_reason": null,
+              "origin": "ai",
+              "review_status": "needs_review",
+              "source_link_status": "valid",
+              "support_status": "pending",
+              "text": "Nhức đầu từ sáng nay"
+            }
+          ],
+          "missing": false
+        }
+      },
+      "status": "draft",
+      "warning_decisions": {}
+    },
+    "run_id": "f610b685-73cb-4825-83a6-3bf7024a9879",
+    "schema_version": "1.0",
+    "transcript": {
+      "language": "vi",
+      "schema_version": "1.0",
+      "source_metadata": {
+        "case_id": "synthetic_missing_exam_assessment",
+        "kind": "synthetic_fixture"
+      },
+      "turns": [
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-missing-01",
+          "source_speaker_id": "patient-1",
+          "speaker": "patient",
+          "start_ms": null,
+          "text": "Tôi bị nhức đầu từ sáng nay.",
+          "turn_id": "T01"
+        },
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-missing-02",
+          "source_speaker_id": "clinician-1",
+          "speaker": "clinician",
+          "start_ms": null,
+          "text": "Hôm nay tôi chưa thăm khám trực tiếp và chưa đưa ra nhận định. Nếu ngày mai vẫn không đỡ, hãy liên hệ lại.",
+          "turn_id": "T02"
+        }
+      ]
+    }
+  },
+  "duration_ms": 0.0,
+  "http_status": 200,
+  "stage": "export"
+}
