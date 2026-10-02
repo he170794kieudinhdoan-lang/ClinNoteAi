@@ -1,0 +1,39 @@
+{
+  "duration_ms": 2140.0,
+  "model_metadata": {
+    "duration_ms": 2140.0,
+    "model": "gpt-4o-mini-2024-07-18",
+    "provider": "openai"
+  },
+  "parsed_output": {
+    "assessment": {
+      "items": [],
+      "missing": true
+    },
+    "objective": {
+      "items": [],
+      "missing": true
+    },
+    "plan": {
+      "items": [],
+      "missing": true
+    },
+    "subjective": {
+      "items": [
+        "Tôi đang dùng thuốc giảm đau vào mỗi tối.",
+        "Tôi đã ngừng loại thuốc đó từ tối qua, hiện giờ không uống nữa."
+      ],
+      "missing": false
+    }
+  },
+  "provider_invocation_attempts": 1,
+  "raw_output": "{\n  \"subjective\": {\"items\": [\"Tôi đang dùng thuốc giảm đau vào mỗi tối.\", \"Tôi đã ngừng loại thuốc đó từ tối qua, hiện giờ không uống nữa.\"], \"missing\": false},\n  \"objective\": {\"items\": [], \"missing\": true},\n  \"assessment\": {\"items\": [], \"missing\": true},\n  \"plan\": {\"items\": [], \"missing\": true}\n}",
+  "status": "success",
+  "usage": {
+    "completion_tokens": 86,
+    "input_tokens": 508,
+    "output_tokens": 86,
+    "prompt_tokens": 508,
+    "total_tokens": 594
+  }
+}

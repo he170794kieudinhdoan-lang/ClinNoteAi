@@ -1,0 +1,39 @@
+{
+  "duration_ms": 1766.0,
+  "model_metadata": {
+    "duration_ms": 1766.0,
+    "model": "gpt-4o-mini-2024-07-18",
+    "provider": "openai"
+  },
+  "parsed_output": {
+    "assessment": {
+      "items": [],
+      "missing": true
+    },
+    "objective": {
+      "items": [],
+      "missing": true
+    },
+    "plan": {
+      "items": [],
+      "missing": true
+    },
+    "subjective": {
+      "items": [
+        "Tôi đau họng từ tối qua.",
+        "Không sốt, cũng không khó thở."
+      ],
+      "missing": false
+    }
+  },
+  "provider_invocation_attempts": 1,
+  "raw_output": "{\n  \"subjective\": {\"items\": [\"Tôi đau họng từ tối qua.\", \"Không sốt, cũng không khó thở.\"], \"missing\": false},\n  \"objective\": {\"items\": [], \"missing\": true},\n  \"assessment\": {\"items\": [], \"missing\": true},\n  \"plan\": {\"items\": [], \"missing\": true}\n}",
+  "status": "success",
+  "usage": {
+    "completion_tokens": 76,
+    "input_tokens": 535,
+    "output_tokens": 76,
+    "prompt_tokens": 535,
+    "total_tokens": 611
+  }
+}
