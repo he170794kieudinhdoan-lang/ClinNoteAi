@@ -265,8 +265,8 @@ def test_repair_cannot_create_new_caps():
 
     with pytest.raises(Exception) as exc_info:
         validate_soap(soap, [c1], generated=True)
-    # Non-existent CAP is stripped by normalize_cap_links, leaving an unlinked item
-    assert exc_info.value.code == "missing_cap_link"
+    # Non-existent CAP IDs are kept by normalize_cap_links and rejected by validate_soap
+    assert exc_info.value.code == "invalid_cap_link"
 
 
 # TEST 22: Deterministic item_id still assigned after repair
