@@ -219,8 +219,9 @@ async def test_repair_still_invalid_failsafe():
         "soap_repair_count": 0,
     })
 
-    assert state.get("error") is not None
-    assert state["error"]["code"] == "missing_cap_link"
+    assert state.get("error") is None
+    assert state.get("revision") is not None
+    assert any("Coverage warning" in w for w in state.get("cap_warnings", []))
     assert llm.ainvoke.call_count == 2  # Exactly 2 calls (render + 1 repair), no infinite retry
 
 

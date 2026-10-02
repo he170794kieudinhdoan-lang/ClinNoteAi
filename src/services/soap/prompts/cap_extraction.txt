@@ -40,7 +40,10 @@ EXPLICIT SOURCE OF FACT CASES (A through O):
 Extract ALL clinically meaningful atomic propositions. DO NOT summarize into only the "main complaint".
 - SUBJECTIVE COVERAGE:
   * Chief complaint, location/body site, duration, onset, severity, frequency.
-  * Aggravating factors (e.g., pain increases with bending or heavy lifting).
+  * ALWAYS preserve temporal and modifier details (duration, onset, frequency, severity ranges, temporal expressions) in `proposition_text` and `evidence`.
+  * Examples of essential modifiers to capture: "kéo dài 3 tuần", "3 tháng nay", "từ hôm qua", "đau tăng khi vận động", "mức độ vừa", "từ mức vừa đến dữ dội".
+  * If a patient reports a symptom with duration or severity (e.g., "Cơn đau khá nặng nề, từ mức vừa đến đau dữ dội, kéo dài suốt 3 tuần nay rồi"), extract these temporal and severity details into the CAP proposition text (e.g., "Đau kéo dài 3 tuần, từ mức vừa đến dữ dội"). Do NOT drop duration or numeric modifiers during extraction!
+  * Aggravating factors (e.g., pain increases with bending, walking, or heavy lifting).
   * Relieving factors (e.g., rest or ice reduces pain).
   * Associated symptoms, functional limitations, sleep impact (e.g., loss of sleep due to pain).
   * Relevant past medical history, medication history, denials, and uncertainties.

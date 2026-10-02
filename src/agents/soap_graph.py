@@ -60,6 +60,11 @@ def create_soap_pipeline(store, llm):
             repair_count = state.get("soap_repair_count", 0)
             if is_repairable_error(code, repair_count):
                 return "repair_soap"
+            # NON-SAFETY STRUCTURAL / COVERAGE FAIL-SAFE FALLBACK:
+            # If the error is a non-safety structural coverage violation and bounded repair is exhausted,
+            # save draft with review_status=needs_review rather than dropping draft.
+            if code in {"candidate_coverage_violation", "candidate_boundary_violation", "missing_cap_link"}:
+                return "save_draft"
             return "record_error"
         return "save_draft"
 

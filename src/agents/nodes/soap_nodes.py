@@ -7,6 +7,7 @@ from src.config import get_settings
 from src.schemas.soap import Cap, SoapRevision, Transcript
 from src.services.soap import extractor, renderer
 from src.services.soap.errors import SoapFailure
+from src.services.soap.semantic_validator import check_item_safety
 from src.services.soap.validation import filter_usable_caps, validate_and_partition_caps, validate_soap
 from src.services.transcript.normalizer import TranscriptNormalizationError, parse_soap_transcript
 
@@ -129,10 +130,14 @@ def make_nodes(store, llm):
     async def repair_soap(state):
         try:
             usable_caps = filter_usable_caps([Cap.model_validate(cap) for cap in state["caps"]])
+            error = state.get("error")
+            err_msg = error.get("message") if error else None
+            err_code = error.get("code") if error else None
             raw, meta = await renderer.render_once(
                 llm, Transcript.model_validate(state["transcript"]),
                 usable_caps, state.get("cap_warnings", []),
-                get_settings().soap_llm_timeout, state.get("raw_model_output"))
+                get_settings().soap_llm_timeout, state.get("raw_model_output"),
+                error_message=err_msg, error_code=err_code)
             store.save_attempt(state["run_id"], "repair_soap_json", {"output": raw, "metadata": meta,
                                                                      "prompt_version": renderer.PROMPT_VERSION})
             soap = renderer.parse_soap(raw)
@@ -143,8 +148,18 @@ def make_nodes(store, llm):
 
     async def check_soap(state):
         try:
+            caps = [Cap.model_validate(cap) for cap in state["caps"]]
             soap = validate_soap(renderer.SoapDocument.model_validate(state["soap_draft"]),
-                                 [Cap.model_validate(cap) for cap in state["caps"]], generated=True)
+                                 caps, generated=True)
+            # Enforce safety boundary: raise SoapFailure for safety-critical mismatches
+            current_caps = {c.prop_id: c for c in caps if c.resolution_status == "current"}
+            for section_name in ("S", "O", "A", "P"):
+                for item in getattr(soap, section_name).items:
+                    linked = [current_caps[cid] for cid in item.cap_ids if cid in current_caps]
+                    if linked:
+                        violations = check_item_safety(item, section_name, linked)
+                        if violations:
+                            raise SoapFailure("validate_soap", violations[0].code, violations[0].message, 502)
             return {"soap_draft": soap.model_dump(mode="json"), "error": None}
         except Exception as exc:
             return {"error": failure(exc, "validate_soap", state["run_id"])}
@@ -152,13 +167,22 @@ def make_nodes(store, llm):
     async def save_draft(state):
         try:
             expected = state["expected_revision"]
+            error = state.get("error")
+            warnings = list(state.get("cap_warnings", []))
+            if error:
+                code = error.get("code")
+                if code in {"candidate_coverage_violation", "candidate_boundary_violation", "missing_cap_link"}:
+                    err_msg = error.get("message", code)
+                    warn_str = f"Coverage warning: {err_msg}"
+                    if warn_str not in warnings:
+                        warnings.append(warn_str)
             revision = SoapRevision(
                 revision=expected + 1, parent_revision=expected or None, status="draft",
                 soap=state["soap_draft"], created_at=datetime.now(UTC),
                 model=state.get("model_metadata", {}).get("model"), prompt_version=renderer.PROMPT_VERSION,
             )
             value = store.append_revision(state["run_id"], revision, expected)
-            return {"revision": value}
+            return {"revision": value, "cap_warnings": warnings, "error": None}
         except Exception as exc:
             return {"error": failure(exc, "save_draft", state["run_id"])}
 
