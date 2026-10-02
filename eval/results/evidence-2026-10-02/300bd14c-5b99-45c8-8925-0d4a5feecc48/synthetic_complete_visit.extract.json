@@ -1,0 +1,205 @@
+{
+  "body": {
+    "cap_repair_count": 0,
+    "cap_warnings": [],
+    "caps": [
+      {
+        "canonical_concept": "đau cổ tay phải",
+        "cap_type": "ChiefComplaint",
+        "clinical_status": "active",
+        "evidence": [
+          {
+            "end_ms": null,
+            "quote": "Tôi đau cổ tay phải khoảng hai ngày.",
+            "source_segment_id": "syn-complete-01",
+            "speaker": "patient",
+            "start_ms": null,
+            "turn_id": "T01"
+          }
+        ],
+        "medication_state": null,
+        "prop_id": "C1",
+        "proposition_text": "Đau cổ tay phải khoảng hai ngày",
+        "resolution_status": "current",
+        "speaker_source": "patient",
+        "supersedes": [],
+        "temporality": "current",
+        "verification_status": "affirmed"
+      },
+      {
+        "canonical_concept": "đau cổ tay phải",
+        "cap_type": "Problem",
+        "clinical_status": "active",
+        "evidence": [
+          {
+            "end_ms": null,
+            "quote": "Đau tăng khi tôi xoay cổ tay.",
+            "source_segment_id": "syn-complete-02",
+            "speaker": "patient",
+            "start_ms": null,
+            "turn_id": "T02"
+          }
+        ],
+        "medication_state": null,
+        "prop_id": "C2",
+        "proposition_text": "Đau tăng khi xoay cổ tay",
+        "resolution_status": "current",
+        "speaker_source": "patient",
+        "supersedes": [],
+        "temporality": "current",
+        "verification_status": "affirmed"
+      },
+      {
+        "canonical_concept": "khám cổ tay phải",
+        "cap_type": "ExamFinding",
+        "clinical_status": "active",
+        "evidence": [
+          {
+            "end_ms": null,
+            "quote": "Khi khám, cổ tay phải không sưng và vận động đủ tầm.",
+            "source_segment_id": "syn-complete-03",
+            "speaker": "clinician",
+            "start_ms": null,
+            "turn_id": "T03"
+          }
+        ],
+        "medication_state": null,
+        "prop_id": "C3",
+        "proposition_text": "Cổ tay phải không sưng và vận động đủ tầm",
+        "resolution_status": "current",
+        "speaker_source": "clinician",
+        "supersedes": [],
+        "temporality": "current",
+        "verification_status": "affirmed"
+      },
+      {
+        "canonical_concept": "căng cơ nhẹ",
+        "cap_type": "Problem",
+        "clinical_status": "active",
+        "evidence": [
+          {
+            "end_ms": null,
+            "quote": "Có thể là căng cơ nhẹ, nhưng hiện chưa đủ căn cứ để kết luận.",
+            "source_segment_id": "syn-complete-04",
+            "speaker": "clinician",
+            "start_ms": null,
+            "turn_id": "T04"
+          }
+        ],
+        "medication_state": null,
+        "prop_id": "C4",
+        "proposition_text": "Có thể là căng cơ nhẹ, nhưng hiện chưa đủ căn cứ để kết luận",
+        "resolution_status": "current",
+        "speaker_source": "clinician",
+        "supersedes": [],
+        "temporality": "current",
+        "verification_status": "uncertain"
+      },
+      {
+        "canonical_concept": "nghỉ ngơi và chườm lạnh",
+        "cap_type": "Counseling",
+        "clinical_status": "planned",
+        "evidence": [
+          {
+            "end_ms": null,
+            "quote": "Tạm nghỉ các động tác gây đau và chườm lạnh.",
+            "source_segment_id": "syn-complete-05",
+            "speaker": "clinician",
+            "start_ms": null,
+            "turn_id": "T05"
+          }
+        ],
+        "medication_state": null,
+        "prop_id": "C5",
+        "proposition_text": "Tạm nghỉ các động tác gây đau và chườm lạnh",
+        "resolution_status": "current",
+        "speaker_source": "clinician",
+        "supersedes": [],
+        "temporality": "future",
+        "verification_status": "affirmed"
+      }
+    ],
+    "model_metadata": {
+      "duration_ms": 7312,
+      "model": "gpt-4o-mini-2024-07-18",
+      "provider": "openai",
+      "usage": {
+        "input_token_details": {
+          "audio": 0,
+          "cache_read": 0
+        },
+        "input_tokens": 3084,
+        "output_token_details": {
+          "audio": 0,
+          "reasoning": 0
+        },
+        "output_tokens": 532,
+        "total_tokens": 3616
+      }
+    },
+    "run_id": "708756b3-8bef-4000-9841-3c44b09483ce",
+    "transcript": {
+      "language": "vi",
+      "schema_version": "1.0",
+      "source_metadata": {
+        "case_id": "synthetic_complete_visit",
+        "kind": "synthetic_fixture"
+      },
+      "turns": [
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-complete-01",
+          "source_speaker_id": "patient-1",
+          "speaker": "patient",
+          "start_ms": null,
+          "text": "Tôi đau cổ tay phải khoảng hai ngày.",
+          "turn_id": "T01"
+        },
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-complete-02",
+          "source_speaker_id": "patient-1",
+          "speaker": "patient",
+          "start_ms": null,
+          "text": "Đau tăng khi tôi xoay cổ tay.",
+          "turn_id": "T02"
+        },
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-complete-03",
+          "source_speaker_id": "clinician-1",
+          "speaker": "clinician",
+          "start_ms": null,
+          "text": "Khi khám, cổ tay phải không sưng và vận động đủ tầm.",
+          "turn_id": "T03"
+        },
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-complete-04",
+          "source_speaker_id": "clinician-1",
+          "speaker": "clinician",
+          "start_ms": null,
+          "text": "Có thể là căng cơ nhẹ, nhưng hiện chưa đủ căn cứ để kết luận.",
+          "turn_id": "T04"
+        },
+        {
+          "end_ms": null,
+          "role_confidence": null,
+          "source_segment_id": "syn-complete-05",
+          "source_speaker_id": "clinician-1",
+          "speaker": "clinician",
+          "start_ms": null,
+          "text": "Tạm nghỉ các động tác gây đau và chườm lạnh. Nếu đau tăng hoặc không giảm sau vài ngày, quay lại khám.",
+          "turn_id": "T05"
+        }
+      ]
+    }
+  },
+  "duration_ms": 7703.0,
+  "http_status": 200,
+  "stage": "extract"
+}

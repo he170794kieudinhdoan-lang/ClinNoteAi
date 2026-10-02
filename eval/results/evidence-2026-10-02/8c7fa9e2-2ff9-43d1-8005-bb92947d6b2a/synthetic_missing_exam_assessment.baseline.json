@@ -1,0 +1,40 @@
+{
+  "duration_ms": 2453.0,
+  "model_metadata": {
+    "duration_ms": 2453.0,
+    "model": "gpt-4o-mini-2024-07-18",
+    "provider": "openai"
+  },
+  "parsed_output": {
+    "assessment": {
+      "items": [],
+      "missing": true
+    },
+    "objective": {
+      "items": [],
+      "missing": true
+    },
+    "plan": {
+      "items": [
+        "Nếu ngày mai vẫn không đỡ, hãy liên hệ lại."
+      ],
+      "missing": false
+    },
+    "subjective": {
+      "items": [
+        "Tôi bị nhức đầu từ sáng nay."
+      ],
+      "missing": false
+    }
+  },
+  "provider_invocation_attempts": 1,
+  "raw_output": "{\n  \"subjective\": {\"items\": [\"Tôi bị nhức đầu từ sáng nay.\"], \"missing\": false},\n  \"objective\": {\"items\": [], \"missing\": true},\n  \"assessment\": {\"items\": [], \"missing\": true},\n  \"plan\": {\"items\": [\"Nếu ngày mai vẫn không đỡ, hãy liên hệ lại.\"], \"missing\": false}\n}",
+  "status": "success",
+  "usage": {
+    "completion_tokens": 80,
+    "input_tokens": 513,
+    "output_tokens": 80,
+    "prompt_tokens": 513,
+    "total_tokens": 593
+  }
+}
