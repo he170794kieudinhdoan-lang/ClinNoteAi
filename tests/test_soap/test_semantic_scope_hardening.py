@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import pytest
 
 from src.schemas.soap import (
@@ -11,11 +10,10 @@ from src.schemas.soap import (
     SoapDocument,
     SoapItem,
     SoapSection,
-    Transcript,
     TranscriptTurn,
 )
 from src.services.soap.errors import SoapFailure
-from src.services.soap.semantic_validator import check_item_safety, _extract_core_concept_tokens
+from src.services.soap.semantic_validator import _extract_core_concept_tokens, check_item_safety
 from src.services.soap.validation import filter_usable_caps, validate_soap
 
 

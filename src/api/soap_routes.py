@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.agents.soap_graph import create_soap_pipeline
 from src.config import get_settings
 from src.schemas.soap import ApproveRequest, ExtractRequest, GenerateRequest, RevisionRequest
-from src.services.llm import get_cap_llm, get_soap_llm
+from src.services.llm import get_soap_llm
 from src.services.model_runtime import ModelConfigurationError, create_model
 from src.services.soap.errors import SoapFailure
 from src.services.soap.review import approve, export_revision, read_run, revise

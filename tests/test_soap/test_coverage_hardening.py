@@ -12,7 +12,10 @@ from src.schemas.soap import Cap, Evidence, SoapDocument, Transcript, Transcript
 from src.services.soap.errors import SoapFailure
 from src.services.soap.renderer import compute_section_candidates, parse_soap
 from src.services.soap.repair_policy import is_repairable_error
-from src.services.soap.validation import check_candidate_coverage, filter_usable_caps, validate_and_partition_caps, validate_soap
+from src.services.soap.validation import (
+    validate_and_partition_caps,
+    validate_soap,
+)
 
 
 def make_cap(

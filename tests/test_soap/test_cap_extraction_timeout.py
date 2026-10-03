@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, patch
 
 from src.config import get_settings
 from src.schemas.soap import Transcript, TranscriptTurn

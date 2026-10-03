@@ -10,8 +10,6 @@ TEST 5: Confirmed clinical diagnosis retains grounding
 
 from __future__ import annotations
 
-import pytest
-
 from src.schemas.soap import (
     Cap,
     Evidence,
