@@ -106,14 +106,16 @@ def test_medication_mismatch_not_repairable():
     assert is_repairable_error("medication_mismatch", repair_count=0) is False
 
 
-# TEST 8: negation_contradiction -> NO LLM repair
-def test_negation_contradiction_not_repairable():
-    assert is_repairable_error("negation_contradiction", repair_count=0) is False
+# TEST 8: negation_contradiction -> Bounded LLM repair on attempt 0, False when exhausted
+def test_negation_contradiction_is_repairable():
+    assert is_repairable_error("negation_contradiction", repair_count=0) is True
+    assert is_repairable_error("negation_contradiction", repair_count=1) is False
 
 
-# TEST 9: temporality_contradiction -> NO LLM repair
-def test_temporality_contradiction_not_repairable():
-    assert is_repairable_error("temporality_contradiction", repair_count=0) is False
+# TEST 9: temporality_contradiction -> Bounded LLM repair on attempt 0, False when exhausted
+def test_temporality_contradiction_is_repairable():
+    assert is_repairable_error("temporality_contradiction", repair_count=0) is True
+    assert is_repairable_error("temporality_contradiction", repair_count=1) is False
 
 
 # TEST 10: unsupported_diagnosis -> NO LLM repair

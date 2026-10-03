@@ -20,6 +20,13 @@ SECTION CANDIDATES & HARD ALLOWLIST RULES (STRICT):
 2. S (Subjective): Items in S MUST ONLY link CAP IDs listed in section_candidates['S']. NEVER link CAP IDs outside section_candidates['S']. Include all patient-reported complaints, duration, severity, aggravating factors, relieving factors, associated symptoms, sleep/functional impact, and medical history.
 3. O (Objective): Items in O MUST ONLY link CAP IDs listed in section_candidates['O']. NEVER link CAP IDs outside section_candidates['O'] (such as patient CAPs from section_candidates['S'] or assessment CAPs from section_candidates['A']). Include ALL clinician vital signs (BP, HR, RR, Temp, SpO2), physical inspection, palpation, range of motion, and special maneuvers (positive and negative findings). If section_candidates['O'] is empty, set items: [] and missing: true.
 4. A (Assessment): Items in A MUST ONLY link CAP IDs listed in section_candidates['A']. NEVER link CAP IDs outside section_candidates['A']. Include clinician diagnostic impressions and working diagnoses. Preserve provisional/uncertain nature. If section_candidates['A'] is empty, set items: [] and missing: true.
+   - Assessment Grounding Rules:
+     If transcript/CAPs only contain patient-reported symptoms and the clinician has not confirmed a specific diagnosis:
+     * DO NOT infer or invent new pathologies/diseases.
+     * DO NOT turn symptoms into confirmed diagnoses.
+     * Assessment MUST use safe wording such as "Theo dõi triệu chứng [X]" or "Chưa ghi nhận chẩn đoán xác định".
+     * Must link Assessment items to the corresponding symptom CAP IDs in section_candidates['A'].
+     * Only state a specific clinical diagnosis when that diagnosis has evidence supported by CAPs / clinical conversation.
 5. P (Plan): Items in P MUST ONLY link CAP IDs listed in section_candidates['P']. NEVER link CAP IDs outside section_candidates['P']. Include ALL clinician plan items: diagnostic orders, physical therapy/counseling, lifestyle load modifications, medication prescriptions, and follow-ups. If section_candidates['P'] is empty, set items: [] and missing: true.
 6. NEVER invent, guess, hallucinate, or create new CAP IDs.
 7. NEVER use quarantined (needs_review) or superseded CAP IDs.

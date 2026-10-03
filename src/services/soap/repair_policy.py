@@ -12,6 +12,8 @@ REPAIRABLE_STRUCTURAL_CODES = {
     "assessment_source",
     "objective_source",
     "plan_source",
+    "negation_contradiction",
+    "temporality_contradiction",
 }
 
 NON_REPAIRABLE_SAFETY_CODES = {
@@ -27,8 +29,6 @@ NON_REPAIRABLE_SAFETY_CODES = {
     "temperature_mismatch",
     "spo2_mismatch",
     "lab_value_mismatch",
-    "negation_contradiction",
-    "temporality_contradiction",
     "unsupported_diagnosis",
     "unsupported_treatment",
 }

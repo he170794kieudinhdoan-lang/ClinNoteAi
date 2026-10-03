@@ -41,7 +41,7 @@ def make_nodes(store, llm):
     async def extract_caps(state):
         try:
             raw, meta = await extractor.extract_once(llm, Transcript.model_validate(state["transcript"]),
-                                                     get_settings().soap_llm_timeout)
+                                                     get_settings().cap_extraction_timeout)
             store.save_attempt(state["run_id"], "extract_caps", {"output": raw, "metadata": meta,
                                                                 "prompt_version": extractor.PROMPT_VERSION})
             try:
@@ -56,7 +56,7 @@ def make_nodes(store, llm):
     async def repair_caps(state):
         try:
             raw, meta = await extractor.extract_once(llm, Transcript.model_validate(state["transcript"]),
-                                                     get_settings().soap_llm_timeout, state.get("raw_model_output"))
+                                                     get_settings().cap_extraction_timeout, state.get("raw_model_output"))
             store.save_attempt(state["run_id"], "repair_cap_json", {"output": raw, "metadata": meta,
                                                                     "prompt_version": extractor.PROMPT_VERSION})
             payload = extractor.parse_caps(raw)
