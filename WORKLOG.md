@@ -128,11 +128,154 @@ Thành viên: Đoàn Quang Thắng, Kiều Đình Đoàn, Nguyễn Hà Khuê, Ng
 
 | Member | Task | Status | Output | Time |
 |--------|------|--------|--------|------|
-| Đoàn Quang Thắng | Meeting nhóm và chia việc cho từng người | 🔄 WIP | Kế hoạch stand-up sáng 22/09, chưa có báo cáo hoàn thành | - |
-| Kiều Đình Đoàn | Thảo luận DB, system diagram và các đầu mục còn lại | 🔄 WIP | Kế hoạch stand-up sáng 22/09, chưa có báo cáo hoàn thành | - |
-| Nguyễn Hà Khuê | Tìm hiểu và thảo luận system design và database design | 🔄 WIP | Kế hoạch stand-up sáng 22/09, chưa có báo cáo hoàn thành | - |
-| Nguyễn Hoàng Anh | Nghiên cứu cơ chế realtime và flow cho case realtime | 🔄 WIP | Kế hoạch stand-up sáng 22/09, chưa có báo cáo hoàn thành | - |
+| Đoàn Quang Thắng | Nghiên cứu thị trường và cách làm hiện tại của đối thủ | ✅ Done | Ghi nhận cách các đối thủ đang giải quyết bài toán | - |
+| Kiều Đình Đoàn | Thảo luận DB, system diagram; làm chức năng đăng ký/đăng nhập | ✅ Done | Chức năng đăng ký/đăng nhập; đã thống nhất DB và system diagram với nhóm | - |
+| Nguyễn Hà Khuê | Thiết kế final system design và database schema | ✅ Done | System design + DB schema hoàn chỉnh | - |
+| Nguyễn Hoàng Anh | Dựng flow end-to-end từ file voice đến frontend | ✅ Done | voice.wav → transcript → Qwen gán role → lưu DB → hiển thị frontend → sửa transcript | - |
 
-**Tổng kết ngày:** Stand-up sáng 22/09: nhóm họp để chốt system design, database, chia việc, và nghiên cứu flow realtime. Chưa có stand-up ngày sau xác nhận việc đã xong.
+**Tổng kết ngày:** System design và DB schema được chốt. Flow voice → transcript chạy end-to-end và có chức năng đăng ký/đăng nhập. Flow còn chậm, chưa tối ưu thời gian xử lý.
+
+---
+
+## 2026-09-23
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Research cách các nền tảng hiện nay đang làm | ✅ Done | Ghi chú về các nền tảng tương tự | - |
+| Kiều Đình Đoàn | Thiết kế UI một số màn hình luồng chính (mock data); nộp mentor duty | ✅ Done | Màn hình MVP luồng chính; mentor duty 23/09 đã nộp | - |
+| Nguyễn Hà Khuê | Tạo cấu trúc models cho dự án | ✅ Done | Models đã commit lên repo | - |
+| Nguyễn Hoàng Anh | Tìm hiểu cơ chế realtime; setup env git cho 9router và Ollama | ✅ Done | Env 9router + Ollama đã setup | - |
+
+**Tổng kết ngày:** Có models, UI luồng chính và môi trường LLM local. Blocker: flow voice → transcript vẫn chậm.
+
+---
+
+## 2026-09-24
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Research hướng làm của topic và đối thủ | ✅ Done | Ghi chú hướng làm và đối thủ | - |
+| Kiều Đình Đoàn | Tìm hiểu luồng hoạt động thực tế của một quy trình khám bệnh | ✅ Done | Nắm luồng khám bệnh thực tế | - |
+| Nguyễn Hà Khuê | Đọc thêm về ứng dụng tương tự, tìm cách giải quyết riêng | ✅ Done | Hướng giải quyết khác biệt so với ứng dụng tương tự | - |
+| Nguyễn Hoàng Anh | Trải nghiệm ứng dụng liên quan và đặt pain point | ✅ Done | Danh sách pain point ban đầu | - |
+
+**Tổng kết ngày:** Gate G1 — PASS lúc 10:10 (+100 XP × 4 member). Nhóm quay lại research sản phẩm tương tự và quy trình khám thực tế để xác định lại pain point.
+
+---
+
+## 2026-09-25
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Nghiên cứu tiếp hướng đi, đào sâu chủ đề | ✅ Done | Ghi chú research chủ đề | - |
+| Kiều Đình Đoàn | Tìm hiểu nền tảng tương tự và pain point của bệnh nhân khi khám | ✅ Done | Pain point phía bệnh nhân | - |
+| Nguyễn Hà Khuê | Trải nghiệm ứng dụng tương tự để tìm pain point | ✅ Done | Pain point từ trải nghiệm thực tế | - |
+| Nguyễn Hoàng Anh | Trải nghiệm và đánh giá CliniScript, Wavo, Krasyn | ✅ Done | Đánh giá 3 sản phẩm và pain point rút ra | - |
+
+**Tổng kết ngày:** Nhóm họp đặt lại pain point và chia task. Mỗi người tự trải nghiệm sản phẩm tương tự để có dữ liệu thật.
+
+---
+
+## 2026-09-26
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Thảo luận nhóm thống nhất hướng tiếp theo; tổng hợp research cho mentor duty | ✅ Done | Hướng đi tiếp theo được thống nhất | - |
+| Kiều Đình Đoàn | Thảo luận đào sâu pain point; xem lại review và định hướng của mentor | ✅ Done | Đã nắm định hướng mentor đề xuất | - |
+| Nguyễn Hà Khuê | Họp nhóm tìm hướng làm AI đáng tin cậy hơn; tổng hợp research | ✅ Done | Hướng mới: tăng độ tin cậy của AI | - |
+| Nguyễn Hoàng Anh | Thảo luận xem lại pain point; nộp mentor duty | ✅ Done | Mentor duty 26/09 đã nộp | - |
+
+**Tổng kết ngày:** Mentor duty 26/09 đã nộp. Nhóm chọn hướng làm cho AI sinh SOAP đáng tin cậy hơn.
+
+---
+
+## 2026-09-27
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Tìm hiểu và bắt đầu bản MVP SOAP đầu tiên | 🔄 WIP | MVP SOAP v1 đang làm | - |
+| Kiều Đình Đoàn | Dựng các màn hình cơ bản của workflow đã chốt | ✅ Done | Màn hình cơ bản của workflow | - |
+| Nguyễn Hà Khuê | Nhận feedback mentor; tìm hiểu metrics tin cậy cho AI khi tạo SOAP | ✅ Done | Danh sách metrics tin cậy | - |
+| Nguyễn Hoàng Anh | Chốt pain point; tìm hiểu đánh giá confidence và latency khi tạo SOAP | ✅ Done | Hướng đánh giá confidence/latency | - |
+
+**Tổng kết ngày:** Pain point được chốt và bắt đầu code MVP. Mentor góp ý nhóm cần tính đến các ca phức tạp hơn.
+
+---
+
+## 2026-09-28
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Kiểm thử và hoàn thiện bản MVP SOAP để demo | ✅ Done | MVP SOAP v1 demo được | - |
+| Kiều Đình Đoàn | Tìm hiểu luồng chính và khả năng mở rộng luồng | ✅ Done | Ghi chú hướng mở rộng luồng | - |
+| Nguyễn Hà Khuê | Làm các task MVP cùng nhóm | ✅ Done | MVP SOAP v1 demo được | - |
+| Nguyễn Hoàng Anh | Đẩy nhanh MVP và architecture diagram | ✅ Done | Phần việc MVP + architecture diagram | - |
+
+**Tổng kết ngày:** Bản MVP SOAP đầu tiên đã demo được.
+
+---
+
+## 2026-09-29
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Demo MVP trước nhóm; nghiên cứu sâu hướng giải quyết bài toán | ✅ Done | Ghi chú cải thiện sau demo | - |
+| Kiều Đình Đoàn | Xem lại toàn bộ luồng MVP và đề xuất thay đổi UI | ✅ Done | Đề xuất thay đổi UI | - |
+| Nguyễn Hà Khuê | Review palette màu; nâng cấp UI/UX cho target user | ✅ Done | UI/UX cập nhật theo target user | - |
+| Nguyễn Hoàng Anh | Review flow transcript → SOAP; demo giao diện config | ✅ Done | Flow transcript → SOAP đã review; demo giao diện config | - |
+
+**Tổng kết ngày:** Nhóm demo MVP nội bộ, review flow transcript → SOAP và chốt hướng UI/UX.
+
+---
+
+## 2026-09-30
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Nghiên cứu các giải pháp sinh SOAP khác; báo cáo mentor | ✅ Done | Phương án sinh SOAP thay thế | - |
+| Kiều Đình Đoàn | Chỉnh sửa UI web theo thống nhất nhóm | ✅ Done | UI web cập nhật | - |
+| Nguyễn Hà Khuê | Vẽ architecture diagram; nghiên cứu metrics để sinh test case | ✅ Done | Bản architecture diagram; metrics cho test case | - |
+| Nguyễn Hoàng Anh | Nộp mentor duty; họp chốt MVP, chia task golden set và test | ✅ Done | Mentor duty 30/09 đã nộp; task golden set đã chia | - |
+
+**Tổng kết ngày:** Mentor duty 30/09 đã nộp. Nhóm chia task golden set và test để hoàn thiện MVP cho Gate G2.
+
+---
+
+## 2026-10-01
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Thêm multi provider cho LLM; thảo luận nhóm | ✅ Done | Hỗ trợ nhiều LLM provider | - |
+| Kiều Đình Đoàn | Tối ưu UI/UX; tìm cách sinh thêm voice input để test | ✅ Done | UI/UX cải thiện; cách sinh voice test | - |
+| Nguyễn Hà Khuê | Feedback UI/UX và demo thử cả luồng | ✅ Done | Luồng end-to-end đã chạy thử | - |
+| Nguyễn Hoàng Anh | Tinh chỉnh prompt tạo CAP, tạo SOAP và phần so khớp validate | ✅ Done | Prompt CAP/SOAP và validate đã chỉnh | - |
+
+**Tổng kết ngày:** Có nhắc Gate G2 (MVP), hạn 04/10 23:59. Cần nộp: video demo 3 phút, architecture diagram, ≥ 10 PR merged, README, ≥ 5 test case manual.
+
+---
+
+## 2026-10-02
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Họp nhóm chuẩn bị nộp MVP và mentor duty | ✅ Done | Đầu việc nộp MVP đã thống nhất | - |
+| Kiều Đình Đoàn | Chỉnh sửa UI theo yêu cầu nhóm | ✅ Done | UI cập nhật | - |
+| Nguyễn Hà Khuê | Thêm LLM provider; sửa lỗi tạo SOAP và lỗi lưu bệnh nhân theo từng bác sĩ | ✅ Done | Bệnh nhân lưu đúng theo bác sĩ; đã test phần sinh SOAP | - |
+| Nguyễn Hoàng Anh | Quay video demo MVP; xử lý lỗi CAP → SOAP; tạo voice test mới | ✅ Done | Video demo MVP; bộ voice test mới | - |
+
+**Tổng kết ngày:** Đã quay video demo MVP. Nhóm sửa lỗi CAP → SOAP và lỗi lưu bệnh nhân theo bác sĩ.
+
+---
+
+## 2026-10-03
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Đoàn Quang Thắng | Hoàn thiện các việc còn lại và viết README | 🔄 WIP | README | - |
+| Kiều Đình Đoàn | Tạo và điền WORKLOG.md theo ngày | ✅ Done | WORKLOG.md cập nhật đến 03/10 | - |
+| Nguyễn Hà Khuê | Vẽ architecture diagram và sinh 5 test case | 🔄 WIP | Architecture diagram + 5 test case | - |
+| Nguyễn Hoàng Anh | Xử lý tiếp lỗi CAP → SOAP; tạo voice test demo; nộp mentor duty | 🔄 WIP | Mentor duty 03/10 đã nộp; voice test demo đang làm | - |
+
+**Tổng kết ngày:** Mentor duty 03/10 đã nộp. Còn 1 ngày tới hạn Gate G2: đang hoàn thiện README, architecture diagram, 5 test case và sửa lỗi CAP → SOAP. Các dòng WIP lấy từ kế hoạch stand-up sáng 03/10.
 
 ---

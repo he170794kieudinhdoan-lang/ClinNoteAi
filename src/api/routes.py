@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from src.agents.graph import agent
@@ -13,9 +14,11 @@ from src.models.schemas import (
     ChatRequest,
     ChatResponse,
     ConsultationCreateRequest,
+    ConsultationListItem,
     ConsultationResponse,
     PatientCreateRequest,
     PatientResponse,
+    PatientSummary,
     TranscriptResponse,
     TranscriptSegmentResponse,
     TranscriptSegmentUpdateRequest,
@@ -25,7 +28,7 @@ from src.models.user import User
 from src.schemas.model_settings import AudioModelPreferences
 from src.services.audio.temp_storage import save_temp_audio
 from src.services.blaze.stt_async import BlazeSTTAsync, BlazeSTTError, blaze_stt
-from src.services.icd_kcb import IcdNotFound, IcdUnavailable, IcdUpstream, lookup_code, search_codes
+from src.services.icd_kcb import IcdNotFoundError, IcdUnavailableError, IcdUpstreamError, lookup_code, search_codes
 from src.services.model_runtime import ModelConfigurationError, resolve_connection
 from src.services.speaker.role_classifier import (
     SpeakerRoleError,
@@ -154,6 +157,54 @@ async def create_consultation(
     db.refresh(consultation)
 
     return consultation
+
+
+@router.get("/consultations", response_model=list[ConsultationListItem])
+async def list_consultations(
+    doctor_id: UUID | None = None,
+    patient_id: UUID | None = None,
+    db: Session = Depends(get_db),
+) -> list[ConsultationListItem]:
+    """Danh sách consultations, lọc theo bác sĩ (để danh sách lượt khám per-doctor)."""
+
+    transcript_exists = (
+        select(TranscriptSegment.id)
+        .where(TranscriptSegment.consultation_id == Consultation.id)
+        .exists()
+    )
+
+    query = db.query(Consultation, transcript_exists.label("has_transcript"), Patient).join(
+        Patient, Consultation.patient_id == Patient.id
+    )
+
+    if doctor_id is not None:
+        query = query.filter(Consultation.doctor_id == doctor_id)
+    if patient_id is not None:
+        query = query.filter(Consultation.patient_id == patient_id)
+
+    rows = query.order_by(Consultation.created_at.desc()).all()
+
+    items: list[ConsultationListItem] = []
+    for c, has_transcript, patient in rows:
+        items.append(
+            ConsultationListItem(
+                id=c.id,
+                patient_id=c.patient_id,
+                doctor_id=c.doctor_id,
+                status=c.status,
+                created_at=c.created_at,
+                started_at=c.started_at,
+                ended_at=c.ended_at,
+                has_transcript=has_transcript,
+                patient=PatientSummary(
+                    full_name=c.patient.full_name,
+                    patient_code=c.patient.patient_code,
+                    date_of_birth=c.patient.date_of_birth,
+                    sex=c.patient.sex,
+                ),
+            )
+        )
+    return items
 
 
 @router.post(
@@ -383,11 +434,11 @@ async def update_transcript_segment(
 
 
 def _icd_error(exc: Exception) -> HTTPException:
-    if isinstance(exc, IcdNotFound):
+    if isinstance(exc, IcdNotFoundError):
         return HTTPException(status_code=404, detail="Không có mã ICD này.")
-    if isinstance(exc, IcdUnavailable):
+    if isinstance(exc, IcdUnavailableError):
         return HTTPException(status_code=503, detail=str(exc))
-    return HTTPException(status_code=502, detail=str(exc) if isinstance(exc, IcdUpstream) else "Không tra được ICD.")
+    return HTTPException(status_code=502, detail=str(exc) if isinstance(exc, IcdUpstreamError) else "Không tra được ICD.")
 
 
 @router.get("/icd/codes/{code}")
@@ -395,7 +446,7 @@ async def icd_code(code: str):
     """Chi tiết một mã ICD-10 từ icd.kcb.vn."""
     try:
         return await lookup_code(code)
-    except (IcdNotFound, IcdUnavailable, IcdUpstream) as exc:
+    except (IcdNotFoundError, IcdUnavailableError, IcdUpstreamError) as exc:
         raise _icd_error(exc) from exc
 
 
@@ -404,5 +455,5 @@ async def icd_search(q: str = ""):
     """Tìm mã hoặc tên bệnh tiếng Việt. Danh mục chương được tải một lần rồi lọc tại server."""
     try:
         return await search_codes(q)
-    except (IcdNotFound, IcdUnavailable, IcdUpstream) as exc:
+    except (IcdNotFoundError, IcdUnavailableError, IcdUpstreamError) as exc:
         raise _icd_error(exc) from exc

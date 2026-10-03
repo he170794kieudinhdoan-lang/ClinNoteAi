@@ -1,0 +1,33 @@
+{
+  "api_base": "http://127.0.0.1:8000/api/v1/soap",
+  "call_budget": {
+    "actual_pipeline_invocations": "recorded from GET run attempt_summary when available; otherwise unavailable",
+    "expected_primary_model_calls": 3,
+    "http_export_reads_are_not_model_calls": true,
+    "per_case": {
+      "baseline_direct": 1,
+      "cap_extract": 1,
+      "soap_render": 1
+    },
+    "primary_model_calls_if_all_calls_succeed_max": 3,
+    "repair_calls_max": 2,
+    "repairs_max_per_case": {
+      "extract": 1,
+      "render": 1
+    }
+  },
+  "case_ids": [
+    "synthetic_medication_correction"
+  ],
+  "created_at": "2026-10-02T09:43:21.412+00:00",
+  "evaluation_id": "6af01a2d-fbfe-4067-8e3c-aaaf6bf3a3b6",
+  "provider_config_non_secret": {
+    "model": "gpt-4o-mini",
+    "provider": "openai",
+    "temperature": 0.0,
+    "timeout_seconds": 45.0
+  },
+  "scores": "not computed; human review required",
+  "synthetic_cases_only": true,
+  "timeout_seconds_http": 60.0
+}

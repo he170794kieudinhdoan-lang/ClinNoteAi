@@ -83,12 +83,18 @@ def resolve_connection(step: PipelineStep, preference: ModelPreference | None = 
 def create_model(step: PipelineStep, preference: ModelPreference | None = None) -> ChatOpenAI:
     connection = resolve_connection(step, preference)
     settings = get_settings()
+    if step == "caps":
+        timeout = settings.cap_extraction_timeout
+    elif step == "soap":
+        timeout = settings.soap_llm_timeout
+    else:
+        timeout = 120
     return ChatOpenAI(
         model=connection.model,
         base_url=connection.base_url,
         api_key=connection.api_key or "not-required",
         temperature=settings.soap_llm_temperature if step in {"caps", "soap"} else settings.llm_temperature,
-        timeout=settings.soap_llm_timeout if step in {"caps", "soap"} else 120,
+        timeout=timeout,
         max_retries=0,
         metadata={"pipeline_provider": connection.provider},
     )

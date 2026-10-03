@@ -56,6 +56,25 @@ class ConsultationResponse(BaseModel):
     language: str
 
 
+class PatientSummary(BaseModel):
+    full_name: str
+    patient_code: str
+    date_of_birth: date | None
+    sex: str | None
+
+
+class ConsultationListItem(BaseModel):
+    id: UUID
+    patient_id: UUID
+    doctor_id: UUID
+    status: str
+    created_at: datetime
+    started_at: datetime | None
+    ended_at: datetime | None
+    has_transcript: bool
+    patient: PatientSummary
+
+
 class TranscriptSegmentUpdateRequest(BaseModel):
     content: str = Field(
         ...,
