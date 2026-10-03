@@ -200,19 +200,25 @@ def _check_numbers_mismatch(soap_text: str, linked_caps: list[Cap]) -> list[Safe
 def _check_negation_contradiction(soap_text: str, linked_caps: list[Cap]) -> list[SafetyViolation]:
     violations = []
     norm_soap = _normalize_text(soap_text)
+    neg_kws = ["không", "chưa", "âm tính", "âm", "không có"]
 
     for cap in linked_caps:
         norm_cap_prop = _normalize_text(cap.proposition_text)
-        is_cap_negated = cap.verification_status == "negated" or any(kw in norm_cap_prop for kw in ["không", "chưa"])
+        is_cap_negated = cap.verification_status == "negated" or any(kw in norm_cap_prop for kw in neg_kws)
 
-        soap_has_negation = any(kw in norm_soap for kw in ["không", "chưa"])
-
-        if is_cap_negated and not soap_has_negation:
-            violations.append(SafetyViolation("negation_contradiction", f"CAP {cap.prop_id} is negated, but SOAP item asserts affirmation"))
-        elif not is_cap_negated and cap.verification_status == "affirmed" and soap_has_negation:
+        if is_cap_negated:
+            # CAP is negated -> SOAP must express negation or negative finding
+            soap_has_negation = any(kw in norm_soap for kw in neg_kws)
+            if not soap_has_negation:
+                violations.append(SafetyViolation("negation_contradiction", f"CAP {cap.prop_id} is negated, but SOAP item asserts affirmation"))
+        elif cap.verification_status == "affirmed":
+            # CAP is affirmed -> check if SOAP explicitly negates this specific concept
             concepts = [w for w in cap.canonical_concept.casefold().split() if len(w) > 2]
-            if any(c in norm_soap for c in concepts):
-                violations.append(SafetyViolation("negation_contradiction", f"CAP {cap.prop_id} is affirmed, but SOAP item asserts negation"))
+            for c in concepts:
+                # Direct negation pattern: "không [c]", "chưa [c]", "không có [c]"
+                if re.search(rf"\b(?:không|chưa|không có)\s+(?:\w+\s+){{0,2}}{re.escape(c)}\b", norm_soap):
+                    violations.append(SafetyViolation("negation_contradiction", f"CAP {cap.prop_id} is affirmed, but SOAP item asserts negation"))
+                    break
 
     return violations
 

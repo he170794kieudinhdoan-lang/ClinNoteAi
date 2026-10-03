@@ -2,11 +2,44 @@
 
 from __future__ import annotations
 
+import re
+
 from src.schemas.soap import Cap, SoapDocument, Transcript
 from src.services.soap.errors import SoapFailure
 from src.services.soap.renderer import compute_section_candidates
 from src.services.soap.semantic_validator import check_item_safety
 from src.services.soap.text_utils import resolve_conservative_evidence_quote
+
+
+SEVERITY_EQUIVALENCE_MAP = {
+    "mức độ vừa": ["mức độ vừa", "mức trung bình", "trung bình", "vừa", "vừa phải", "mức vừa"],
+    "dữ dội": ["dữ dội", "nghiêm trọng", "rất nặng", "rất đau", "nặng nề"],
+    "nhẹ": ["nhẹ", "mức độ nhẹ", "hơi"],
+}
+
+
+def check_item_semantic_coverage(item_text: str, cap_proposition_text: str) -> list[str]:
+    """
+    Verify that essential duration time-units and qualitative modifiers from cap_proposition_text
+    are semantically represented in item_text.
+    """
+    item_lower = item_text.casefold()
+    cap_lower = cap_proposition_text.casefold()
+    missing = []
+
+    # 1. Quantitative Duration Modifiers (e.g. "3 tháng", "2 tuần", "5 ngày")
+    time_matches = re.findall(r"\b\d+\s*(?:tháng|tuần|ngày|năm|giờ|phút)\b", cap_lower)
+    for tm in time_matches:
+        if tm not in item_lower:
+            missing.append(tm)
+
+    # 2. Qualitative Severity Modifiers with Synonym Equivalence Sets
+    for key, synonyms in SEVERITY_EQUIVALENCE_MAP.items():
+        if key in cap_lower:
+            if not any(syn in item_lower for syn in synonyms):
+                missing.append(key)
+
+    return list(dict.fromkeys(missing))
 
 
 def filter_usable_caps(caps: list[Cap]) -> list[Cap]:
@@ -262,6 +295,22 @@ def check_candidate_coverage(soap: SoapDocument, section_candidates: dict[str, l
         section = getattr(soap, section_name)
         if section.missing:
             continue
+
+        # 1. Verify that every linked CAP in each section item preserves essential clinical modifiers
+        for item in section.items:
+            for cap_id in item.cap_ids:
+                cap = cap_map.get(cap_id)
+                if not cap:
+                    continue
+                missing_mods = check_item_semantic_coverage(item.text, cap.proposition_text)
+                if missing_mods:
+                    raise SoapFailure(
+                        "validate_soap",
+                        "candidate_coverage_violation",
+                        f"Item {item.item_id} in section {section_name} links CAP {cap.prop_id} but omits essential modifier '{missing_mods[0]}' from proposition '{cap.proposition_text}'",
+                        invalid_status,
+                    )
+
         allowed_candidates = set(section_candidates.get(section_name, []))
         if not allowed_candidates:
             continue

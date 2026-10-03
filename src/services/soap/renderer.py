@@ -34,20 +34,51 @@ def compute_section_candidates(caps: list[Cap]) -> dict[str, list[str]]:
     }
 
 
-async def render_once(llm, transcript: Transcript, caps: list[Cap], warnings: list[str], timeout: float, repair: str | None = None) -> tuple[str, dict]:
+async def render_once(
+    llm, transcript: Transcript, caps: list[Cap], warnings: list[str], timeout: float,
+    repair: str | None = None, error_message: str | None = None, error_code: str | None = None,
+) -> tuple[str, dict]:
+    compact_turns = [{"turn_id": t.turn_id, "speaker": t.speaker, "text": t.text} for t in transcript.turns]
+    compact_caps = [
+        {
+            "prop_id": c.prop_id,
+            "cap_type": c.cap_type,
+            "canonical_concept": c.canonical_concept,
+            "proposition_text": c.proposition_text,
+            "speaker_source": c.speaker_source,
+            "temporality": c.temporality,
+            "verification_status": c.verification_status,
+            "clinical_status": c.clinical_status,
+            "medication_state": c.medication_state,
+            "evidence": [{"turn_id": e.turn_id, "quote": e.quote} for e in c.evidence],
+        }
+        for c in caps
+    ]
     payload = {
-        "transcript": transcript.model_dump(mode="json"),
-        "caps": [cap.model_dump(mode="json") for cap in caps],
+        "transcript": {"turns": compact_turns},
+        "caps": compact_caps,
         "section_candidates": compute_section_candidates(caps),
         "valid_cap_ids": sorted({c.prop_id for c in caps}),
         "warnings": warnings,
     }
     if repair is not None:
         payload["previous_invalid_output"] = repair[:12_000]
-        payload["repair_instruction"] = (
-            "Return corrected JSON only. Link each item ONLY to CAP IDs present in section_candidates/valid_cap_ids; "
-            "remove any cap_id not in those lists. Keep all text and clinical meaning unchanged."
-        )
+        instruction_lines = [
+            "Return corrected JSON only.",
+            "Fix the following validation error from the previous attempt:",
+        ]
+        if error_code:
+            instruction_lines.append(f"- Error Code: {error_code}")
+        if error_message:
+            instruction_lines.append(f"- Error Details: {error_message}")
+        instruction_lines.extend([
+            "Strict Rules:",
+            "1. S, O, A, P items MUST ONLY link CAP IDs listed in section_candidates for THAT specific section.",
+            "2. You MUST preserve the semantic meaning and essential modifiers (duration, severity, numbers, units, negations) of EVERY linked CAP ID in the rendered text string.",
+            "3. If section_candidates for a section is empty, set items: [] and missing: true for that section.",
+            "4. Do NOT invent new CAP IDs or alter clinical meaning.",
+        ])
+        payload["repair_instruction"] = "\n".join(instruction_lines)
     try:
         started = time.monotonic()
         response = await asyncio.wait_for(llm.ainvoke([
