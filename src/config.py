@@ -59,6 +59,7 @@ class Settings(BaseSettings):
     soap_max_chars: int = Field(default=30_000, ge=1)
     soap_max_input_bytes: int = Field(default=1_000_000, ge=1)
     soap_llm_timeout: float = Field(default=45.0, gt=0)
+    cap_extraction_timeout: float = Field(default=60.0, gt=0)
     soap_llm_model: str = ""
     soap_llm_temperature: float = Field(default=0.0, ge=0.0, le=2.0)
 

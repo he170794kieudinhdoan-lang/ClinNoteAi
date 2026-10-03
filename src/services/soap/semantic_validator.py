@@ -197,26 +197,68 @@ def _check_numbers_mismatch(soap_text: str, linked_caps: list[Cap]) -> list[Safe
     return violations
 
 
+def _extract_core_concept_tokens(cap: Cap) -> set[str]:
+    """Extract distinctive content tokens from cap.canonical_concept and cap.proposition_text,
+    filtering generic auxiliary/action verbs and metadata terms.
+    """
+    generic_verbs = {
+        "sử", "dụng", "dùng", "bị", "có", "tiền", "sử", "tình", "trạng",
+        "khai", "ghi", "nhận", "cảm", "thấy", "nghi", "ngờ", "đang", "hiện",
+        "mức", "độ", "loại", "nguy", "cơ", "nghiệm", "pháp", "kết", "quả"
+    }
+    raw_text = f"{cap.canonical_concept} {cap.proposition_text}"
+    tokens = {
+        word for word in re.findall(r"\w+", raw_text.casefold())
+        if len(word) >= 2 and word not in generic_verbs
+    }
+    if not tokens:
+        tokens = {word for word in re.findall(r"\w+", raw_text.casefold()) if len(word) >= 2}
+    return tokens
+
+
+def _get_matching_clauses(clauses: list[str], cap: Cap, norm_soap: str) -> list[str]:
+    """Find the sub-clauses in norm_soap that pertain to cap, preferring compound 2-gram matches."""
+    generic_verbs = {
+        "sử", "dụng", "dùng", "bị", "có", "tiền", "sử", "tình", "trạng",
+        "khai", "ghi", "nhận", "cảm", "thấy", "nghi", "ngờ", "đang", "hiện",
+        "mức", "độ", "loại", "nguy", "cơ", "nghiệm", "pháp", "kết", "quả"
+    }
+    raw_text = f"{cap.canonical_concept} {cap.proposition_text}"
+    raw_words = [w for w in re.findall(r"\w+", raw_text.casefold()) if len(w) >= 2 and w not in generic_verbs]
+
+    if len(raw_words) >= 2:
+        compounds = [f"{raw_words[i]} {raw_words[i+1]}" for i in range(len(raw_words) - 1)]
+        matching = [c for c in clauses if any(comp in c for comp in compounds)]
+        if matching:
+            return matching
+
+    core_tokens = _extract_core_concept_tokens(cap)
+    matching = [c for c in clauses if any(t in c for t in core_tokens)]
+    return matching if matching else [norm_soap]
+
+
 def _check_negation_contradiction(soap_text: str, linked_caps: list[Cap]) -> list[SafetyViolation]:
     violations = []
     norm_soap = _normalize_text(soap_text)
     neg_kws = ["không", "chưa", "âm tính", "âm", "không có"]
 
+    clauses = [c.strip() for c in re.split(r"[;.,\n]|(?:\b(?:nhưng|tuy nhiên|đồng thời)\b)", norm_soap) if c.strip()]
+
     for cap in linked_caps:
         norm_cap_prop = _normalize_text(cap.proposition_text)
         is_cap_negated = cap.verification_status == "negated" or any(kw in norm_cap_prop for kw in neg_kws)
 
+        matching_clauses = _get_matching_clauses(clauses, cap, norm_soap)
+
         if is_cap_negated:
-            # CAP is negated -> SOAP must express negation or negative finding
-            soap_has_negation = any(kw in norm_soap for kw in neg_kws)
-            if not soap_has_negation:
+            # CAP is negated -> SOAP clause for this concept must express negation
+            has_negation = any(any(kw in c for kw in neg_kws) for c in matching_clauses)
+            if not has_negation:
                 violations.append(SafetyViolation("negation_contradiction", f"CAP {cap.prop_id} is negated, but SOAP item asserts affirmation"))
         elif cap.verification_status == "affirmed":
-            # CAP is affirmed -> check if SOAP explicitly negates this specific concept
-            concepts = [w for w in cap.canonical_concept.casefold().split() if len(w) > 2]
-            for c in concepts:
-                # Direct negation pattern: "không [c]", "chưa [c]", "không có [c]"
-                if re.search(rf"\b(?:không|chưa|không có)\s+(?:\w+\s+){{0,2}}{re.escape(c)}\b", norm_soap):
+            # CAP is affirmed -> SOAP clause for this specific concept must NOT express negation
+            for c in matching_clauses:
+                if any(kw in c for kw in neg_kws):
                     violations.append(SafetyViolation("negation_contradiction", f"CAP {cap.prop_id} is affirmed, but SOAP item asserts negation"))
                     break
 
@@ -226,21 +268,28 @@ def _check_negation_contradiction(soap_text: str, linked_caps: list[Cap]) -> lis
 def _check_temporality_contradiction(soap_text: str, linked_caps: list[Cap]) -> list[SafetyViolation]:
     violations = []
     norm_soap = _normalize_text(soap_text)
+    clauses = [c.strip() for c in re.split(r"[;.,\n]|(?:\b(?:nhưng|tuy nhiên|đồng thời)\b)", norm_soap) if c.strip()]
 
     for cap in linked_caps:
         norm_cap_prop = _normalize_text(cap.proposition_text)
+        matching_clauses = _get_matching_clauses(clauses, cap, norm_soap)
+
         if cap.temporality == "past" or any(kw in norm_cap_prop for kw in ["năm ngoái", "tiền sử", "đã từng"]):
-            if any(kw in norm_soap for kw in ["hiện tại", "đang", "cấp"]):
-                violations.append(SafetyViolation("temporality_contradiction", f"CAP {cap.prop_id} is past temporality, but SOAP asserts current active condition"))
+            for c in matching_clauses:
+                if re.search(r"\b(?:đang\s+bị|cấp|hiện\s+tại\s+bị)\b", c):
+                    violations.append(SafetyViolation("temporality_contradiction", f"CAP {cap.prop_id} is past temporality, but SOAP asserts current active condition"))
+                    break
 
         if cap.temporality == "future" or cap.clinical_status == "planned" or any(kw in norm_cap_prop for kw in ["tái khám", "tuần sau", "khám lại"]):
-            if any(kw in norm_soap for kw in ["đã tái khám", "đã khám lại", "đã thực hiện", "tuần trước"]):
-                violations.append(SafetyViolation("temporality_contradiction", f"CAP {cap.prop_id} is future temporality, but SOAP asserts completed action"))
+            for c in matching_clauses:
+                if any(kw in c for kw in ["đã tái khám", "đã khám lại", "đã thực hiện", "tuần trước"]):
+                    violations.append(SafetyViolation("temporality_contradiction", f"CAP {cap.prop_id} is future temporality, but SOAP asserts completed action"))
+                    break
 
     return violations
 
 
-DIAGNOSIS_KEYWORDS = ["chẩn đoán", "viêm màng não", "viêm phổi", "viêm họng", "đái tháo đường", "tăng huyết áp"]
+DIAGNOSIS_KEYWORDS = ["viêm màng não", "viêm phổi", "viêm họng", "đái tháo đường", "tăng huyết áp"]
 
 
 def _check_unsupported_claim(soap_text: str, section_name: str, linked_caps: list[Cap]) -> list[SafetyViolation]:
