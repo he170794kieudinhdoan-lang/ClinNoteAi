@@ -36,5 +36,6 @@ async def test_catalog_error_safe_and_blaze_no_request(monkeypatch):
     monkeypatch.setattr(httpx.AsyncClient, "get", get)
     result = await list_models("caps", ModelPreference(provider="9router"))
     assert result["models"] == [] and "secret-header" not in str(result)
+    assert "401" in result["message"]
     monkeypatch.setattr(httpx.AsyncClient, "get", lambda *args, **kwargs: pytest.fail("Blaze must not GET"))
     assert (await list_models("stt", ModelPreference()))["models"] == []

@@ -2,7 +2,7 @@
 import httpx
 
 from src.schemas.model_settings import ModelPreference, PipelineStep
-from src.services.model_runtime import resolve_connection
+from src.services.model_runtime import provider_error_message, resolve_connection
 
 
 async def list_models(step: PipelineStep, preference: ModelPreference) -> dict:
@@ -26,5 +26,7 @@ async def list_models(step: PipelineStep, preference: ModelPreference) -> dict:
         return {"models": sorted(ids), "message": "Danh sách do provider trả về; chọn model rồi Ping để kiểm tra quyền gọi."}
     except httpx.TimeoutException:
         return {"models": [], "message": "Provider chưa trả danh sách trong thời gian cho phép."}
+    except httpx.HTTPStatusError as exc:
+        return {"models": [], "message": provider_error_message(exc)}
     except (httpx.HTTPError, ValueError, KeyError, TypeError):
         return {"models": [], "message": "Không lấy được danh sách model. Kiểm tra URL, API key hoặc nhập mã model thủ công."}

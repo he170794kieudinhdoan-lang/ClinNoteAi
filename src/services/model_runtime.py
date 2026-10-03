@@ -18,6 +18,20 @@ class ModelConfigurationError(ValueError):
     pass
 
 
+def provider_error_message(error: Exception) -> str:
+    """Only expose HTTP status categories, never upstream body or credentials."""
+    status = getattr(error, "status_code", None)
+    if status is None:
+        status = getattr(getattr(error, "response", None), "status_code", None)
+    messages = {
+        401: "Provider từ chối xác thực (401). Kiểm tra API key đúng provider; key có thể thiếu, sai hoặc đã hết hiệu lực.",
+        403: "Provider từ chối truy cập (403). Kiểm tra quyền của API key và tài khoản.",
+        404: "Provider không tìm thấy endpoint hoặc model (404). Kiểm tra URL và mã model.",
+        429: "Provider giới hạn yêu cầu hoặc hết hạn mức (429). Kiểm tra hạn mức và thanh toán tài khoản.",
+    }
+    return messages.get(status, "Không gọi được provider. Kiểm tra URL, mã model, API key và quyền truy cập.")
+
+
 @dataclass(frozen=True)
 class ModelConnection:
     provider: str
@@ -112,8 +126,8 @@ async def ping_model(step: PipelineStep, preference: ModelPreference) -> dict:
                 "message": "Model đã phản hồi yêu cầu kiểm tra."}
     except (TimeoutError, httpx.TimeoutException):
         message = "Model không phản hồi trong thời gian cho phép."
-    except Exception:
+    except Exception as exc:
         # Provider errors may contain request headers, URLs or body; do not echo them.
-        message = "Không gọi được model. Kiểm tra URL, mã model, API key và quyền truy cập."
+        message = provider_error_message(exc)
     return {"connected": False, "provider": connection.provider, "model": connection.model,
             "latency_ms": round((time.monotonic() - started) * 1000), "message": message}

@@ -8,7 +8,7 @@ from src.schemas.soap import Cap, Evidence, SoapDocument, SoapItem, SoapSection,
 from src.services.soap.errors import SoapFailure
 from src.services.soap.renderer import compute_section_candidates
 from src.services.soap.text_utils import resolve_conservative_evidence_quote
-from src.services.soap.validation import filter_usable_caps, validate_and_partition_caps, validate_soap
+from src.services.soap.validation import validate_and_partition_caps, validate_soap
 
 
 def make_turn(turn_id: str, speaker: str, text: str) -> TranscriptTurn:
@@ -53,7 +53,7 @@ def test_a_quarantined_exam_finding_excluded_from_objective_candidates():
     t = Transcript(turns=[make_turn("T1", "clinician", "Khám gối bình thường.")])
     # ExamFinding CAP with invalid_quote (absent from turn T1)
     quarantined_exam = make_cap("C1", "ExamFinding", "sưng gối", "Gối sưng 2cm", "clinician", turn_id="T1", quote="absent quote string")
-    
+
     usable, quarantined, warnings = validate_and_partition_caps([quarantined_exam], t)
     assert len(quarantined) == 1
     assert quarantined[0].resolution_status == "needs_review"

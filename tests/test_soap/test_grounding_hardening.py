@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from langchain_core.messages import AIMessage
 
-from src.schemas.soap import Cap, Evidence, SoapDocument, SoapItem, SoapSection, Transcript, TranscriptTurn
-from src.services.soap.errors import SoapFailure
-from src.services.soap.validation import check_item_semantic_coverage, validate_soap
 from src.agents.soap_graph import create_soap_pipeline
+from src.schemas.soap import Cap, Evidence, SoapDocument, SoapItem, SoapSection, Transcript, TranscriptTurn
+from src.services.soap.validation import check_item_semantic_coverage, validate_soap
 
 
 def make_turn(turn_id: str, speaker: str, text: str) -> TranscriptTurn:

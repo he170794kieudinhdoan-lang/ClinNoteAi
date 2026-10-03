@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from langchain_core.messages import AIMessage
+
+from src.agents.soap_graph import create_soap_pipeline
 from src.schemas.soap import Cap, Evidence, SoapDocument, SoapItem, SoapSection, Transcript, TranscriptTurn
 from src.services.soap.errors import SoapFailure
 from src.services.soap.validation import validate_soap
-from src.agents.soap_graph import create_soap_pipeline
 
 
 def make_turn(turn_id: str, speaker: str, text: str) -> TranscriptTurn:
@@ -137,7 +139,7 @@ def test_e_numeric_safety_mismatch_marked_unsupported():
 
 
 # TEST F: Fail-safe draft availability for non-safety structural coverage error
-from langchain_core.messages import AIMessage
+
 
 @pytest.mark.asyncio
 async def test_f_fail_safe_draft_saved_on_structural_coverage_error():
@@ -184,7 +186,7 @@ async def test_g_safety_critical_failure_blocks_pipeline():
 
     mock_store = MagicMock(spec=["assert_revision", "create_run", "load", "append_revision", "save_caps", "save_attempt"])
     mock_store.create_run.return_value = "run_test_safety_block"
-    
+
     mock_store.load.return_value = {
         "transcript": t.model_dump(mode="json"),
         "caps": [c1.model_dump(mode="json")],
@@ -211,7 +213,6 @@ async def test_g_safety_critical_failure_blocks_pipeline():
     assert final_state["error"]["code"] == "dosage_mismatch"
     assert final_state.get("revision") is None
     assert not mock_store.append_revision.called
-
 
 
 

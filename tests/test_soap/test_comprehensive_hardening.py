@@ -13,7 +13,7 @@ from src.services.soap.errors import SoapFailure
 from src.services.soap.renderer import compute_section_candidates, parse_soap
 from src.services.soap.repair_policy import is_repairable_error
 from src.services.soap.semantic_validator import check_item_safety
-from src.services.soap.validation import filter_usable_caps, validate_and_partition_caps, validate_soap
+from src.services.soap.validation import filter_usable_caps, validate_soap
 
 
 def make_cap(
@@ -119,7 +119,7 @@ def test_candidate_boundary_violation_repairable_in_policy():
 def test_source_of_fact_matrix_clinician_recap_versus_observation():
     # Case D: Clinician recaps patient symptom -> patient source
     c_recap = make_cap("C1", "ChiefComplaint", "mệt mỏi", "Mệt mỏi mức độ vừa", "patient", turn_id="T13", quote="mệt mỏi mức độ vừa")
-    
+
     # Case E: Clinician direct observation -> clinician source
     c_obs = make_cap("C2", "ExamFinding", "da nhợt", "Da nhợt nhạt", "clinician", turn_id="T14", quote="da nhợt nhạt")
 
@@ -141,7 +141,7 @@ def test_source_of_fact_matrix_clinician_recap_versus_observation():
 def test_source_of_fact_patient_medication_statement_vs_clinician_request():
     # Case K: Patient current medication statement -> patient source
     c_med_stmt = make_cap("C1", "MedicationStatement", "Amlodipine", "Đang uống Amlodipine 5mg", "patient")
-    
+
     # Case L: Clinician prescribed medication request -> clinician source
     c_med_req = make_cap("C2", "MedicationRequest", "Paracetamol", "Kê đơn Paracetamol 500mg", "clinician", temporality="future", clinical_status="planned")
 
@@ -155,7 +155,7 @@ def test_source_of_fact_patient_medication_statement_vs_clinician_request():
 def test_source_of_fact_patient_denial_and_uncertainty():
     # Case M: Patient denial -> patient source, negated
     c_denial = make_cap("C1", "ChiefComplaint", "sốt", "Không bị sốt", "patient", verification_status="negated")
-    
+
     # Case N: Patient uncertainty -> patient source, uncertain
     c_uncert = make_cap("C2", "ChiefComplaint", "thời gian đau", "Không nhớ rõ thời gian bắt đầu đau", "patient", verification_status="uncertain")
 
@@ -195,11 +195,11 @@ def test_quarantined_cap_referencing_in_soap_fails_validation():
 
 def test_semantic_preservation_negation_contradiction_detection():
     c_negated = make_cap("C1", "ChiefComplaint", "sốt", "Không bị sốt", "patient", verification_status="negated")
-    
+
     # SOAP item text affirms fever ("Có sốt nhẹ") while linked to negated CAP
     item_dict = {"item_id": "S1", "text": "Có sốt nhẹ", "cap_ids": ["C1"]}
     soap = parse_soap(json.dumps(make_soap_dict(s_items=[item_dict])))
-    
+
     violations = check_item_safety(soap.S.items[0], "S", [c_negated])
     v_codes = [v.code for v in violations]
     assert "negation_contradiction" in v_codes
@@ -210,11 +210,11 @@ def test_semantic_preservation_negation_contradiction_detection():
 
 def test_semantic_preservation_numbers_units_mismatch():
     c_bp = make_cap("C1", "ExamFinding", "huyết áp", "Huyết áp 120/80 mmHg", "clinician")
-    
+
     # SOAP item text alters BP numbers to 140/90
     item_dict = {"item_id": "O1", "text": "Huyết áp 140/90 mmHg", "cap_ids": ["C1"]}
     soap = parse_soap(json.dumps(make_soap_dict(o_items=[item_dict])))
-    
+
     violations = check_item_safety(soap.O.items[0], "O", [c_bp])
     v_codes = [v.code for v in violations]
     assert "bp_mismatch" in v_codes

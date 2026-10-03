@@ -10,7 +10,6 @@ from src.services.soap.renderer import compute_section_candidates
 from src.services.soap.semantic_validator import check_item_safety
 from src.services.soap.text_utils import resolve_conservative_evidence_quote
 
-
 SEVERITY_EQUIVALENCE_MAP = {
     "mức độ vừa": ["mức độ vừa", "mức trung bình", "trung bình", "vừa", "vừa phải", "mức vừa"],
     "dữ dội": ["dữ dội", "nghiêm trọng", "rất nặng", "rất đau", "nặng nề"],
@@ -316,13 +315,13 @@ def check_candidate_coverage(soap: SoapDocument, section_candidates: dict[str, l
             continue
         used_candidates = {cid for item in section.items for cid in item.cap_ids if cid in allowed_candidates}
         omitted_candidates = allowed_candidates - used_candidates
-        
+
         if not omitted_candidates:
             continue
 
         used_caps = [cap_map[cid] for cid in used_candidates if cid in cap_map]
         used_concepts = {c.canonical_concept.casefold().strip() for c in used_caps}
-        
+
         truly_omitted = []
         for om_id in sorted(omitted_candidates):
             om_cap = cap_map.get(om_id)
@@ -335,7 +334,7 @@ def check_candidate_coverage(soap: SoapDocument, section_candidates: dict[str, l
                 om_text = om_cap.proposition_text.casefold().strip()
                 if not any(om_text in c.proposition_text.casefold().strip() or c.proposition_text.casefold().strip() in om_text for c in used_caps):
                     truly_omitted.append(om_id)
-                    
+
         if truly_omitted:
             raise SoapFailure(
                 "validate_soap",
