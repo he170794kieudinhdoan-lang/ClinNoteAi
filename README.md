@@ -4,7 +4,7 @@
 
 ClinNote AI hỗ trợ ghi chép lượt khám bằng tiếng Việt. Dự án kết hợp Speech-to-Text (STT), phân vai người nói và pipeline **Transcript → CAP → SOAP**. CAP (*Clinical Atomic Propositions*) là từng thông tin lâm sàng nhỏ, gắn với lời thoại nguồn để người review đối chiếu trước khi duyệt.
 
-**Status: MVP đang phát triển.** Đã có backend, frontend và kết quả đánh giá trên hội thoại tổng hợp; nghiệm thu toàn luồng giao diện và review nội dung độc lập còn thiếu. Trạng thái chi tiết nằm trong [SOAP/TRACE.md](SOAP/TRACE.md).
+**Status: MVP đang phát triển.** Đã có backend, frontend và kết quả đánh giá trên hội thoại tổng hợp; nghiệm thu toàn luồng giao diện và review nội dung độc lập còn thiếu. Xem [Pipeline Documentation](docs/TRANSCRIPT_TO_SOAP_PIPELINE.md) và [Eval Evidence](eval/results/evidence-2026-10-02.md) để đối chiếu implementation và bằng chứng đã lưu trong repo.
 
 **Contents:** [Problem](#problem) · [Solution](#solution) · [Target User](#target-user) · [Features](#features--current-status) · [Workflow](#workflow) · [Demo](#demo) · [Tech Stack](#tech-stack) · [Quick Start](#quick-start) · [Environment Variables](#environment-variables) · [Sample Inputs](#sample-inputs--expected-outputs) · [Architecture](#architecture--project-structure) · [API Endpoints](#api-endpoints) · [Testing](#testing--evaluation) · [Limitations](#known-limitations--deliverables-checklist) · [Team & License](#team--license)
 
@@ -35,7 +35,7 @@ SOAP gồm **Subjective** (thông tin bệnh nhân kể), **Objective** (quan s�
 
 ## Features & Current Status
 
-“Đã triển khai” mô tả code hiện có; mức kiểm chứng lấy từ [TRACE](SOAP/TRACE.md) và [evaluation report](eval/soap/report.md), không thay cho nghiệm thu sản phẩm.
+“Đã triển khai” mô tả code hiện có; mức kiểm chứng đối chiếu [pipeline docs](docs/TRANSCRIPT_TO_SOAP_PIPELINE.md), [evaluation report](eval/soap/report.md) và [evidence ngày 2026-10-02](eval/results/evidence-2026-10-02.md), không thay cho nghiệm thu sản phẩm.
 
 | Feature | Implementation | Verification / remaining work |
 |---|---|---|
@@ -43,8 +43,9 @@ SOAP gồm **Subjective** (thông tin bệnh nhân kể), **Objective** (quan s�
 | Nhập transcript dạng text, canonical JSON, Qwen JSON | Có parser và UI `/soap`; có Test import ở lượt khám | Có test cấu trúc/adapter; thao tác UI toàn luồng còn chờ xác nhận |
 | CAP Extraction và SOAP Rendering | LangGraph có hai operation độc lập | Báo cáo ngày 2026-09-27 ghi nhận 8/8 ca tổng hợp có output ở mỗi hướng |
 | Evidence view | Liên kết SOAP → CAP → quote, speaker, segment và timestamp khi có | Kiểm tra ID/quote bằng code; nội dung được nguồn hỗ trợ cần người review xác nhận |
-| Revision, review, approve, JSON export | API và workspace chung cho `/soap`, `/encounters/[id]` | Có ca API/store đến final và mở lại; còn lỗi nghiệm thu S02/S04/S06 |
-| Model Settings | Cấu hình riêng STT, roles, CAP và SOAP; model catalog và Ping | Có test transport và bằng chứng provider thật trong TRACE; chưa xác nhận mọi provider/UI |
+| Revision, review, approve, JSON export | API và workspace chung cho `/soap`, `/encounters/[id]` | Có ca API/store đến final và mở lại; nghiệm thu UI và các edge cases lưu/review còn cần hoàn thiện |
+| Model Settings | Cấu hình riêng STT, roles, CAP và SOAP; model catalog và Ping | Có test transport/credential isolation; chưa xác nhận mọi provider/UI |
+| CAP quarantine, semantic validation và coverage checks | CAP chưa đủ điều kiện không đưa vào renderer; phân loại lỗi structural/safety, giới hạn repair | Có regression tests trong bản tích hợp với `main`; không thay thế human review |
 
 ## Workflow
 
@@ -237,7 +238,8 @@ Backend đọc `.env` tại thư mục làm việc qua [src/config.py](src/confi
 | `SOAP_MAX_TURNS` | Tùy chọn | `200` | Số lượt thoại tối đa |
 | `SOAP_MAX_CHARS` | Tùy chọn | `30000` | Số ký tự phần hội thoại tối đa |
 | `SOAP_MAX_INPUT_BYTES` | Tùy chọn | `1000000` | Kích thước đầu vào SOAP tối đa theo validation |
-| `SOAP_LLM_TIMEOUT` | Tùy chọn | `45` | Timeout mỗi lời gọi CAP/SOAP, tính bằng giây |
+| `SOAP_LLM_TIMEOUT` | Tùy chọn | `45` | Timeout SOAP rendering, tính bằng giây |
+| `CAP_EXTRACTION_TIMEOUT` | Tùy chọn | `60` | Timeout riêng cho CAP extraction, tính bằng giây |
 | `SOAP_LLM_MODEL` | Tùy chọn | Để trống | Override model CAP/SOAP mặc định |
 | `SOAP_LLM_TEMPERATURE` | Tùy chọn | `0.0` | Temperature CAP/SOAP |
 | `LOG_LEVEL` | Tùy chọn | `INFO` | Trường cấu hình logging; log level Uvicorn có thể đặt bằng CLI |
@@ -424,13 +426,12 @@ P-006/
 │   ├── app/                          # Routes: login, encounters, soap, settings
 │   ├── components/soap/              # Workspace, review, evidence panels
 │   └── lib/                          # API clients / model preferences
-├── SOAP/                             # Requirements, architecture, tasks, trace
 ├── data/soap_mvp/                    # Runtime artifacts; giữ riêng từng run
 ├── tests/                            # pytest; SOAP dùng fake LLM + temp store
 ├── eval/soap/                        # Synthetic cases, runner, evaluation report
 ├── scripts/                          # Supabase schema / AI usage logging
 ├── alembic/                          # Database migration infrastructure
-├── docs/guide/                       # AI20K Technical Guidebook
+├── docs/                             # Pipeline docs / architecture / guidebook
 ├── presentation/                     # Demo Day material instructions
 ├── .github/workflows/ci.yml          # Backend Ruff + pytest
 ├── JOURNAL.md                        # Weekly development journal
@@ -439,7 +440,7 @@ P-006/
 └── README_boilerplate.md             # Original project README framework
 ```
 
-Đọc sâu theo thứ tự: [Requirements](SOAP/CAP_MVP_FLOW.md) → [SOAP Architecture](SOAP/ARCHITECTURE.md) → [Tasks](SOAP/TASKS.md) → [Trace](SOAP/TRACE.md) → [Evaluation](eval/soap/report.md). `ARCHITECTURE.md` và `docs/architecture_diagram.md` ở root/docs còn nội dung template; dùng tài liệu SOAP và sơ đồ trên cho phạm vi MVP hiện tại.
+Đọc sâu theo thứ tự: [Architecture Diagram](docs/architecture-diagram.md) → [Transcript-to-SOAP Pipeline](docs/TRANSCRIPT_TO_SOAP_PIPELINE.md) → [SOAP Graph](src/agents/soap_graph.py) → [Evaluation Report](eval/soap/report.md) → [Latest Published Evidence](eval/results/evidence-2026-10-02.md). `ARCHITECTURE.md` và `docs/architecture_diagram.md` còn nội dung template; file mới của nhóm là `docs/architecture-diagram.md` (dùng dấu gạch ngang). API table trong README và OpenAPI từ app là nguồn đối chiếu endpoint thực tế.
 
 ## API Endpoints
 
@@ -452,6 +453,7 @@ Base URL local: `http://127.0.0.1:8000`. Swagger/OpenAPI ở `/docs`, `/openapi.
 | POST | `/api/v1/chat` | Chat với agent mẫu |
 | POST | `/api/v1/patients` | Tạo patient trong database |
 | POST | `/api/v1/consultations` | Tạo consultation; cần patient và doctor hợp lệ |
+| GET | `/api/v1/consultations?doctor_id=...` | Danh sách lượt khám theo doctor; dùng để tải lại dashboard |
 | POST | `/api/v1/consultations/{id}/audio` | Multipart `audio_file`, tùy chọn `model_preferences`; gọi STT/roles |
 | GET | `/api/v1/consultations/{id}/transcript` | Đọc transcript đã lưu |
 | PATCH | `/api/v1/transcript-segments/{id}` | Sửa content của segment |
@@ -468,7 +470,7 @@ Base URL local: `http://127.0.0.1:8000`. Swagger/OpenAPI ở `/docs`, `/openapi.
 
 SOAP APIs chỉ mount khi `SOAP_ENABLED=true` và `APP_ENV=development/test`; model-settings APIs cũng chỉ mount trong development/test. Model Settings request có `step` (`stt`, `roles`, `caps`, `soap`) và `preference` gồm provider/model/baseUrl, tùy chọn apiKey. CAP/SOAP nhận override qua `model_config_override`.
 
-Pydantic validation lỗi trả 422; revision stale hoặc chưa đủ điều kiện approve trả 409. Các lỗi provider/store cần đối chiếu response và TRACE; chuẩn hóa lỗi trước graph vẫn là một phần nghiệm thu đang mở. Request/response đầy đủ xem [SOAP schemas](src/schemas/soap.py), [model settings schemas](src/schemas/model_settings.py) và Swagger của backend đang chạy.
+Pydantic validation lỗi trả 422; revision stale hoặc chưa đủ điều kiện approve trả 409. Các lỗi provider/store cần đối chiếu response và log đã bỏ thông tin nhạy cảm; kiểm tra các nhánh lỗi riêng trước khi nghiệm thu. Request/response đầy đủ xem [SOAP schemas](src/schemas/soap.py), [model settings schemas](src/schemas/model_settings.py) và Swagger của backend đang chạy.
 
 ## Testing & Evaluation
 
@@ -492,7 +494,7 @@ npx tsc --noEmit --incremental false
 npm run build
 ```
 
-Theo TRACE, đã có các lượt test backend và build frontend thành công ở phạm vi được ghi nhận; full Ruff/ESLint vẫn còn lỗi ngoài phạm vi SOAP ở các lượt trước. Chạy các lệnh trên để lấy kết quả cho checkout hiện tại, không coi số test hoặc trạng thái CI cũ là bằng chứng mới.
+Sau khi tích hợp cập nhật `main` ngày **2026-10-03**, backend suite ghi nhận **256 passed, 7 skipped**; các test cần fixture local không có được skip theo điều kiện trong test. Ruff toàn `src/ tests/` được kiểm tra lại trước bàn giao. Chạy các lệnh trên để lấy kết quả cho checkout của bạn; kết quả backend không đồng nghĩa frontend build/lint hoặc UI acceptance đã đạt.
 
 Kiểm tra README ngày **2026-10-03**: local links/anchors, cú pháp Bash, JSON schemas và bảng API khớp route decorators đều đạt; evaluator xác thực 8 ca tổng hợp. Sample transcript trong README đi qua extract → generate → read → export bằng **fake LLM**, SQLite in-memory và store tạm; draft pending bị từ chối approve với HTTP 409. Kiểm tra app trong process xác nhận health 200 và 6 SOAP paths trong OpenAPI; chưa chạy browser hoặc provider thật trong lượt viết tài liệu này.
 
@@ -507,6 +509,8 @@ python eval/soap/run_eval.py --run-model --limit 1
 Đây là lượt gọi thật, có thể tính phí. Mỗi ca thường có 3 lời gọi chính: baseline trực tiếp, extract CAP và render SOAP; có thể thêm một lượt sửa JSON cho mỗi bước CAP/SOAP. Chỉ mở rộng `--limit 8` sau khi kiểm tra output ca đầu. Runner lưu kết quả trong thư mục UUID mới ở `data/soap_mvp/eval/`.
 
 ### Recorded evaluation
+
+Nhóm đã bổ sung [5 ca có output model thật ngày 2026-10-02](eval/results/evidence-2026-10-02.md) bằng OpenAI `gpt-4o-mini-2024-07-18`: ca đủ SOAP, thiếu khám/nhận định, phủ định triệu chứng, nhận định chưa chắc chắn và đính chính thuốc. Cả baseline và CAP pipeline có output ở 5/5 ca; các file review vẫn `pending_human_review`. Bản artifacts được đưa vào `eval/results/`, đọc được sau khi clone repo; chưa phải kết quả được bác sĩ xác nhận.
 
 Kết quả dưới đây trích từ [evaluation report](eval/soap/report.md), lượt chạy **2026-09-27**, qua 9router với alias `gemini-3.8-flash`; không phải lượt chạy mới khi viết README.
 
@@ -534,14 +538,14 @@ Chỉ ghi prompt tổng hợp an toàn; không đưa dữ liệu bệnh nhân ho
 ### Known limitations
 
 - **Clinical validation:** chưa có review độc lập trên hội thoại thật; không tuyên bố đã giảm hallucination hoặc tiết kiệm thời gian bằng số liệu lâm sàng.
-- **Acceptance issues:** TRACE còn mở S02 (đọc run có attempt ghi dở), S04 (trạng thái superseded), S06 (chuyển section phải review lại và chuẩn hóa lỗi khởi tạo model). Đây là lỗi ghi nhận cần sửa/kiểm tra lại, không phải feature đã nghiệm thu.
+- **Acceptance issues:** audit local trước đây ghi nhận lỗi đọc run khi attempt ghi dở, suy trạng thái superseded, chuyển section phải review lại và chuẩn hóa lỗi khởi tạo model. `main` đã bổ sung nhiều kiểm tra grounding/semantic; cần tái nghiệm thu từng tình huống trên bản tích hợp, không suy rằng tất cả lỗi cũ đã hết chỉ từ số test đạt.
 - **UI verification:** chưa có bằng chứng thao tác trọn luồng từ nhập → sửa → duyệt → mở lại trên browser cho mọi màn.
 - **Audio quality:** Whisper suy vai từ text; có thể từ chối segment chứa nhiều vai/thiếu ngữ cảnh. Confidence phân vai không phải độ tin cậy SOAP.
 - **Storage & concurrency:** JSON store demo dùng một worker; liên kết SOAP final vào database consultation/EHR chưa được triển khai trong MVP này.
 - **Security & deployment:** backend demo chưa có xác thực API tương ứng với frontend login. Docker Compose hiện chỉ cấu hình backend, không phải full stack frontend/database/provider; chưa dùng để công khai demo hồ sơ.
 - **Scope:** ICD lookup có code riêng nhưng không thuộc nghiệm thu CAP/SOAP; Event Consolidation, FHIR/EHR integration, tự chẩn đoán/kê đơn và RAG nằm ngoài phạm vi hiện tại.
 
-Ưu tiên tiếp theo: sửa và tái nghiệm thu S02/S04/S06 → xác nhận UI toàn luồng → review nội dung độc lập → hoàn thiện demo artifacts. Không đánh dấu task triển khai DONE chỉ vì README đã đầy đủ.
+Ưu tiên tiếp theo: tái nghiệm thu các edge cases lưu/grounding/review → xác nhận UI toàn luồng → review nội dung độc lập → hoàn thiện demo artifacts. Không đánh dấu task triển khai DONE chỉ vì README đã đầy đủ.
 
 ### Deliverables Checklist
 
@@ -549,7 +553,7 @@ Checklist này phản ánh bằng chứng trong checkout/tài liệu hiện hàn
 
 - [x] **Source Code:** backend, frontend và tests có trong repo P-006.
 - [x] **README.md:** mô tả sản phẩm, setup, environment variables, samples và giới hạn.
-- [x] **Architecture Diagram:** sơ đồ MVP trong README và [SOAP/ARCHITECTURE.md](SOAP/ARCHITECTURE.md).
+- [x] **Architecture Diagram:** sơ đồ MVP trong README và [docs/architecture-diagram.md](docs/architecture-diagram.md).
 - [ ] **AI Logs:** hooks/scripts có sẵn; cần xác nhận log bắt buộc đã được grading server nhận.
 - [ ] **Live URL / Deploy:** chưa có URL deployment được xác nhận trong tài liệu hiện hành.
 - [ ] **Video Demo & Screenshots:** cần ghi nhận ca tổng hợp hoàn tất toàn luồng; hướng dẫn ở [presentation/README.md](presentation/README.md).
@@ -573,6 +577,6 @@ Repository: **P-006**, AI20K Build Phase Cohort 4.
 
 ### Contributing & License
 
-Dự án phát triển trên AI20K Agent Template; giữ [README_boilerplate.md](README_boilerplate.md) làm khung tham khảo. Đọc [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md) và [SECURITY.md](SECURITY.md) trước khi đóng góp hoặc báo vấn đề bảo mật.
+Dự án phát triển trên AI20K Agent Template; giữ [README_boilerplate.md](README_boilerplate.md) làm khung tham khảo. Đọc [CONTRIBUTING.md](CONTRIBUTING.md) và [SECURITY.md](SECURITY.md) trước khi đóng góp hoặc báo vấn đề bảo mật; tuân thủ hướng dẫn `AGENTS.md` nếu checkout local có file này.
 
 **License:** [MIT](LICENSE). Copyright gốc của template: AI20K Build Phase, 2026.
