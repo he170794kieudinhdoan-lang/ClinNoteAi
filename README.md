@@ -570,10 +570,10 @@ Repository: **P-006**, AI20K Build Phase Cohort 4.
 
 | Member | Role | Student ID |
 |---|---|---|
-| Đoàn Quang Thắng | Chưa xác nhận | Chưa xác nhận |
-| Kiều Đình Đoàn | Chưa xác nhận | Chưa xác nhận |
-| Nguyễn Hà Khuê | Chưa xác nhận | Chưa xác nhận |
-| Nguyễn Hoàng Anh | Chưa xác nhận | Chưa xác nhận |
+| Đoàn Quang Thắng | Research & Product (PRD, MVP SOAP) | 2A202602395 |
+| Kiều Đình Đoàn | Tech Lead / Frontend (wireframe, UI/UX, auth) | 2A202602936 |
+| Nguyễn Hà Khuê | Backend & Architecture (system design, DB schema, LLM providers) | 2A202602938 |
+| Nguyễn Hoàng Anh | AI/ML & QA (voice pipeline, prompt CAP/SOAP, voice test, demo) | 2A202602811 |
 
 ### Contributing & License
 
