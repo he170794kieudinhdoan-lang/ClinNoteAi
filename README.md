@@ -568,12 +568,14 @@ Checklist này phản ánh bằng chứng trong checkout/tài liệu hiện hàn
 
 Repository: **P-006**, AI20K Build Phase Cohort 4.
 
-| Member | Role | Student ID |
-|---|---|---|
-| Đoàn Quang Thắng | Chưa xác nhận | Chưa xác nhận |
-| Kiều Đình Đoàn | Chưa xác nhận | Chưa xác nhận |
-| Nguyễn Hà Khuê | Chưa xác nhận | Chưa xác nhận |
-| Nguyễn Hoàng Anh | Chưa xác nhận | Chưa xác nhận |
+Vai trò dưới đây tổng hợp theo công việc đã ghi trong [WORKLOG.md](WORKLOG.md) đến ngày 03/10/2026. Các thành viên phối hợp triển khai và review; bảng thể hiện mảng phụ trách chính.
+
+| Member | Role | Responsibilities | Student ID |
+|---|---|---|---|
+| Đoàn Quang Thắng | Điều phối, nghiên cứu giải pháp & phát triển MVP SOAP | Tổng hợp brief/PRD, chia việc; nghiên cứu hướng sinh SOAP; triển khai và kiểm thử MVP SOAP, hỗ trợ nhiều LLM provider; hoàn thiện README. | 2A202602395 |
+| Kiều Đình Đoàn | Frontend & UI/UX — giao diện và trải nghiệm người dùng | Thiết kế wireframe/screen flow; dựng giao diện Next.js, đăng ký/đăng nhập và các màn hình workflow; cải thiện UI/UX; tổng hợp worklog. | 2A202602936 |
+| Nguyễn Hà Khuê | Backend, dữ liệu & kiểm thử | Thiết kế hệ thống, schema database và models; tích hợp LLM provider, sửa lỗi lưu bệnh nhân và sinh SOAP; xây dựng architecture diagram, metrics và test case. | 2A202602938 |
+| Nguyễn Hoàng Anh | AI pipeline & tích hợp luồng demo | Tích hợp audio → transcript → phân vai → lưu/hiển thị; tinh chỉnh prompt CAP/SOAP và validation; xử lý lỗi CAP → SOAP; tạo voice test và quay video demo MVP. | 2A202602811 |
 
 ### Contributing & License
 
