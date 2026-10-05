@@ -568,12 +568,14 @@ Checklist này phản ánh bằng chứng trong checkout/tài liệu hiện hàn
 
 Repository: **P-006**, AI20K Build Phase Cohort 4.
 
-| Member | Role | Student ID |
-|---|---|---|
-| Đoàn Quang Thắng | Research & Product (PRD, MVP SOAP) | 2A202602395 |
-| Kiều Đình Đoàn | Tech Lead / Frontend (wireframe, UI/UX, auth) | 2A202602936 |
-| Nguyễn Hà Khuê | Backend & Architecture (system design, DB schema, LLM providers) | 2A202602938 |
-| Nguyễn Hoàng Anh | AI/ML & QA (voice pipeline, prompt CAP/SOAP, voice test, demo) | 2A202602811 |
+Vai trò kế thừa bảng Team trên main; trách nhiệm dưới đây tổng hợp theo công việc đã ghi trong [WORKLOG.md](WORKLOG.md) đến ngày 03/10/2026. Các thành viên phối hợp triển khai và review; bảng thể hiện mảng phụ trách chính.
+
+| Member | Role | Responsibilities | Student ID |
+|---|---|---|---|
+| Đoàn Quang Thắng | Research & Product (nghiên cứu, PRD, MVP SOAP) | Tổng hợp brief/PRD, chia việc; nghiên cứu hướng sinh SOAP; triển khai và kiểm thử MVP SOAP, hỗ trợ nhiều LLM provider; hoàn thiện README. | 2A202602395 |
+| Kiều Đình Đoàn | Tech Lead / Frontend (phụ trách kỹ thuật, giao diện và trải nghiệm người dùng) | Thiết kế wireframe/screen flow; dựng giao diện Next.js, đăng ký/đăng nhập và các màn hình workflow; cải thiện UI/UX; tổng hợp worklog. | 2A202602936 |
+| Nguyễn Hà Khuê | Backend & Architecture (backend, kiến trúc và dữ liệu) | Thiết kế hệ thống, schema database và models; tích hợp LLM provider, sửa lỗi lưu bệnh nhân và sinh SOAP; xây dựng architecture diagram, metrics và test case. | 2A202602938 |
+| Nguyễn Hoàng Anh | AI/ML & QA (luồng AI, kiểm thử và demo) | Tích hợp audio → transcript → phân vai → lưu/hiển thị; tinh chỉnh prompt CAP/SOAP và validation; xử lý lỗi CAP → SOAP; tạo voice test và quay video demo MVP. | 2A202602811 |
 
 ### Contributing & License
 
