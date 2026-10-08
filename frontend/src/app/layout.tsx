@@ -23,7 +23,7 @@ const pixel = VT323({
 
 export const metadata: Metadata = {
   title: "ClinNote AI",
-  description: "AI Agent soạn ghi chú lâm sàng SOAP (HITL)",
+  description: "Trợ lý AI hỗ trợ lập bệnh án lâm sàng chuẩn SOAP",
 };
 
 export default function RootLayout({
@@ -32,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi" suppressHydrationWarning>
+    <html lang="vi" className="scroll-smooth" suppressHydrationWarning>
       <body className={`${sans.variable} ${display.variable} ${pixel.variable} min-h-screen antialiased`} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>

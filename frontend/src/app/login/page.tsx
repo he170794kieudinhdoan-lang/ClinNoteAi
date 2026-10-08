@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
+import { ArrowLeft, ShieldCheck } from "lucide-react";
 import { getSupabase } from "@/lib/supabase";
 import { syncAuthUser } from "@/lib/syncUser";
 
@@ -19,6 +21,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [agreeTerms, setAgreeTerms] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState<"form" | "google" | null>(null);
@@ -90,7 +93,7 @@ export default function LoginPage() {
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session || sceneRef.current) return;
       setPhase("leave");
-      window.setTimeout(() => router.replace("/"), 0);
+      window.setTimeout(() => router.replace("/desk"), 0);
     });
     return () => data.subscription.unsubscribe();
   }, [router]);
@@ -124,6 +127,7 @@ export default function LoginPage() {
     setShowPassword(false);
     setShowConfirmPassword(false);
     setShake(0);
+    setAgreeTerms(false);
   }
 
   function validate() {
@@ -139,6 +143,9 @@ export default function LoginPage() {
     }
     if (mode === "register" && confirm !== password) {
       next.confirm = "Mật khẩu xác nhận không khớp.";
+    }
+    if (mode === "register" && !agreeTerms) {
+      next.terms = "Vui lòng đồng ý với Điều khoản dịch vụ & Miễn trừ trách nhiệm trước khi đăng ký.";
     }
     return next;
   }
@@ -205,7 +212,7 @@ export default function LoginPage() {
       }
 
       left = true;
-      router.replace("/");
+      router.replace("/desk");
     } catch (err) {
       sceneRef.current = false;
       setScene(false);
@@ -227,13 +234,17 @@ export default function LoginPage() {
     await finish("form");
   }
 
-  if (phase === "leave") return <main className="h-dvh overflow-hidden bg-canvas" />;
+  if (phase === "leave") return <main className="h-dvh overflow-hidden bg-gradient-to-br from-emerald-50/60 via-slate-50 to-teal-50/50" />;
 
   return (
-    <main className="relative flex h-dvh items-center justify-center overflow-hidden bg-canvas p-3 sm:p-6">
+    <main className="relative flex h-dvh items-center justify-center overflow-hidden bg-gradient-to-br from-emerald-50/70 via-neutral-50 to-teal-50/50 p-3 sm:p-6 selection:bg-emerald-100 selection:text-emerald-900">
+      {/* Soft Clinical Ambient Glows */}
+      <div className="pointer-events-none absolute -top-40 -left-40 h-[480px] w-[480px] rounded-full bg-emerald-200/40 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 -right-40 h-[480px] w-[480px] rounded-full bg-teal-200/30 blur-3xl" />
+
       {cover !== "off" && (
         <div
-          className={`fixed inset-0 z-50 hidden place-items-center bg-canvas transition-opacity duration-500 md:grid ${
+          className={`fixed inset-0 z-50 hidden place-items-center bg-white/95 backdrop-blur-md transition-opacity duration-500 md:grid ${
             cover === "out" ? "pointer-events-none opacity-0" : "opacity-100"
           }`}
           role="status"
@@ -243,15 +254,33 @@ export default function LoginPage() {
           <LoginCover />
         </div>
       )}
-      <section className="wf-rise relative z-10 flex max-h-full min-h-0 w-full max-w-[1040px] flex-col overflow-hidden rounded-md border border-line bg-white">
-        <header className="flex items-center justify-between border-b border-line px-4 py-3 sm:px-6">
-          <img src="/logo.png" alt="ClinNote" className="h-10 w-auto max-w-[220px] object-contain object-left" />
-          <p className="hidden text-[11px] text-muted sm:block">Trợ lý y khoa thông minh</p>
+      <section className="wf-rise relative z-10 flex max-h-full min-h-0 w-full max-w-[1040px] flex-col overflow-hidden rounded-2xl border border-emerald-100 bg-white shadow-2xl shadow-emerald-950/10">
+        <header className="flex items-center justify-between border-b border-emerald-100/80 bg-emerald-50/30 px-4 py-3 sm:px-6">
+          <Link href="/" aria-label="Về trang chủ" className="flex items-center gap-2.5 transition hover:opacity-85">
+            <img src="/logo-mark.png" alt="ClinNote AI" className="h-7 w-7 object-contain" />
+            <div className="flex flex-col">
+              <span className="font-serif text-base font-bold text-neutral-900 leading-none">ClinNote AI</span>
+              <span className="text-[10px] text-emerald-700 font-medium mt-0.5">Clinical Note Assistant</span>
+            </div>
+          </Link>
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline-flex items-center gap-1 text-[11px] font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+              <ShieldCheck className="h-3 w-3 text-emerald-700" />
+              Bảo mật y tế
+            </span>
+            <Link
+              href="/"
+              className="inline-flex items-center gap-1 text-xs font-medium text-neutral-600 hover:text-emerald-700 transition"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              <span>Trang chủ</span>
+            </Link>
+          </div>
         </header>
 
         {/* 2-Column Body */}
         <div className="grid min-h-0 flex-1 md:grid-cols-[320px_1fr]">
-          <aside className="relative hidden h-[32rem] border-r border-line md:block">
+          <aside className="relative hidden h-[32rem] border-r border-emerald-100 md:block bg-neutral-900">
             <video
               ref={mainVideo}
               src="/login.mp4"
@@ -276,17 +305,20 @@ export default function LoginPage() {
               aria-hidden="true"
               suppressHydrationWarning
             />
+            <div className="pointer-events-none absolute bottom-3 inset-x-3 rounded-lg bg-neutral-950/70 backdrop-blur-xs p-2 text-center text-white text-[11px] border border-white/10">
+              <span className="font-medium text-emerald-300">ClinNote AI</span> · Soạn thảo SOAP từ hội thoại
+            </div>
           </aside>
 
-          <section className="no-y-scroll flex min-h-0 flex-col justify-start overflow-y-auto bg-transparent px-5 pt-1 pb-5 sm:px-8 sm:pt-2 sm:pb-6">
+          <section className="no-y-scroll flex min-h-0 flex-col justify-start overflow-y-auto bg-transparent px-5 pt-2 pb-5 sm:px-8 sm:pt-3 sm:pb-6">
             {/* Top switcher & Title */}
-            <div className="mb-4 flex flex-nowrap items-start justify-between gap-3 border-b border-line pb-3">
+            <div className="mb-4 flex flex-nowrap items-start justify-between gap-3 border-b border-neutral-100 pb-3">
               <div className="relative min-h-[4.75rem] min-w-0 flex-1">
                 {(
                   [
-                    ["login", "Đăng nhập tài khoản", "Chào mừng trở lại. Nhập thông tin phiên làm việc."],
-                    ["register", "Tạo tài khoản bác sĩ", "Bắt đầu dùng trợ lý lâm sàng cho phòng khám."],
-                    ["forgot", "Khôi phục mật khẩu", "Nhập email đã đăng ký để nhận liên kết khôi phục."],
+                    ["login", "Đăng nhập tài khoản", "Chào mừng trở lại. Nhập thông tin để mở phiên làm việc."],
+                    ["register", "Tạo tài khoản bác sĩ", "Bắt đầu sử dụng trợ lý ghi chép lâm sàng cho phòng khám."],
+                    ["forgot", "Khôi phục mật khẩu", "Nhập email đã đăng ký để nhận liên kết khôi phục mật khẩu."],
                   ] as const
                 ).map(([id, title, body]) => (
                   <div
@@ -296,13 +328,13 @@ export default function LoginPage() {
                       mode === id ? "opacity-100" : "pointer-events-none absolute inset-x-0 top-0 opacity-0"
                     }`}
                   >
-                    <h1 className="text-xl font-extrabold tracking-tight text-ink">{title}</h1>
-                    <p className="mt-1 text-sm text-muted">{body}</p>
+                    <h1 className="text-xl font-serif font-bold tracking-tight text-neutral-900">{title}</h1>
+                    <p className="mt-1 text-xs text-neutral-600">{body}</p>
                   </div>
                 ))}
               </div>
 
-              <div className="inline-flex h-8 shrink-0 overflow-hidden rounded-sm border border-line bg-white text-xs">
+              <div className="inline-flex h-8 shrink-0 overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50/50 p-0.5 text-xs">
                 {(
                   [
                     ["login", "Đăng nhập"],
@@ -313,7 +345,11 @@ export default function LoginPage() {
                     key={id}
                     type="button"
                     onClick={() => switchMode(id)}
-                    className={`px-3 font-semibold whitespace-nowrap ${mode === id ? "bg-ink text-white" : "text-muted hover:bg-subtle"}`}
+                    className={`rounded-md px-3 font-semibold transition whitespace-nowrap cursor-pointer ${
+                      mode === id
+                        ? "bg-emerald-700 text-white shadow-2xs"
+                        : "text-neutral-600 hover:text-emerald-800 hover:bg-emerald-100/50"
+                    }`}
                   >
                     {label}
                   </button>
@@ -330,23 +366,27 @@ export default function LoginPage() {
             >
               {sentTo ? (
                 /* Success View for Forgot Password */
-                <div className="wf-rise rounded-md border border-dashed border-line bg-subtle p-7 text-center">
-                  <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full border border-line bg-white text-ink">
+                <div className="wf-rise rounded-xl border border-dashed border-emerald-200 bg-emerald-50/40 p-7 text-center">
+                  <div className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full border border-emerald-200 bg-white text-emerald-700 shadow-2xs">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                       <rect width="20" height="16" x="2" y="4" rx="2"/>
                       <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
                     </svg>
                   </div>
-                  <h3 className="text-base font-bold text-ink">Đã gửi thư khôi phục</h3>
-                  <p className="mt-1 text-sm text-muted">
+                  <h3 className="text-base font-bold text-neutral-900">Đã gửi thư khôi phục</h3>
+                  <p className="mt-1 text-sm text-neutral-600">
                     Hướng dẫn đặt lại mật khẩu đã được gửi đến:
                   </p>
-                  <p className="mt-1 text-sm font-semibold text-ink">{sentTo}</p>
-                  <p className="mt-2 text-xs text-faint">
+                  <p className="mt-1 text-sm font-semibold text-emerald-800">{sentTo}</p>
+                  <p className="mt-2 text-xs text-neutral-500">
                     Kiểm tra hộp thư đến hoặc mục thư rác.
                   </p>
                   <div className="mt-5 flex justify-center">
-                    <button type="button" onClick={() => switchMode("login")} className="h-9 rounded-md bg-ink px-4 text-sm font-semibold text-white">
+                    <button
+                      type="button"
+                      onClick={() => switchMode("login")}
+                      className="h-10 rounded-xl bg-emerald-700 px-5 text-sm font-semibold text-white hover:bg-emerald-800 shadow-xs transition cursor-pointer"
+                    >
                       Quay lại đăng nhập
                     </button>
                   </div>
@@ -412,7 +452,7 @@ export default function LoginPage() {
                             <button
                               type="button"
                               onClick={() => switchMode("forgot")}
-                              className="text-xs font-medium text-muted hover:text-ink hover:underline"
+                              className="text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
                             >
                               Quên mật khẩu?
                             </button>
@@ -423,14 +463,14 @@ export default function LoginPage() {
                             type="button"
                             aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                             onClick={() => setShowPassword((v) => !v)}
-                            className="text-faint hover:text-ink focus:outline-none"
+                            className="text-neutral-400 hover:text-neutral-700 focus:outline-none cursor-pointer"
                           >
                             {showPassword ? (
                               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
                                 <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
                                 <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
-                                <line x1="2" x2="22" y1="2" y2="22"/>
+                                <line x1="2" y1="2" x2="22" y2="22"/>
                               </svg>
                             ) : (
                               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -464,14 +504,14 @@ export default function LoginPage() {
                           type="button"
                           aria-label={showConfirmPassword ? "Ẩn xác nhận mật khẩu" : "Hiện xác nhận mật khẩu"}
                           onClick={() => setShowConfirmPassword((v) => !v)}
-                          className="text-faint hover:text-ink focus:outline-none"
+                          className="text-neutral-400 hover:text-neutral-700 focus:outline-none cursor-pointer"
                         >
                           {showConfirmPassword ? (
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/>
                               <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/>
                               <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/>
-                              <line x1="2" x2="22" y1="2" y2="22"/>
+                              <line x1="2" y1="2" x2="22" y2="22"/>
                             </svg>
                           ) : (
                             <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -486,26 +526,62 @@ export default function LoginPage() {
 
                   <Reveal show={mode === "login"}>
                     <div className="flex items-center justify-between pt-1">
-                      <label className="flex cursor-pointer select-none items-center gap-2.5 text-xs text-muted">
+                      <label className="flex cursor-pointer select-none items-center gap-2.5 text-xs text-neutral-600 hover:text-neutral-900">
                         <input
                           type="checkbox"
                           checked={remember}
                           onChange={(e) => setRemember(e.target.checked)}
-                          className="h-4 w-4 rounded-sm border-line accent-ink"
+                          className="h-4 w-4 rounded-sm border-neutral-300 text-emerald-700 accent-emerald-700 focus:ring-emerald-600 cursor-pointer"
                         />
                         <span>Ghi nhớ phiên đăng nhập trên thiết bị này</span>
                       </label>
                     </div>
                   </Reveal>
 
-                  {notice && <p className="mb-3 text-sm text-muted">{notice}</p>}
-                  {errors.form && <p className="mb-3 text-sm text-danger">{errors.form}</p>}
+                  <Reveal show={mode === "register"}>
+                    <div className="pt-1">
+                      <label className="flex cursor-pointer select-none items-start gap-2.5 text-xs text-neutral-600 hover:text-neutral-900">
+                        <input
+                          type="checkbox"
+                          checked={agreeTerms}
+                          onChange={(e) => {
+                            setAgreeTerms(e.target.checked);
+                            if (e.target.checked) {
+                              setErrors((prev) => {
+                                const next = { ...prev };
+                                delete next.terms;
+                                return next;
+                              });
+                            }
+                          }}
+                          className="mt-0.5 h-4 w-4 rounded-sm border-neutral-300 text-emerald-700 accent-emerald-700 focus:ring-emerald-600 cursor-pointer"
+                        />
+                        <span className="leading-relaxed">
+                          Tôi đã đọc và đồng ý với{" "}
+                          <Link
+                            href="/terms"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="font-semibold text-emerald-700 underline hover:text-emerald-800"
+                          >
+                            Điều khoản dịch vụ & Miễn trừ trách nhiệm y tế
+                          </Link>
+                        </span>
+                      </label>
+                      {errors.terms && (
+                        <p className="mt-1.5 text-xs text-red-600 font-medium">{errors.terms}</p>
+                      )}
+                    </div>
+                  </Reveal>
+
+                  {notice && <p className="mb-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">{notice}</p>}
+                  {errors.form && <p className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5">{errors.form}</p>}
 
                   <div>
                     <button
                       type="submit"
                       disabled={busy !== null}
-                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-ink text-sm font-semibold text-white disabled:opacity-60"
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-emerald-700 text-sm font-semibold text-white shadow-xs transition hover:bg-emerald-800 active:scale-[0.99] disabled:opacity-60 cursor-pointer"
                     >
                       {busy === "form" ? (
                         <>
@@ -527,7 +603,7 @@ export default function LoginPage() {
                       <button
                         type="button"
                         onClick={() => switchMode("login")}
-                        className="mt-2.5 w-full text-center text-xs font-medium text-muted hover:text-ink hover:underline"
+                        className="mt-2.5 w-full text-center text-xs font-medium text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
                       >
                         Quay lại đăng nhập
                       </button>
@@ -538,9 +614,9 @@ export default function LoginPage() {
                     <>
                       <div className="relative my-3 flex items-center justify-center">
                         <div className="absolute inset-0 flex items-center">
-                          <div className="w-full border-t border-line" />
+                          <div className="w-full border-t border-neutral-200" />
                         </div>
-                        <span className="relative bg-white px-3 text-[11px] text-faint">
+                        <span className="relative bg-white px-3 text-[11px] text-neutral-400">
                           hoặc tiếp tục với
                         </span>
                       </div>
@@ -549,7 +625,7 @@ export default function LoginPage() {
                         type="button"
                         disabled={busy !== null}
                         onClick={() => finish("google")}
-                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md border border-line bg-white text-sm font-semibold text-ink hover:bg-subtle disabled:opacity-60"
+                        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-neutral-200 bg-white text-sm font-semibold text-neutral-800 hover:border-emerald-300 hover:bg-emerald-50/40 transition disabled:opacity-60 cursor-pointer shadow-2xs"
                       >
                         {busy === "google" ? (
                           <Spinner />
@@ -617,12 +693,12 @@ function EnhancedField({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="text-xs font-semibold text-ink">{label}</label>
+        <label htmlFor={id} className="text-xs font-semibold text-neutral-800">{label}</label>
         {aside}
       </div>
 
-      <div className="flex h-10 items-center gap-2 rounded-sm border border-line bg-white px-2.5">
-        {icon && <span className="shrink-0 text-faint">{icon}</span>}
+      <div className="flex h-10 items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3 transition focus-within:border-emerald-600 focus-within:ring-2 focus-within:ring-emerald-600/20 shadow-2xs">
+        {icon && <span className="shrink-0 text-neutral-400">{icon}</span>}
         <input
           id={id}
           type={type}
@@ -632,13 +708,13 @@ function EnhancedField({
           placeholder={placeholder}
           aria-invalid={Boolean(error)}
           aria-describedby={error ? `${id}-error` : undefined}
-          className="min-w-0 flex-1 bg-transparent text-sm text-ink outline-none placeholder:text-faint"
+          className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
         />
         {trailing && <span className="shrink-0">{trailing}</span>}
       </div>
 
       {error && (
-        <p id={`${id}-error`} className="text-[11px] text-danger">
+        <p id={`${id}-error`} className="text-[11px] text-red-600">
           {error}
         </p>
       )}
@@ -682,11 +758,11 @@ function LoginCover() {
     <div className="flex flex-col items-center gap-5">
       <img src="/logo-mark.png" alt="" className="h-14 w-14 object-contain" />
       <div className="text-center">
-        <p className="text-sm font-semibold text-ink">ClinNote</p>
-        <p className="mt-1 text-xs text-muted">Đang mở phòng khám</p>
+        <p className="text-sm font-serif font-bold text-emerald-950">ClinNote AI</p>
+        <p className="mt-1 text-xs text-emerald-700">Đang chuẩn bị phiên làm việc lâm sàng...</p>
       </div>
-      <div className="h-1 w-36 overflow-hidden rounded-full bg-line">
-        <span className="wf-cover-sweep block h-full w-1/3 rounded-full bg-ink" />
+      <div className="h-1.5 w-36 overflow-hidden rounded-full bg-emerald-100">
+        <span className="wf-cover-sweep block h-full w-1/3 rounded-full bg-emerald-700" />
       </div>
     </div>
   );

@@ -146,8 +146,8 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
       </div>
 
       <footer className="flex flex-wrap items-center justify-end gap-2.5 border-t border-line px-4 py-3 sm:px-5">
-        <Link href="/" className="inline-flex h-9 items-center rounded-lg border border-line bg-white px-4 text-sm shadow-sm hover:bg-subtle">
-          ← Trang chủ
+        <Link href="/desk" className="inline-flex h-9 items-center rounded-lg border border-line bg-white px-4 text-sm shadow-sm hover:bg-subtle">
+          ← Bàn làm việc
         </Link>
         <button
           type="button"

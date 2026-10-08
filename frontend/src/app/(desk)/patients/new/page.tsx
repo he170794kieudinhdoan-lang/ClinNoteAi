@@ -206,31 +206,40 @@ export default function AddPatientPage() {
     }
   }
 
+  function onCancel() {
+    if (typeof window !== "undefined" && window.history.length > 1) {
+      router.back();
+    } else {
+      router.push("/desk");
+    }
+  }
+
   if (!authed) return null;
 
   return (
     <>
       <div className="absolute inset-0 z-10 bg-black/45 backdrop-blur-[2px]" aria-hidden />
-      <section className="absolute inset-0 z-10 flex items-center justify-center overflow-auto p-6">
+      <section className="absolute inset-0 z-10 flex items-center justify-center overflow-auto p-2.5 sm:p-6">
       <form
         onSubmit={handleSubmit(onSubmit)}
         noValidate
-        className="flex max-h-full w-[min(780px,100%)] flex-col overflow-hidden rounded-2xl border border-line bg-white shadow-panel"
+        className="flex max-h-full w-[min(780px,100%)] flex-col overflow-hidden rounded-xl sm:rounded-2xl border border-line bg-white shadow-panel"
       >
         <input type="hidden" {...register("dob")} />
-        <header className="flex items-center justify-between px-5 py-4">
-          <h1 className="font-serif text-xl font-bold">Thêm bệnh nhân</h1>
-          <Link
-            href="/"
+        <header className="flex items-center justify-between px-4 sm:px-5 py-3 sm:py-4 border-b border-line">
+          <h1 className="font-serif text-lg sm:text-xl font-bold">Thêm bệnh nhân</h1>
+          <button
+            type="button"
+            onClick={onCancel}
             aria-label="Đóng"
-            className="grid h-8 w-8 place-items-center rounded-sm border border-line bg-white text-sm shadow-sm transition-colors hover:bg-subtle"
+            className="grid h-8 w-8 place-items-center rounded-lg border border-line bg-white text-sm shadow-sm transition-colors hover:bg-subtle cursor-pointer"
           >
             ✕
-          </Link>
+          </button>
         </header>
 
         <div className="grid min-h-0 flex-1 overflow-auto md:grid-cols-[1fr_260px] md:items-stretch">
-          <div className="grid grid-cols-1 content-start gap-x-4 gap-y-4 p-5 sm:grid-cols-2 md:border-r md:border-line">
+          <div className="grid grid-cols-1 content-start gap-x-4 gap-y-4 p-4 sm:p-5 sm:grid-cols-2 md:border-r md:border-line">
             <Field
               label="Mã định danh y tế"
               required
@@ -357,8 +366,8 @@ export default function AddPatientPage() {
             {apiError}
           </div>
         )}
-        <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-line px-5 py-3">
-          <div className="flex flex-wrap items-center gap-2">
+        <footer className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-line px-4 sm:px-5 py-3">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs">
             <Step n="1" active>
               Đăng ký
             </Step>
@@ -367,16 +376,20 @@ export default function AddPatientPage() {
             <span className="text-xs text-muted">→</span>
             <Step n="3">Xuất ghi chú</Step>
           </div>
-          <div className="flex gap-2.5">
-            <button type="button" onClick={() => router.push("/")} className="h-9 rounded-sm border border-line bg-white px-4 text-sm shadow-sm transition-colors hover:bg-subtle">
+          <div className="flex w-full sm:w-auto items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="h-9 flex-1 sm:flex-initial rounded-lg border border-line bg-white px-3 sm:px-4 text-xs sm:text-sm font-medium shadow-sm transition-colors hover:bg-subtle cursor-pointer"
+            >
               Hủy
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !canSubmit}
-              className="h-9 rounded-md bg-ink px-4 text-sm font-semibold text-white disabled:opacity-60"
+              className="h-9 flex-1 sm:flex-initial rounded-lg bg-ink px-3 sm:px-4 text-xs sm:text-sm font-semibold text-white shadow-sm transition-colors hover:bg-ink/90 disabled:opacity-60"
             >
-              {isSubmitting ? "Đang tạo..." : "Đăng ký và tiếp tục →"}
+              {isSubmitting ? "Đang tạo..." : "Đăng ký tiếp →"}
             </button>
           </div>
         </footer>

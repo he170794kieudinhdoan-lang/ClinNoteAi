@@ -21,6 +21,7 @@ import TranscriptPanel from "@/components/TranscriptPanel";
 import SoapWorkspace from "@/components/soap/SoapWorkspace";
 import { removeEncounter, saveEncounter, useEncounter } from "@/hooks/useEncounter";
 import { useRequireAuth } from "@/hooks/useRequireAuth";
+import { cn } from "@/lib/cn";
 import { draftFromTranscript, suggestIcd } from "@/lib/draftNote";
 import {
   createConsultation,
@@ -97,6 +98,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const [transcriptBusy, setTranscriptBusy] = useState(false);
   const [cleanOpen, setCleanOpen] = useState(false);
   const [guideOn, setGuideOn] = useState(false);
+  const [mobileTab, setMobileTab] = useState<"soap" | "transcript" | "files">("soap");
   const bindRegen = useCallback((regenerate: (() => Promise<boolean>) | null) => {
     groundedRegen.current = regenerate;
   }, []);
@@ -478,8 +480,8 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       <ClinicShell section="encounter">
         <div className="bg-canvas p-6 text-ink">
           <p>Không có lượt khám này.</p>
-          <Link href="/" className="mt-3 inline-block text-sm text-ink underline">
-            Về trang chủ
+          <Link href="/desk" className="mt-3 inline-block text-sm text-ink underline">
+            Về danh sách khám
           </Link>
         </div>
       </ClinicShell>
@@ -587,14 +589,152 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     regen();
   }
 
+  const transcriptNode = (
+    <TranscriptPanel
+      variant="panel"
+      lines={draft.transcript}
+      locked={locked}
+      onChange={onLines}
+      onRegen={() => void regenTranscript()}
+      onCollapse={() => transcriptPanel.current?.collapse()}
+    />
+  );
+
+  const filesNode = (
+    <aside className="flex h-full min-h-0 flex-col bg-white">
+      <div className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-subtle px-3.5">
+        <span className="text-[13.5px] font-bold">Tài liệu kèm</span>
+        <button
+          type="button"
+          aria-label="Đóng tài liệu"
+          onClick={() => filesPanel.current?.collapse()}
+          className="hidden lg:grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-white"
+        >
+          <PanelRight size={15} />
+        </button>
+      </div>
+      {!locked ? (
+        <AudioRecorder
+          tab={tab}
+          onTab={(next) => { setTab(next); setUploadError(""); }}
+          fileName={draft.audioFileName}
+          audioUrl={audioUrl}
+          lines={draft.transcript}
+          locked={locked}
+          isUploading={isUploading}
+          isProcessingTranscript={jsonBusy}
+          uploadError={uploadError}
+          onFile={takeFile}
+          onTranscriptJson={(file) => void importTranscriptJson(file)}
+          transcriptRunId={draft.soapTestRunId}
+          onOpenTranscriptRun={() => setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current)}
+          onClear={clearFile}
+          onLines={onLines}
+          onRegen={() => void regenTranscript()}
+          showTranscript={false}
+        />
+      ) : (
+        <p className="m-3 rounded-xl border border-line bg-subtle p-3 text-xs text-muted">Phiếu đã duyệt. Ghi chú có nguồn nằm ở cột giữa.</p>
+      )}
+    </aside>
+  );
+
+  const soapNode = (
+    <main className="flex h-full min-h-0 min-w-0 flex-col bg-canvas">
+      <div className="flex min-h-12 shrink-0 flex-wrap items-center justify-between gap-2 border-b border-line bg-white px-3 sm:px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {!transcriptOpen && (
+            <button type="button" onClick={() => transcriptPanel.current?.expand()} className={cn(toolBtn, "hidden lg:inline-flex")}>
+              <PanelLeft size={14} /> Hội thoại
+            </button>
+          )}
+          <h3 className="truncate text-sm sm:text-[15px] font-extrabold">Ghi chú SOAP</h3>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          <button type="button" onClick={() => setCleanOpen(true)} disabled={!soapGenerated} className={toolBtn}>
+            <Eye size={14} /> Bản xem trước
+          </button>
+          {draft.soapTestRunId && (
+            <button type="button" disabled={soapBusy || jsonBusy} onClick={() => { setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current); setShowLegacyFinal(false); }} className={toolBtn}>
+              Bản JSON
+            </button>
+          )}
+          {locked && activeRunId && (
+            <button type="button" onClick={() => setShowLegacyFinal((current) => !current)} className={toolBtn}>
+              {showLegacyFinal ? "SOAP có CAP" : "Phiếu cũ"}
+            </button>
+          )}
+          <button type="button" data-guide="generate" onClick={onGenerateClick} disabled={soapBusy || jsonBusy || regenBusy || isUploading || draft.transcript.length === 0 || (!soapGenerated && !draft.consultationId)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink bg-ink px-2.5 sm:px-3 text-xs sm:text-[12.5px] font-semibold text-white disabled:opacity-45">
+            <RefreshCw size={14} /> {soapBusy || jsonBusy || regenBusy ? "Đang tạo…" : soapGenerated ? "Tạo lại" : "Tạo SOAP"}
+          </button>
+          <button type="button" onClick={() => void copyNote()} disabled={!soapGenerated} className={toolBtn}>
+            <Copy size={14} /> Sao chép
+          </button>
+          <button type="button" onClick={() => void printPdf()} disabled={printing || !soapGenerated} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink bg-ink px-2.5 sm:px-3 text-xs sm:text-[12.5px] font-semibold text-white disabled:opacity-60">
+            <Printer size={14} /> {printing ? "Đang tạo…" : "In PDF"}
+          </button>
+          {!filesOpen && (
+            <button type="button" aria-label="Mở tài liệu" onClick={() => filesPanel.current?.expand()} className={cn(toolBtn, "hidden lg:inline-flex")}>
+              <PanelRight size={14} />
+            </button>
+          )}
+        </div>
+      </div>
+      {soapError && <p role="alert" className="shrink-0 border-b border-line bg-white px-4 py-2 text-xs text-danger">{soapError}</p>}
+      <div id="encounter-soap-workspace" className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
+        <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+          <PatientCard patient={draft.patient} locked={locked} />
+          {activeRunId ? (soapBusy || jsonBusy ? (
+            <div role="status" className="flex min-h-48 items-center justify-center rounded-2xl border border-line bg-white p-6 text-sm shadow-panel">Đang tạo ghi chú SOAP…</div>
+          ) : (
+            <SoapWorkspace key={activeRunId} embedded embeddedRunId={activeRunId} runSource={draft.soapActiveSource} onBindRegen={bindRegen} onPlainSoap={rememberSoap} onIcdSuggestions={receiveRemoteIcdSuggestions} />
+          )) : (
+            <div className="flex min-h-0 flex-col gap-2">
+              <SoapEditor
+                soap={draft.soap}
+                suggestions={draft.icdSuggestions}
+                selectedIcd={draft.selectedIcd}
+                showIcd={draft.transcript.length > 0}
+                locked={locked || !soapGenerated}
+                onSoap={(soap) => setDraft((current) => (current ? { ...current, soap } : current))}
+                onSelect={(selectedIcd) => setDraft((current) => (current ? { ...current, selectedIcd } : current))}
+                onSuggestions={(icdSuggestions) => setDraft((current) => (current ? { ...current, icdSuggestions } : current))}
+                onRegen={() => void regenTranscript()}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+      {activeRunId && draft.transcript.length > 0 && !soapBusy && !jsonBusy && (
+        <IcdSuggestBar
+          suggestions={icdSuggestions}
+          selectedIcd={draft.selectedIcd}
+          locked={locked}
+          onSelect={handleSelectIcd}
+          onSuggestions={(next) => setDraft((current) => current ? { ...current, icdSuggestions: next } : current)}
+        />
+      )}
+      {!activeRunId && (
+        <footer className="flex shrink-0 justify-end gap-2 border-t border-line bg-white px-3 sm:px-4 py-2.5 sm:py-3">
+          <button type="button" onClick={() => leave(null)} className="h-8 sm:h-9 rounded-lg border border-line bg-white px-3 sm:px-4 text-xs sm:text-sm hover:bg-subtle">
+            Hủy lượt khám
+          </button>
+          <button type="button" disabled={!canApprove} onClick={approve} className={`h-8 sm:h-9 rounded-lg px-3 sm:px-4 text-xs sm:text-sm font-semibold ${canApprove ? "bg-ink text-white" : "bg-line text-faint"}`}>
+            {locked ? "Đã duyệt" : "Duyệt"}
+          </button>
+        </footer>
+      )}
+    </main>
+  );
+
   return (
     <ClinicShell section="encounter">
       <div className="flex h-full min-h-0 flex-col overflow-hidden bg-canvas text-ink">
-        <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-line bg-white px-5">
+        <header className="flex min-h-14 shrink-0 flex-wrap items-center justify-between gap-2.5 border-b border-line bg-white px-3.5 sm:px-5 py-2 sm:py-0">
           <div className="min-w-0">
-            <h2 className="truncate text-[15px] font-extrabold tracking-tight">Phiên khám</h2>
-            <p className="mt-0.5 flex flex-wrap items-center gap-2 truncate text-[11.5px] text-muted">
-              <span>{draft.patient.name}</span>
+            <h2 className="truncate text-sm sm:text-[15px] font-extrabold tracking-tight">Phiên khám</h2>
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 truncate text-[11px] sm:text-[11.5px] text-muted">
+              <span className="font-semibold text-ink">{draft.patient.name}</span>
               <span>·</span>
               <span>{draft.patient.code || "—"}</span>
               <span>·</span>
@@ -602,7 +742,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Link href="/patients/new" className="inline-flex h-8 items-center rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle">
+            <Link href="/patients/new" className="inline-flex h-8 items-center rounded-lg border border-line bg-white px-2.5 sm:px-3 text-xs font-semibold hover:bg-subtle">
               Thêm bệnh nhân
             </Link>
             {!activeRunId && (
@@ -621,169 +761,98 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
         </header>
 
         {locked && (!activeRunId || showLegacyFinal) ? (
-          <div className="min-h-0 flex-1 overflow-auto bg-canvas p-4">
+          <div className="min-h-0 flex-1 overflow-auto bg-canvas p-3 sm:p-4">
             <FinalNote encounter={draft}>
               <PatientCard patient={draft.patient} locked />
             </FinalNote>
           </div>
         ) : (
-          <div className="relative min-h-0 flex-1">
-          <PanelGroup direction="horizontal" className="absolute inset-0" autoSaveId="encounter-workspace">
-            <Panel
-              ref={transcriptPanel}
-              id="transcript"
-              defaultSize={28}
-              minSize={18}
-              collapsible
-              collapsedSize={0}
-              onCollapse={() => setTranscriptOpen(false)}
-              onExpand={() => setTranscriptOpen(true)}
-              className="min-w-0 bg-white"
-            >
-              <TranscriptPanel
-                variant="panel"
-                lines={draft.transcript}
-                locked={locked}
-                onChange={onLines}
-                onRegen={() => void regenTranscript()}
-                onCollapse={() => transcriptPanel.current?.collapse()}
-              />
-            </Panel>
-            <PanelResizeHandle className="w-1.5 bg-line transition-colors hover:bg-ink/25" />
-
-            <Panel id="soap" defaultSize={46} minSize={30} className="min-w-0">
-            <main className="flex h-full min-h-0 min-w-0 flex-col bg-canvas">
-              <div className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-line bg-white px-4">
-                <div className="flex min-w-0 items-center gap-2">
-                  {!transcriptOpen && (
-                    <button type="button" onClick={() => transcriptPanel.current?.expand()} className={toolBtn}>
-                      <PanelLeft size={14} /> Hội thoại
-                    </button>
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            {/* Mobile / Tablet Tab Switcher */}
+            <div className="flex shrink-0 items-center border-b border-line bg-white px-2.5 py-1.5 lg:hidden">
+              <div className="flex w-full items-center rounded-xl bg-subtle p-1 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setMobileTab("soap")}
+                  className={cn(
+                    "flex-1 py-1.5 px-2 rounded-lg transition-all text-center",
+                    mobileTab === "soap" ? "bg-white text-ink shadow-xs" : "text-muted hover:text-ink"
                   )}
-                  <h3 className="truncate text-[15px] font-extrabold">Ghi chú SOAP</h3>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button type="button" onClick={() => setCleanOpen(true)} disabled={!soapGenerated} className={toolBtn}>
-                    <Eye size={14} /> Bản xem trước
-                  </button>
-                  {draft.soapTestRunId && (
-                    <button type="button" disabled={soapBusy || jsonBusy} onClick={() => { setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current); setShowLegacyFinal(false); }} className={toolBtn}>
-                      Bản JSON
-                    </button>
+                >
+                  Ghi chú SOAP
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab("transcript")}
+                  className={cn(
+                    "flex-1 py-1.5 px-2 rounded-lg transition-all text-center",
+                    mobileTab === "transcript" ? "bg-white text-ink shadow-xs" : "text-muted hover:text-ink"
                   )}
-                  {locked && activeRunId && (
-                    <button type="button" onClick={() => setShowLegacyFinal((current) => !current)} className={toolBtn}>
-                      {showLegacyFinal ? "SOAP có CAP" : "Phiếu cũ"}
-                    </button>
+                >
+                  Hội thoại ({draft.transcript.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMobileTab("files")}
+                  className={cn(
+                    "flex-1 py-1.5 px-2 rounded-lg transition-all text-center",
+                    mobileTab === "files" ? "bg-white text-ink shadow-xs" : "text-muted hover:text-ink"
                   )}
-                  <button type="button" data-guide="generate" onClick={onGenerateClick} disabled={soapBusy || jsonBusy || regenBusy || isUploading || draft.transcript.length === 0 || (!soapGenerated && !draft.consultationId)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink bg-ink px-3 text-[12.5px] font-semibold text-white disabled:opacity-45">
-                    <RefreshCw size={14} /> {soapBusy || jsonBusy || regenBusy ? "Đang tạo…" : soapGenerated ? "Tạo lại" : "Tạo SOAP"}
-                  </button>
-                  <button type="button" onClick={() => void copyNote()} disabled={!soapGenerated} className={toolBtn}>
-                    <Copy size={14} /> Sao chép
-                  </button>
-                  <button type="button" onClick={() => void printPdf()} disabled={printing || !soapGenerated} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-none border border-ink bg-ink px-3 text-[12.5px] font-semibold text-white disabled:opacity-60">
-                    <Printer size={14} /> {printing ? "Đang tạo…" : "In PDF"}
-                  </button>
-                  {!filesOpen && (
-                    <button type="button" aria-label="Mở tài liệu" onClick={() => filesPanel.current?.expand()} className={toolBtn}>
-                      <PanelRight size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-              {soapError && <p role="alert" className="shrink-0 border-b border-line bg-white px-4 py-2 text-xs text-danger">{soapError}</p>}
-              <div id="encounter-soap-workspace" className="min-h-0 flex-1 overflow-auto p-4">
-                <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-                  <PatientCard patient={draft.patient} locked={locked} />
-                  {activeRunId ? (soapBusy || jsonBusy ? (
-                    <div role="status" className="flex min-h-48 items-center justify-center rounded-2xl border border-line bg-white p-6 text-sm shadow-panel">Đang tạo ghi chú SOAP…</div>
-                  ) : (
-                    <SoapWorkspace key={activeRunId} embedded embeddedRunId={activeRunId} runSource={draft.soapActiveSource} onBindRegen={bindRegen} onPlainSoap={rememberSoap} onIcdSuggestions={receiveRemoteIcdSuggestions} />
-                  )) : (
-                    <div className="flex min-h-0 flex-col gap-2">
-                      <SoapEditor
-                        soap={draft.soap}
-                        suggestions={draft.icdSuggestions}
-                        selectedIcd={draft.selectedIcd}
-                        showIcd={draft.transcript.length > 0}
-                        locked={locked || !soapGenerated}
-                        onSoap={(soap) => setDraft((current) => (current ? { ...current, soap } : current))}
-                        onSelect={(selectedIcd) => setDraft((current) => (current ? { ...current, selectedIcd } : current))}
-                        onSuggestions={(icdSuggestions) => setDraft((current) => (current ? { ...current, icdSuggestions } : current))}
-                        onRegen={() => void regenTranscript()}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-              {activeRunId && draft.transcript.length > 0 && !soapBusy && !jsonBusy && (
-                <IcdSuggestBar
-                  suggestions={icdSuggestions}
-                  selectedIcd={draft.selectedIcd}
-                  locked={locked}
-                  onSelect={handleSelectIcd}
-                  onSuggestions={(next) => setDraft((current) => current ? { ...current, icdSuggestions: next } : current)}
-                />
-              )}
-              {!activeRunId && (
-                <footer className="flex shrink-0 justify-end gap-2 border-t border-line bg-white px-4 py-3">
-                  <button type="button" onClick={() => leave(null)} className="h-9 rounded-lg border border-line bg-white px-4 text-sm hover:bg-subtle">
-                    Hủy lượt khám
-                  </button>
-                  <button type="button" disabled={!canApprove} onClick={approve} className={`h-9 rounded-lg px-4 text-sm font-semibold ${canApprove ? "bg-ink text-white" : "bg-line text-faint"}`}>
-                    {locked ? "Đã duyệt" : "Duyệt"}
-                  </button>
-                </footer>
-              )}
-            </main>
-            </Panel>
-            <PanelResizeHandle className="w-1.5 bg-line transition-colors hover:bg-ink/25" />
-
-            <Panel
-              ref={filesPanel}
-              id="files"
-              defaultSize={26}
-              minSize={16}
-              collapsible
-              collapsedSize={0}
-              onCollapse={() => setFilesOpen(false)}
-              onExpand={() => setFilesOpen(true)}
-              className="min-w-0 bg-white"
-            >
-            <aside className="flex h-full min-h-0 flex-col bg-white">
-              <div className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-subtle px-3.5">
-                <span className="text-[13.5px] font-bold">Tài liệu kèm</span>
-                <button type="button" aria-label="Đóng tài liệu" onClick={() => filesPanel.current?.collapse()} className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-white">
-                  <PanelRight size={15} />
+                >
+                  Ghi âm & Tệp
                 </button>
               </div>
-              {!locked ? (
-                <AudioRecorder
-                  tab={tab}
-                  onTab={(next) => { setTab(next); setUploadError(""); }}
-                  fileName={draft.audioFileName}
-                  audioUrl={audioUrl}
-                  lines={draft.transcript}
-                  locked={locked}
-                  isUploading={isUploading}
-                  isProcessingTranscript={jsonBusy}
-                  uploadError={uploadError}
-                  onFile={takeFile}
-                  onTranscriptJson={(file) => void importTranscriptJson(file)}
-                  transcriptRunId={draft.soapTestRunId}
-                  onOpenTranscriptRun={() => setDraft((current) => current ? { ...current, soapActiveSource: "test" } : current)}
-                  onClear={clearFile}
-                  onLines={onLines}
-                  onRegen={() => void regenTranscript()}
-                  showTranscript={false}
-                />
-              ) : (
-                <p className="m-3 rounded-xl border border-line bg-subtle p-3 text-xs text-muted">Phiếu đã duyệt. Ghi chú có nguồn nằm ở cột giữa.</p>
+            </div>
+
+            {/* Mobile / Tablet Active View */}
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:hidden">
+              {mobileTab === "soap" && soapNode}
+              {mobileTab === "transcript" && (
+                <div className="h-full w-full overflow-hidden bg-white">{transcriptNode}</div>
               )}
-            </aside>
-            </Panel>
-          </PanelGroup>
+              {mobileTab === "files" && (
+                <div className="h-full w-full overflow-hidden bg-white">{filesNode}</div>
+              )}
+            </div>
+
+            {/* Desktop 3-Panel Horizontal Resizable Layout */}
+            <div className="hidden lg:block absolute inset-0">
+              <PanelGroup direction="horizontal" className="h-full w-full" autoSaveId="encounter-workspace">
+                <Panel
+                  ref={transcriptPanel}
+                  id="transcript"
+                  defaultSize={28}
+                  minSize={18}
+                  collapsible
+                  collapsedSize={0}
+                  onCollapse={() => setTranscriptOpen(false)}
+                  onExpand={() => setTranscriptOpen(true)}
+                  className="min-w-0 bg-white"
+                >
+                  {transcriptNode}
+                </Panel>
+                <PanelResizeHandle className="w-1.5 bg-line transition-colors hover:bg-ink/25" />
+
+                <Panel id="soap" defaultSize={46} minSize={30} className="min-w-0">
+                  {soapNode}
+                </Panel>
+                <PanelResizeHandle className="w-1.5 bg-line transition-colors hover:bg-ink/25" />
+
+                <Panel
+                  ref={filesPanel}
+                  id="files"
+                  defaultSize={26}
+                  minSize={16}
+                  collapsible
+                  collapsedSize={0}
+                  onCollapse={() => setFilesOpen(false)}
+                  onExpand={() => setFilesOpen(true)}
+                  className="min-w-0 bg-white"
+                >
+                  {filesNode}
+                </Panel>
+              </PanelGroup>
+            </div>
           </div>
         )}
         {(soapBusy || regenBusy || transcriptBusy) && (
@@ -888,7 +957,7 @@ function CleanSoap({ soap, onClose }: { soap: SoapNote; onClose: () => void }) {
   );
 }
 
-const toolBtn = "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-3 text-[12.5px] font-semibold text-ink transition-colors hover:bg-subtle disabled:opacity-45";
+const toolBtn = "inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 sm:px-3 text-xs sm:text-[12.5px] font-semibold text-ink transition-colors hover:bg-subtle disabled:opacity-45";
 
 const PatientCard = memo(function PatientCard({ patient, locked }: { patient: Encounter["patient"]; locked: boolean }) {
   return (
