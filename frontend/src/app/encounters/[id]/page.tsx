@@ -30,15 +30,25 @@ import {
   uploadConsultationAudio,
 } from "@/lib/api";
 import { getSupabase } from "@/lib/supabase";
-import { extractCaps, generateSoap } from "@/lib/soapApi";
+import { extractCaps, fetchConsultationIcd, generateSoap, patchIcdSuggestion, saveConsultationIcd, suggestIcdRemote } from "@/lib/soapApi";
 import { soapTranscriptFromConsultation } from "@/lib/soapTranscript";
-import type { Encounter, Patient, SoapNote } from "@/types";
+import type { Encounter, IcdSuggestion, Patient, SoapNote } from "@/types";
 import { SOAP_SECTIONS, type SoapInputFormat } from "@/types/soap";
 
 const EMPTY_SOAP = { subjective: "", objective: "", assessment: "", plan: "" };
 
 function isUUID(str: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+}
+
+function mergeSuggestions(base: IcdSuggestion[], incoming: IcdSuggestion[]): IcdSuggestion[] {
+  const byCode = new Map<string, IcdSuggestion>();
+  for (const item of base) byCode.set(item.code, item);
+  for (const item of incoming) {
+    const previous = byCode.get(item.code);
+    byCode.set(item.code, previous ? { ...previous, ...item, id: item.id ?? previous.id } : item);
+  }
+  return Array.from(byCode.values());
 }
 
 function dobLine(patient: Patient) {
@@ -90,6 +100,44 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const bindRegen = useCallback((regenerate: (() => Promise<boolean>) | null) => {
     groundedRegen.current = regenerate;
   }, []);
+
+  /** Merge LLM suggestions (verified against icd.kcb.vn) into the draft. */
+  function receiveRemoteIcdSuggestions(items: IcdSuggestion[]) {
+    setDraft((current) => {
+      if (!current) return current;
+      return { ...current, icdSuggestions: mergeSuggestions(current.icdSuggestions, items) };
+    });
+  }
+
+  function requestRemoteIcdSuggestions(runId: string) {
+    void suggestIcdRemote(runId)
+      .then((response) => {
+        const items: IcdSuggestion[] = response.suggestions.map((entry) => ({
+          code: entry.code,
+          title: entry.title || entry.code,
+          confidence: entry.confidence,
+          rationale: entry.rationale,
+          capIds: entry.cap_ids,
+          verified: entry.verified,
+        }));
+        if (items.length) receiveRemoteIcdSuggestions(items);
+      })
+      .catch(() => undefined); // fallback stays on the regex/mock suggestions
+  }
+
+  function handleSelectIcd(code: string) {
+    const current = draftRef.current;
+    const target = current?.icdSuggestions.find((item) => item.code === code);
+    setDraft((value) => {
+      if (!value || !target) return value ? { ...value, selectedIcd: code } : value;
+      return {
+        ...value,
+        selectedIcd: code,
+        icdSuggestions: mergeSuggestions(value.icdSuggestions, [{ ...target, status: "ACCEPTED" }]),
+      };
+    });
+    if (target?.id) void patchIcdSuggestion(target.id, "ACCEPTED").catch(() => undefined);
+  }
   const rememberSoap = useCallback((soap: SoapNote) => {
     groundedSoap.current = soap;
     setPreviewSoap(soap);
@@ -103,6 +151,34 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   useEffect(() => {
     draftRef.current = draft;
   }, [draft]);
+
+  useEffect(() => {
+    // Suggestions that were saved/accepted previously hydrate the draft on load.
+    const consultationId = encounter?.consultationId;
+    if (!consultationId || !isUUID(consultationId)) return;
+    let alive = true;
+    fetchConsultationIcd(consultationId)
+      .then((response) => {
+        if (!alive) return;
+        const incoming: IcdSuggestion[] = response.items
+          .filter((item) => item.status !== "REJECTED")
+          .map((item) => ({
+            code: item.icd_code,
+            title: item.description,
+            confidence: item.confidence ?? undefined,
+            id: item.id,
+            status: item.status,
+          }));
+        if (!incoming.length) return;
+        setDraft((current) => {
+          if (!current) return current;
+          const icdSuggestions = mergeSuggestions(current.icdSuggestions, incoming);
+          return { ...current, icdSuggestions, selectedIcd: current.selectedIcd ?? icdSuggestions[0]?.code };
+        });
+      })
+      .catch(() => undefined);
+    return () => { alive = false; };
+  }, [encounter?.consultationId]);
 
   useEffect(() => {
     if (localStorage.getItem(FIRST_VISIT_GUIDE_HIDE) === "1") return;
@@ -356,6 +432,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
         saveEncounter(next);
       }
       await generateSoap(runId, 0);
+      requestRemoteIcdSuggestions(runId);
       toast.success("Đã tạo ghi chú SOAP");
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : "Không tạo được ghi chú SOAP.";
@@ -427,6 +504,16 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     setDraft((current) =>
       current ? { ...current, status: "final", approvedAt: new Date().toISOString() } : current,
     );
+    // Persist the selected ICD (HITL) for the consultation record.
+    const consultationId = draftRef.current?.consultationId;
+    const selected = draftRef.current?.icdSuggestions.find((item) => item.code === draftRef.current?.selectedIcd);
+    if (consultationId && isUUID(consultationId) && selected) {
+      void saveConsultationIcd(consultationId, [{
+        icd_code: selected.code,
+        description: selected.title,
+        confidence: selected.confidence ?? null,
+      }]).catch(() => undefined);
+    }
     toast.success("Đã duyệt ghi chú");
   }
 
@@ -612,7 +699,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                   {activeRunId ? (soapBusy || jsonBusy ? (
                     <div role="status" className="flex min-h-48 items-center justify-center rounded-2xl border border-line bg-white p-6 text-sm shadow-panel">Đang tạo ghi chú SOAP…</div>
                   ) : (
-                    <SoapWorkspace key={activeRunId} embedded embeddedRunId={activeRunId} runSource={draft.soapActiveSource} onBindRegen={bindRegen} onPlainSoap={rememberSoap} />
+                    <SoapWorkspace key={activeRunId} embedded embeddedRunId={activeRunId} runSource={draft.soapActiveSource} onBindRegen={bindRegen} onPlainSoap={rememberSoap} onIcdSuggestions={receiveRemoteIcdSuggestions} />
                   )) : (
                     <div className="flex min-h-0 flex-col gap-2">
                       <SoapEditor
@@ -635,7 +722,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                   suggestions={icdSuggestions}
                   selectedIcd={draft.selectedIcd}
                   locked={locked}
-                  onSelect={(selectedIcd) => setDraft((current) => current ? { ...current, selectedIcd, icdSuggestions } : current)}
+                  onSelect={handleSelectIcd}
                   onSuggestions={(next) => setDraft((current) => current ? { ...current, icdSuggestions: next } : current)}
                 />
               )}

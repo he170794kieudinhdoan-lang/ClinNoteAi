@@ -46,6 +46,7 @@ SOAP gồm **Subjective** (thông tin bệnh nhân kể), **Objective** (quan s�
 | Revision, review, approve, JSON export | API và workspace chung cho `/soap`, `/encounters/[id]` | Có ca API/store đến final và mở lại; nghiệm thu UI và các edge cases lưu/review còn cần hoàn thiện |
 | Model Settings | Cấu hình riêng STT, roles, CAP và SOAP; model catalog và Ping | Có test transport/credential isolation; chưa xác nhận mọi provider/UI |
 | CAP quarantine, semantic validation và coverage checks | CAP chưa đủ điều kiện không đưa vào renderer; phân loại lỗi structural/safety, giới hạn repair | Có regression tests trong bản tích hợp với `main`; không thay thế human review |
+| ICD-10 suggestion (LLM + verify) | POST `/api/v1/icd/suggest` từ run đã trích CAP; mỗi mã được verify qua icd.kcb.vn trước khi trả về; lưu/duyệt theo consultation | Có unit test loại mã not-grounded; chưa có nghiệm thu UI toàn luồng |
 
 ## Workflow
 
@@ -467,6 +468,10 @@ Base URL local: `http://127.0.0.1:8000`. Swagger/OpenAPI ở `/docs`, `/openapi.
 | POST | `/api/v1/model-settings/ping` | Gọi provider để kiểm tra kết nối thực; có thể tính phí |
 | GET | `/api/v1/icd/search?q=...` | ICD lookup có sẵn, ngoài nghiệm thu MVP SOAP |
 | GET | `/api/v1/icd/codes/{code}` | Chi tiết mã ICD có sẵn |
+| POST | `/api/v1/icd/suggest` | LLM gợi ý ICD-10 từ CAP của run; verify danh mục trước khi trả (thuộc luồng SOAP demo) |
+| POST | `/api/v1/consultations/{id}/icd-suggestions` | Lưu/upsert suggestions cho consultation (HITL) |
+| GET | `/api/v1/consultations/{id}/icd-suggestions` | Đọc suggestions đã lưu của consultation |
+| PATCH | `/api/v1/icd-suggestions/{suggestion_id}` | Cập nhật status SUGGESTED/ACCEPTED/REJECTED |
 
 SOAP APIs chỉ mount khi `SOAP_ENABLED=true` và `APP_ENV=development/test`; model-settings APIs cũng chỉ mount trong development/test. Model Settings request có `step` (`stt`, `roles`, `caps`, `soap`) và `preference` gồm provider/model/baseUrl, tùy chọn apiKey. CAP/SOAP nhận override qua `model_config_override`.
 
@@ -544,6 +549,7 @@ Chỉ ghi prompt tổng hợp an toàn; không đưa dữ liệu bệnh nhân ho
 - **Storage & concurrency:** JSON store demo dùng một worker; liên kết SOAP final vào database consultation/EHR chưa được triển khai trong MVP này.
 - **Security & deployment:** backend demo chưa có xác thực API tương ứng với frontend login. Docker Compose hiện chỉ cấu hình backend, không phải full stack frontend/database/provider; chưa dùng để công khai demo hồ sơ.
 - **Scope:** ICD lookup có code riêng nhưng không thuộc nghiệm thu CAP/SOAP; Event Consolidation, FHIR/EHR integration, tự chẩn đoán/kê đơn và RAG nằm ngoài phạm vi hiện tại.
+- **ICD suggestion:** gợi ý tự động từ CAP có bỏ lọc bằng chứng (not-grounded/negated/superseded bị loại) và verify icd.kcb.vn; confidence chỉ là chỉ định hiển thị, chưa có review lâm sàng độc lập; mã gợi ý không tự append vào SOAP, mỗi suggestion vẫn cần bác sĩ chủ động chọn (ACCEPTED). `/soap` demo không lưu suggestion xuống DB.
 
 Ưu tiên tiếp theo: tái nghiệm thu các edge cases lưu/grounding/review → xác nhận UI toàn luồng → review nội dung độc lập → hoàn thiện demo artifacts. Không đánh dấu task triển khai DONE chỉ vì README đã đầy đủ.
 

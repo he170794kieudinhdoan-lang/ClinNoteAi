@@ -103,12 +103,14 @@ export default function IcdSuggestBar({
                   }`}
                 >
                   <span className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px] ring-1 ring-line">{item.code}</span>
-                  <span className="max-w-48 truncate">{item.title}</span>
+                  <span className="max-w-40 truncate">{item.title}</span>
+                  {item.verified && <span aria-label="Đã đối chiếu danh mục KCB" title="Đã đối chiếu danh mục KCB" className="text-[10px] font-bold text-[#4c7a3f]">✔</span>}
+                  {item.confidence != null && <span className="text-[10px] text-faint">{item.confidence}%</span>}
                 </button>
               </HoverCard.Trigger>
               <HoverCard.Portal>
                 <HoverCard.Content side="top" sideOffset={8} collisionPadding={12} className="z-50 w-80 rounded-2xl border border-line bg-white p-3 text-ink shadow-panel">
-                  <IcdHover code={item.code} title={item.title} />
+                  <IcdHover code={item.code} title={item.title} rationale={item.rationale} capIds={item.capIds} confidence={item.confidence} />
                 </HoverCard.Content>
               </HoverCard.Portal>
             </HoverCard.Root>
@@ -192,7 +194,13 @@ export default function IcdSuggestBar({
   );
 }
 
-function IcdHover({ code, title }: { code: string; title: string }) {
+function IcdHover({ code, title, rationale, capIds, confidence }: {
+  code: string;
+  title: string;
+  rationale?: string;
+  capIds?: string[];
+  confidence?: number;
+}) {
   const [detail, setDetail] = useState<IcdDetail | null>(() => peekIcd(code) ?? null);
   const [error, setError] = useState("");
 
@@ -217,9 +225,15 @@ function IcdHover({ code, title }: { code: string; title: string }) {
 
   return (
     <div>
-      <p className="font-mono text-[11px] font-bold text-muted">{detail?.icd10_code ?? code}</p>
+      <p className="font-mono text-[11px] font-bold text-muted">{detail?.icd10_code ?? code}{confidence != null && <span className="ml-2 text-[11px]">{confidence}%</span>}</p>
       <p className="mt-1 text-sm font-semibold leading-snug">{detail?.disease_name_vi || title}</p>
       {detail?.description_vi && <p className="mt-1 text-[12px] leading-snug text-muted">{detail.description_vi}</p>}
+      {rationale && (
+        <p className="mt-2 border-l-2 border-[#d8c7ac] pl-2 text-[11px] leading-snug text-muted">
+          {rationale}
+          {capIds && capIds.length > 0 && <span className="ml-1 font-mono">Nguồn: {capIds.join(", ")}</span>}
+        </p>
+      )}
       {detail && (
         <dl className="mt-2 space-y-1 border-t border-line-soft pt-2 text-[11px] leading-snug text-muted">
           <div><dt className="inline font-semibold text-ink">Chương {detail.chapter.code}. </dt><dd className="inline">{detail.chapter.title}</dd></div>

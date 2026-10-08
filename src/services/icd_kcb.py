@@ -15,6 +15,7 @@ CODE_RE = re.compile(r"^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$")
 # ponytail: the chapter index lives in this process. A restart spends another query_all_code credit. Persist the JSON if that cost matters.
 _details: dict[str, dict[str, Any]] = {}
 _index: list[dict[str, str]] | None = None
+_seeded_rows: list[dict[str, str]] | None = None
 _index_lock = asyncio.Lock()
 
 
@@ -58,7 +59,12 @@ def detail_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
 
 def rows_from_payload(payload: dict[str, Any]) -> list[dict[str, str]]:
     data = payload.get("data")
-    items = data if isinstance(data, list) else data.get("items") if isinstance(data, dict) else None
+    if isinstance(data, list):
+        items = data
+    elif isinstance(data, dict):
+        items = data.get("items") or data.get("codes")
+    else:
+        items = None
     if items is None and isinstance(data, dict) and data.get("icd10_code"):
         items = [data]
     rows: list[dict[str, str]] = []
@@ -103,21 +109,39 @@ async def _get(endpoint: str, params: dict[str, str], timeout: float) -> dict[st
     if not settings.parse_api_key.strip():
         raise IcdUnavailableError("Chưa có PARSE_API_KEY trên server.")
     url = f"{settings.parse_icd_base_url.rstrip('/')}/{endpoint}"
-    try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            response = await client.get(url, params=params, headers={"X-API-Key": settings.parse_api_key})
-            response.raise_for_status()
-            payload = response.json()
-    except httpx.HTTPStatusError as exc:
-        body = exc.response.text[:180]
-        raise IcdUpstreamError(f"ICD từ chối ({exc.response.status_code}). {body}") from exc
-    except httpx.HTTPError as exc:
-        raise IcdUpstreamError("Không gọi được danh mục ICD.") from exc
-    if not isinstance(payload, dict):
-        raise IcdUpstreamError("ICD trả về dữ liệu không đọc được.")
-    if payload.get("status") not in {None, "success"}:
-        raise IcdNotFoundError
-    return payload
+    last_error: Exception | None = None
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.get(url, params=params, headers={"X-API-Key": settings.parse_api_key})
+                response.raise_for_status()
+                payload = response.json()
+        except httpx.HTTPStatusError as exc:
+            # Parse returns 422/stale_input for codes missing in the kcb database; that is
+            # "not found", not an upstream outage — downstream search falls back to the index.
+            if exc.response.status_code == 422:
+                try:
+                    body = exc.response.json()
+                except ValueError:
+                    body = {}
+                if str((body.get("error") or {}).get("status") or "") == "stale_input" \
+                   or str((body.get("error") or {}).get("kind") or "") == "input_not_found":
+                    raise IcdNotFoundError from exc
+            last_error = exc
+            if exc.response.status_code < 500 and attempt == 0:
+                break  # non-retryable upstream refusal
+        except httpx.HTTPError as exc:
+            last_error = exc
+        else:
+            if not isinstance(payload, dict):
+                raise IcdUpstreamError("ICD trả về dữ liệu không đọc được.") from None
+            if payload.get("status") in {None, "success"}:
+                return payload
+            raise IcdNotFoundError from None
+        if attempt == 0:
+            await asyncio.sleep(1.5)
+    # Transient upstream failures (Parse cp_transport/5xx) must not echo the raw body.
+    raise IcdUpstreamError("Danh mục ICD tạm không truy cập được. Thử lại sau ít phút.") from last_error
 
 
 async def lookup_code(code: str) -> dict[str, Any]:
@@ -137,7 +161,9 @@ async def _load_index() -> list[dict[str, str]]:
         return _index
     async with _index_lock:
         if _index is None:
-            payload = await _get("query_all_code", {"include_subcategories": "true", "limit_chapters": "22"}, 90)
+            # 3-char categories only: with subcategories the upstream call takes minutes.
+            # Detail (description/hierarchy) is fetched lazily per code via lookup_code.
+            payload = await _get("query_all_code", {"include_subcategories": "false", "limit_chapters": "22"}, 60)
             _index = rows_from_payload(payload)
     return _index
 

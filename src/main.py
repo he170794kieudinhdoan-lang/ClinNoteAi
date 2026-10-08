@@ -61,6 +61,10 @@ if settings.soap_enabled and settings.app_env in {"development", "test"}:
 
     app.include_router(soap_router, prefix="/api/v1/soap")
 
+from src.api.icd_routes import icd_router  # noqa: E402
+
+app.include_router(icd_router, prefix="/api/v1")
+
 
 @app.get("/health")
 async def health():
