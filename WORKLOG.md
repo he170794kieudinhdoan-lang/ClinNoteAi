@@ -279,3 +279,13 @@ Thành viên: Đoàn Quang Thắng, Kiều Đình Đoàn, Nguyễn Hà Khuê, Ng
 **Tổng kết ngày:** Mentor duty 03/10 đã nộp. Còn 1 ngày tới hạn Gate G2: đang hoàn thiện README, architecture diagram, 5 test case và sửa lỗi CAP → SOAP. Các dòng WIP lấy từ kế hoạch stand-up sáng 03/10.
 
 ---
+
+## 2026-10-04
+
+| Member | Task | Status | Output | Time |
+|--------|------|--------|--------|------|
+| Nguyễn Hà Khuê | Làm ICD suggestion: LLM gợi ý mã ICD-10 từ CAP của run + verify icd.kcb.vn, API + persist theo consultation | ✅ Done | service `POST /icd/suggest` + CRUD `/consultations/{id}/icd-suggestions`; tests `tests/test_icd/` 14 passed; frontend wire sau generate + IcdSuggestBar badge verified | - |
+
+**Tổng kết ngày:** Nguyễn Hà Khuê triển khai ICD suggestion (grounding ràng buộc: chỉ mã từ CAP current, rationale phải trỏ cap/turn; mã không verify được bị loại, không tốn credit). Nhóm vẫn còn các mục deliverables checklist mở (video, pitch deck, AI logs, live URL).
+
+---
