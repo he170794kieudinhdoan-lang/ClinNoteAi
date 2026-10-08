@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import TranscriptChat, { chatLinesFromSoap } from "@/components/TranscriptChat";
+import IcdSuggestBar from "@/components/IcdSuggestBar";
 import CapEvidencePanel from "@/components/soap/CapEvidencePanel";
 import SoapReviewPanel from "@/components/soap/SoapReviewPanel";
 import {
@@ -13,6 +14,7 @@ import {
   generateSoap,
   getSoapRun,
   saveSoapRevision,
+  suggestIcdRemote,
   SoapApiError,
 } from "@/lib/soapApi";
 import type {
@@ -29,7 +31,7 @@ import type {
   SoapWarningDecisions,
   SoapWarningValue,
 } from "@/types/soap";
-import type { SoapNote } from "@/types";
+import type { IcdSuggestion, SoapNote } from "@/types";
 import { SOAP_SECTIONS } from "@/types/soap";
 
 type BusyAction = "extract" | "generate" | "save" | "approve" | "export" | "new-draft" | null;
@@ -84,6 +86,21 @@ function normalizeSoap(value: unknown): SoapContent {
 
 function isRevision(value: LatestSoapRevision): value is SoapRevision {
   return value !== null && typeof value === "object";
+}
+
+function remoteSuggestionsToIcd(response: { suggestions: { code: string; rationale: string; cap_ids: string[]; confidence: number; title: string; verified: boolean }[] }): IcdSuggestion[] {
+  return response.suggestions.map((item) => ({
+    code: item.code,
+    title: item.title || item.code,
+    confidence: item.confidence,
+    rationale: item.rationale,
+    capIds: item.cap_ids,
+    verified: item.verified,
+  }));
+}
+
+async function fetchRemoteIcdSuggestions(runId: string, assessmentText: string | null): Promise<IcdSuggestion[]> {
+  return remoteSuggestionsToIcd(await suggestIcdRemote(runId, assessmentText ?? undefined));
 }
 
 function latestRevisionOf(run: SoapRunResponse): SoapRevision | null {
@@ -221,16 +238,19 @@ function statsFromTranscript(transcript: SoapTranscript) {
   return { turns: turns.length, patient, clinician, unresolved: turns.length - patient - clinician, start, end };
 }
 
-export default function SoapWorkspace({ embedded = false, embeddedRunId = null, runSource, onBindRegen, onPlainSoap }: {
+export default function SoapWorkspace({ embedded = false, embeddedRunId = null, runSource, onBindRegen, onPlainSoap, onIcdSuggestions }: {
   embedded?: boolean;
   embeddedRunId?: string | null;
   runSource?: "consultation" | "test";
   onBindRegen?: (regenerate: (() => Promise<boolean>) | null) => void;
   onPlainSoap?: (soap: SoapNote) => void;
+  onIcdSuggestions?: (items: IcdSuggestion[]) => void;
 }) {
   const [inputFormat, setInputFormat] = useState<SoapInputFormat>("qwen_role_result");
   const [inputContent, setInputContent] = useState("");
   const [inputFileName, setInputFileName] = useState("");
+  const [icdSuggestionsState, setIcdSuggestionsState] = useState<IcdSuggestion[]>([]);
+  const [selectedIcdState, setSelectedIcdState] = useState<string | undefined>(undefined);
   const [run, setRun] = useState<SoapRunResponse | null>(null);
   const [soapDraft, setSoapDraft] = useState<SoapContent | null>(null);
   const [selectedRevision, setSelectedRevision] = useState<number | null>(null);
@@ -378,7 +398,21 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
     setNotice("");
     try {
       await generateSoap(run.run_id, currentRevisionNumber);
-      await fetchAndSetRun(run.run_id);
+      const fetched = await fetchAndSetRun(run.run_id);
+      // ICD suggestion is best-effort and never blocks generate; failures keep the
+      // regex/mock fallback on the calling component.
+      void (async () => {
+        try {
+          const latest = latestRevisionOf(fetched);
+          const assessmentText = latest
+            ? normalizeSoap(latest.soap).A.items.map((item) => item.text.trim()).filter(Boolean).join("\n")
+            : "";
+          const items = await fetchRemoteIcdSuggestions(run.run_id, assessmentText);
+          if (!items.length) return;
+          setIcdSuggestionsState(items);
+          onIcdSuggestions?.(items);
+        } catch { /* keep current suggestions */ }
+      })();
       return true;
     } catch (cause) {
       setError(errorMessageFor(cause));
@@ -740,9 +774,17 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
                         ))}
                       </ul>
                     </div>
-                  </aside>
-                  )}
+                   </aside>
+                   )}
                 </div>
+                {!embedded && icdSuggestionsState.length > 0 && (
+                  <IcdSuggestBar
+                    suggestions={icdSuggestionsState}
+                    selectedIcd={selectedIcdState}
+                    onSelect={(selectedIcdState) => setSelectedIcdState(selectedIcdState)}
+                    onSuggestions={() => undefined}
+                  />
+                )}
               </>
             )}
 

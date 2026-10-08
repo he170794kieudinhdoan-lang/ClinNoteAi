@@ -118,3 +118,66 @@ export async function exportSoapRevision(runId: string, revision: number): Promi
   if (!response.ok) throw await readError(response);
   return response.blob();
 }
+
+export interface IcdSuggestRemoteItem {
+  code: string;
+  rationale: string;
+  cap_ids: string[];
+  confidence: number;
+  title: string;
+  description_vi: string;
+  chapter: { code: string; title: string };
+  section: { code: string; title: string };
+  parent_group: { code: string; title: string };
+  verified: boolean;
+}
+
+export interface IcdSuggestRemoteResponse {
+  run_id: string;
+  prompt_version: string;
+  suggestions: IcdSuggestRemoteItem[];
+  unsure: { term: string; reason: string }[];
+}
+
+export interface IcdConsultationItem {
+  id: string;
+  consultation_id: string;
+  icd_code: string;
+  description: string;
+  confidence: number | null;
+  status: "SUGGESTED" | "ACCEPTED" | "REJECTED";
+}
+
+export function suggestIcdRemote(runId: string, assessmentText?: string) {
+  return requestJson<IcdSuggestRemoteResponse>("/api/v1/icd/suggest", {
+    method: "POST",
+    body: JSON.stringify({
+      run_id: runId,
+      assessment_text: assessmentText ?? null,
+      model_config_override: modelPreferenceForRequest("soap"),
+    }),
+  });
+}
+
+export function fetchConsultationIcd(consultationId: string) {
+  return requestJson<{ consultation_id: string; items: IcdConsultationItem[] }>(
+    `/api/v1/consultations/${encodeURIComponent(consultationId)}/icd-suggestions`,
+  );
+}
+
+export function saveConsultationIcd(
+  consultationId: string,
+  items: { icd_code: string; description: string; confidence?: number | null }[],
+) {
+  return requestJson<{ consultation_id: string; items: IcdConsultationItem[] }>(
+    `/api/v1/consultations/${encodeURIComponent(consultationId)}/icd-suggestions`,
+    { method: "POST", body: JSON.stringify({ items }) },
+  );
+}
+
+export function patchIcdSuggestion(suggestionId: string, status: "SUGGESTED" | "ACCEPTED" | "REJECTED") {
+  return requestJson<IcdConsultationItem>(`/api/v1/icd-suggestions/${encodeURIComponent(suggestionId)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}

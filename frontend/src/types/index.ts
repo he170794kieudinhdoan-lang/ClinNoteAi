@@ -44,6 +44,12 @@ export interface IcdSuggestion {
   code: string;
   title: string;
   confidence?: number;
+  rationale?: string;
+  capIds?: string[];
+  verified?: boolean;
+  /** Present only when the suggestion was saved to icd_suggestions in the database. */
+  id?: string;
+  status?: "SUGGESTED" | "ACCEPTED" | "REJECTED";
 }
 
 export interface Encounter {
