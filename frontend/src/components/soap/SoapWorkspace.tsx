@@ -570,7 +570,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {run && <span className="max-w-64 truncate rounded-lg border border-line bg-white px-3 py-2 font-mono text-[10px] text-muted">phiên {run.run_id}</span>}
-            <Link href="/" className="inline-flex h-9 items-center rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle">Trang chủ</Link>
+            <Link href="/desk" className="inline-flex h-9 items-center rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle">Bàn làm việc</Link>
           </div>
         </header>}
 
