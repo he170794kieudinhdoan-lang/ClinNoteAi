@@ -18,16 +18,24 @@ const NAV = [
 
 export default function ClinicShell({
   section,
+  defaultCollapsed = false,
   children,
 }: {
   section: "home" | "patients" | "new" | "encounter" | "settings";
+  defaultCollapsed?: boolean;
   children: ReactNode;
 }) {
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(defaultCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+
+  useEffect(() => {
+    if (defaultCollapsed) {
+      setCollapsed(true);
+    }
+  }, [defaultCollapsed]);
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -123,6 +131,8 @@ export default function ClinicShell({
           <button
             type="button"
             onClick={() => setCollapsed((value) => !value)}
+            title={collapsed ? "Mở rộng thanh điều hướng" : "Thu gọn thanh điều hướng"}
+            aria-label={collapsed ? "Mở rộng thanh điều hướng" : "Thu gọn thanh điều hướng"}
             className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg text-xs font-semibold text-muted hover:bg-subtle hover:text-ink"
           >
             {collapsed ? <ChevronsRight size={16} /> : <><ChevronsLeft size={16} /> Thu gọn</>}

@@ -158,9 +158,9 @@ export default function SoapReviewPanel({
               </header>
 
               {section.items.length === 0 && (
-                <p className="rounded-lg border border-dashed border-line bg-white px-3 py-3 text-xs text-muted">
-                  {section.missing ? "Chưa có thông tin trong hội thoại." : "Chưa có câu trong phần này."}
-                </p>
+                <div className="rounded-lg border border-dashed border-line bg-white/50 p-2.5 text-center text-xs text-muted">
+                  Chưa có nội dung cho mục này
+                </div>
               )}
 
               <ul className="flex flex-col gap-1.5">

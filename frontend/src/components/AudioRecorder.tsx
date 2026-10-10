@@ -295,7 +295,15 @@ function AudioRecorder({
             />
           )}
 
-          {showTranscript && <TranscriptPanel lines={lines} locked={locked} onChange={onLines} onRegen={onRegen} />}
+          {showTranscript && (
+            <TranscriptPanel
+              lines={lines}
+              locked={locked}
+              loading={isUploading || isProcessingTranscript}
+              onChange={onLines}
+              onRegen={onRegen}
+            />
+          )}
           {(uploadError || error) && <p role="alert" className="text-sm text-rose-700">{uploadError || error}</p>}
         </div>
       ) : (

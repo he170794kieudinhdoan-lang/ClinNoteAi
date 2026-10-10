@@ -1,0 +1,934 @@
+/* ==========================================================================
+   ClinNote SaaS Design System & PDF Configurator Studio
+   Theme: Aligned with ClinNote Brand UI (Clean Neutrals, Border-Line, Gray Accents)
+   ========================================================================== */
+
+:root {
+    --brand-primary: #18181b;
+    --brand-accent-green: #15803d;
+    --brand-dark: #0f172a;
+    --brand-border: #e5e5e5;
+    --brand-border-strong: #d4d4d8;
+    --brand-text-main: #0a0a0a;
+    --brand-text-muted: #737373;
+    
+    /* Gray highlight for ticked checkboxes & active items */
+    --gray-ticked: #71717a;
+    --gray-ticked-border: #71717a;
+    --gray-subtle: #f4f4f5;
+
+    /* Dynamic PDF Theme Variables */
+    --pdf-primary: #0284c7;
+    --pdf-secondary: #0369a1;
+    --pdf-accent: #0ea5e9;
+    --pdf-bg: #ffffff;
+    --pdf-text: #18181b;
+    --pdf-muted: #71717a;
+    --pdf-border: #e4e4e7;
+    --pdf-header-bg: #f8fafc;
+    --pdf-accent-light: #f0f9ff;
+
+    --font-paper: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --shadow-subtle: 0 1px 2px rgba(0, 0, 0, 0.05);
+    --shadow-paper: 0 16px 36px -10px rgba(15, 23, 42, 0.16);
+
+    --transition-fast: 0.15s ease;
+}
+
+.pdf-studio-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    background-color: #f9f9f9;
+}
+
+/* STUDIO TWO-COLUMN LAYOUT */
+.pdf-studio-layout {
+    display: grid;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    transition: grid-template-columns 0.2s ease;
+}
+
+@media (max-width: 1024px) {
+    .pdf-studio-layout {
+        grid-template-columns: 1fr !important;
+        overflow-y: auto;
+    }
+}
+
+/* 3-TIER SIDEBAR ARCHITECTURE */
+.pdf-sidebar-config {
+    background: #ffffff;
+    border-right: 1px solid var(--brand-border);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    z-index: 10;
+}
+
+/* Tier 1: Sidebar Header */
+.pdf-sidebar-header {
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid var(--brand-border);
+    background: #ffffff;
+    flex-shrink: 0;
+}
+
+.pdf-preset-selector-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #f8f8f8;
+    padding: 5px 8px;
+    border-radius: 8px;
+    border: 1px solid var(--brand-border);
+}
+
+.pdf-preset-selector-bar label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--brand-text-muted);
+    white-space: nowrap;
+}
+
+.pdf-form-select {
+    width: 100%;
+    padding: 4px 6px;
+    border: 1px solid var(--brand-border);
+    border-radius: 6px;
+    background: #ffffff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--brand-text-main);
+    cursor: pointer;
+    outline: none;
+}
+
+.pdf-form-select:focus {
+    border-color: #0a0a0a;
+}
+
+/* Tier 2: INDEPENDENT VERTICAL SCROLL AREA (Panels 1 -> 7) */
+.pdf-config-scroll-area {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+}
+
+.pdf-config-scroll-area::-webkit-scrollbar {
+    width: 6px;
+}
+
+.pdf-config-scroll-area::-webkit-scrollbar-thumb {
+    background: #d4d4d8;
+    border-radius: 999px;
+}
+
+.pdf-config-scroll-area::-webkit-scrollbar-thumb:hover {
+    background: #a1a1aa;
+}
+
+/* ACCORDION PANELS */
+.pdf-config-panel {
+    border: 1px solid var(--brand-border);
+    border-radius: 8px;
+    background: #ffffff;
+    overflow: visible;
+}
+
+.pdf-panel-header {
+    padding: 0.7rem 0.85rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--brand-text-main);
+    background: #fafafa;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    list-style: none;
+    user-select: none;
+}
+
+.pdf-panel-header::-webkit-details-marker {
+    display: none;
+}
+
+.pdf-panel-header .chevron {
+    margin-left: auto;
+    color: var(--brand-text-muted);
+    transition: transform 0.2s ease;
+}
+
+.pdf-config-panel[open] .pdf-panel-header .chevron {
+    transform: rotate(180deg);
+}
+
+.pdf-panel-content {
+    padding: 0.85rem;
+    border-top: 1px solid var(--brand-border);
+    background: #ffffff;
+}
+
+.pdf-checkbox-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem 0.4rem;
+}
+
+.pdf-checkbox-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+/* GRAY HIGHLIGHT CHECKBOX */
+.pdf-custom-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.775rem;
+    color: var(--brand-text-main);
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+}
+
+.pdf-custom-checkbox input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+.pdf-checkmark {
+    width: 16px;
+    height: 16px;
+    background-color: #ffffff;
+    border: 1.5px solid #d4d4d8;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.pdf-custom-checkbox:hover input ~ .pdf-checkmark {
+    border-color: var(--gray-ticked-border);
+}
+
+/* Tick highlight is now sleek neutral gray */
+.pdf-custom-checkbox input:checked ~ .pdf-checkmark {
+    background-color: var(--gray-ticked);
+    border-color: var(--gray-ticked-border);
+}
+
+.pdf-checkmark::after {
+    content: "";
+    width: 4px;
+    height: 8px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+    display: none;
+    margin-bottom: 2px;
+}
+
+.pdf-custom-checkbox input:checked ~ .pdf-checkmark::after {
+    display: block;
+}
+
+.pdf-primary-toggle {
+    margin-bottom: 0.65rem;
+    padding-bottom: 0.45rem;
+    border-bottom: 1px dashed var(--brand-border);
+}
+
+.pdf-sub-options-group {
+    padding-left: 0.4rem;
+}
+
+.pdf-segmented-control {
+    display: flex;
+    background: #f4f4f5;
+    padding: 2.5px;
+    border-radius: 6px;
+    border: 1px solid var(--brand-border);
+}
+
+.pdf-segmented-control label {
+    flex: 1;
+    text-align: center;
+    cursor: pointer;
+}
+
+.pdf-segmented-control input {
+    display: none;
+}
+
+.pdf-segmented-control span {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    padding: 4px 6px;
+    font-size: 0.725rem;
+    font-weight: 600;
+    color: var(--brand-text-muted);
+    border-radius: 4px;
+    transition: var(--transition-fast);
+}
+
+.pdf-segmented-control input:checked + span {
+    background: #ffffff;
+    color: #18181b;
+    border: 1px solid #d4d4d8;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.pdf-form-group {
+    margin-bottom: 0.75rem;
+}
+
+.pdf-form-label {
+    display: block;
+    font-size: 0.725rem;
+    font-weight: 600;
+    color: var(--brand-text-main);
+    margin-bottom: 0.3rem;
+}
+
+.pdf-form-input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--brand-border);
+    border-radius: 6px;
+    font-size: 0.775rem;
+    outline: none;
+    transition: var(--transition-fast);
+}
+
+.pdf-form-input:focus {
+    border-color: #0a0a0a;
+}
+
+.pdf-divider {
+    height: 1px;
+    background: var(--brand-border);
+    margin: 0.65rem 0;
+}
+
+.pdf-theme-presets-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.45rem;
+}
+
+.pdf-theme-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 6px;
+    border: 1px solid var(--brand-border);
+    border-radius: 6px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: var(--transition-fast);
+}
+
+.pdf-theme-card:hover {
+    border-color: var(--gray-ticked);
+}
+
+/* Active theme highlight is sleek gray */
+.pdf-theme-card.active {
+    border-color: var(--gray-ticked);
+    background: #f4f4f5;
+    box-shadow: 0 0 0 1.5px var(--gray-ticked);
+}
+
+.pdf-theme-swatch {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.pdf-custom-swatch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    background: #f4f4f5;
+}
+
+.pdf-theme-card span {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--brand-text-main);
+}
+
+.pdf-custom-colors-container {
+    margin-top: 0.5rem;
+}
+
+.pdf-color-picker-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-bottom: 0.45rem;
+}
+
+.pdf-color-picker-row input[type="color"] {
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    background: none;
+}
+
+/* Logo Upload */
+.pdf-logo-upload-box {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem;
+    border: 1px dashed var(--brand-border-strong);
+    border-radius: 6px;
+    background: #fafafa;
+}
+
+.pdf-logo-placeholder-box {
+    width: 50px;
+    height: 36px;
+    background: #0284c7;
+    color: #ffffff;
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.65rem;
+    line-height: 1.1;
+}
+
+.pdf-logo-placeholder-box small {
+    font-size: 0.45rem;
+    opacity: 0.9;
+}
+
+.pdf-upload-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+/* Tier 3: Fixed Footer */
+.pdf-sidebar-footer {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    background: #ffffff;
+    border-top: 1px solid var(--brand-border);
+}
+
+/* ==========================================================================
+   RIGHT PREVIEW CANVAS AREA
+   ========================================================================== */
+.pdf-preview-area {
+    background: #e4e4e7;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.pdf-preview-toolbar {
+    height: 44px;
+    flex-shrink: 0;
+    background: #ffffff;
+    border-bottom: 1px solid var(--brand-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    z-index: 10;
+}
+
+.pdf-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.pdf-preview-title {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--brand-text-main);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.pdf-page-counter-badge {
+    background: #f4f4f5;
+    color: #52525b;
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--brand-border);
+}
+
+.pdf-toolbar-center {
+    display: flex;
+    align-items: center;
+}
+
+.pdf-zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: #f4f4f5;
+    padding: 2px 6px;
+    border-radius: 6px;
+    border: 1px solid var(--brand-border);
+}
+
+.pdf-zoom-text {
+    font-size: 0.725rem;
+    font-weight: 600;
+    color: var(--brand-text-main);
+    min-width: 38px;
+    text-align: center;
+}
+
+.pdf-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.pdf-paper-stage {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 2.25rem 1.5rem 6.5rem;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    background: radial-gradient(#a1a1aa 1px, transparent 1px);
+    background-size: 20px 20px;
+    background-color: #d4d4d8;
+}
+
+/* REALISTIC CLINICAL PAPER SHEET (Strictly preserves font family) */
+.pdf-paper-sheet {
+    background: var(--pdf-bg);
+    color: var(--pdf-text);
+    box-shadow: var(--shadow-paper);
+    border-radius: 2px;
+    transition: transform 0.15s ease, width 0.3s ease, min-height 0.3s ease;
+    transform-origin: top center;
+    position: relative;
+    box-sizing: border-box;
+    font-family: var(--font-paper) !important;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+}
+
+.pdf-paper-sheet * {
+    font-family: inherit;
+}
+
+.pdf-paper-sheet.portrait.size-a4 { width: 210mm; min-height: 297mm; }
+.pdf-paper-sheet.landscape.size-a4 { width: 297mm; min-height: 210mm; }
+.pdf-paper-sheet.portrait.size-letter { width: 8.5in; min-height: 11in; }
+.pdf-paper-sheet.landscape.size-letter { width: 11in; min-height: 8.5in; }
+
+.pdf-paper-sheet.margin-normal { padding: 38px 42px 75px; }
+.pdf-paper-sheet.margin-compact { padding: 28px 30px 60px; }
+.pdf-paper-sheet.margin-wide { padding: 52px 58px 90px; }
+
+.pdf-paper-sheet.density-comfortable { --pdf-gap: 1.25rem; --pdf-line-height: 1.65; }
+.pdf-paper-sheet.density-compact { --pdf-gap: 0.75rem; --pdf-line-height: 1.4; }
+
+/* THEMES */
+.pdf-paper-sheet.theme-clinical-blue {
+    --pdf-primary: #0284c7;
+    --pdf-secondary: #0369a1;
+    --pdf-accent: #0ea5e9;
+    --pdf-header-bg: #f8fafc;
+    --pdf-accent-light: #f0f9ff;
+}
+
+.pdf-paper-sheet.theme-medical-teal {
+    --pdf-primary: #0f766e;
+    --pdf-secondary: #14b8a6;
+    --pdf-accent: #06b6d4;
+    --pdf-header-bg: #f0fdfa;
+    --pdf-accent-light: #ccfbf1;
+}
+
+.pdf-paper-sheet.theme-professional-navy {
+    --pdf-primary: #1e293b;
+    --pdf-secondary: #0284c7;
+    --pdf-accent: #38bdf8;
+    --pdf-header-bg: #f8fafc;
+    --pdf-accent-light: #f0f9ff;
+}
+
+.pdf-paper-sheet.theme-minimal-gray {
+    --pdf-primary: #475569;
+    --pdf-secondary: #64748b;
+    --pdf-accent: #334155;
+    --pdf-header-bg: #f8fafc;
+    --pdf-accent-light: #f1f5f9;
+}
+
+/* PDF SHEET HEADER */
+.pdf-sheet-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: var(--pdf-gap);
+    padding-bottom: 0.75rem;
+}
+
+.pdf-sheet-header.logo-pos-left { flex-direction: row; }
+.pdf-sheet-header.logo-pos-center { flex-direction: column; align-items: center; text-align: center; }
+.pdf-sheet-header.logo-pos-right { flex-direction: row-reverse; }
+
+.pdf-branding-block { display: flex; align-items: center; gap: 0.85rem; }
+.pdf-logo-box { display: flex; align-items: center; }
+
+.pdf-logo-default {
+    background: var(--pdf-primary);
+    color: #ffffff;
+    padding: 7px 12px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    line-height: 1;
+}
+
+.pdf-logo-default .logo-symbol {
+    font-weight: 800;
+    font-size: 1.05rem;
+    letter-spacing: 0.5px;
+}
+
+.pdf-logo-default .logo-subtext { font-size: 0.5rem; opacity: 0.9; margin-top: 2px; }
+
+.pdf-hospital-info h2 {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: var(--pdf-primary);
+    margin: 0;
+}
+
+.pdf-doc-meta { text-align: right; }
+.pdf-sheet-header.logo-pos-center .pdf-doc-meta { text-align: center; margin-top: 0.4rem; }
+
+.pdf-doc-meta h1 {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--pdf-primary);
+    letter-spacing: 0.5px;
+    margin: 0;
+}
+
+.pdf-doc-meta .meta-line {
+    font-size: 0.75rem;
+    color: var(--pdf-muted);
+    margin-top: 3px;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.pdf-divider-line {
+    height: 2px;
+    background: var(--pdf-primary);
+    margin-bottom: var(--pdf-gap);
+    border-radius: 2px;
+    opacity: 0.85;
+}
+
+.pdf-patient-encounter-section {
+    background: var(--pdf-header-bg);
+    border: 1px solid var(--pdf-border);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    margin-bottom: var(--pdf-gap);
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.pdf-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.pdf-section-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--pdf-primary);
+    margin-bottom: 0.55rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.pdf-section-title svg { width: 15px; height: 15px; color: var(--pdf-primary); }
+
+.pdf-info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.45rem 0.85rem;
+}
+
+.pdf-info-cell { font-size: 0.785rem; }
+.pdf-info-cell .lbl { color: var(--pdf-muted); margin-right: 0.35rem; }
+.pdf-info-cell .val { font-weight: 600; color: var(--pdf-text); }
+.pdf-info-cell .val.highlight { color: var(--pdf-primary); font-weight: 700; }
+
+.pdf-soap-body { display: flex; flex-direction: column; gap: var(--pdf-gap); }
+
+.pdf-paragraph {
+    font-size: 0.835rem;
+    line-height: var(--pdf-line-height);
+    color: #27272a;
+    margin: 0;
+    white-space: pre-wrap;
+}
+
+.pdf-list {
+    padding-left: 1.25rem;
+    font-size: 0.835rem;
+    line-height: var(--pdf-line-height);
+    color: #27272a;
+    margin: 0;
+    list-style-type: disc !important;
+}
+
+.pdf-list li {
+    margin-bottom: 0.35rem;
+    padding-left: 0.2rem;
+    list-style-type: disc !important;
+}
+
+.pdf-icd-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.pdf-icd-single-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 11px;
+    background: #f8fafc;
+    border: 1px solid var(--pdf-border);
+    border-radius: 6px;
+    font-size: 0.835rem;
+}
+
+.pdf-icd-code-val {
+    font-family: monospace;
+    font-weight: 800;
+    color: var(--pdf-primary);
+    background: var(--pdf-accent-light);
+    padding: 3px 7px;
+    border-radius: 4px;
+    margin-right: 0.5rem;
+}
+
+.pdf-icd-diag-val { font-weight: 700; color: var(--pdf-text); }
+
+.pdf-icd-status-tag {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #047857;
+    background: #ecfdf5;
+    padding: 2px 7px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.pdf-ai-disclaimer {
+    margin-top: var(--pdf-gap);
+    padding: 7px 11px;
+    background: #f8fafc;
+    border: 1px solid var(--pdf-border);
+    border-radius: 4px;
+    font-size: 0.735rem;
+    color: var(--pdf-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+
+.pdf-ai-disclaimer svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+.pdf-signature-area {
+    margin-top: 2.25rem;
+    margin-bottom: 1.75rem;
+    display: flex;
+    justify-content: flex-end;
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.pdf-sig-column {
+    width: 240px;
+    text-align: center;
+}
+
+.pdf-sig-label {
+    font-size: 0.725rem;
+    font-weight: 700;
+    color: var(--pdf-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pdf-sig-line {
+    height: 46px;
+    border-bottom: 1px dashed var(--pdf-border);
+    margin-bottom: 0.4rem;
+}
+
+.pdf-sig-name {
+    display: block;
+    font-weight: 700;
+    font-size: 0.875rem;
+    color: var(--pdf-primary);
+}
+
+.pdf-sig-title {
+    display: block;
+    font-size: 0.725rem;
+    color: var(--pdf-muted);
+    margin-top: 2px;
+}
+
+.pdf-sheet-footer {
+    position: relative;
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--pdf-border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.7rem;
+    color: var(--pdf-muted);
+    page-break-inside: avoid;
+    break-inside: avoid;
+}
+
+.pdf-dot { margin: 0 4px; }
+.pdf-hidden { display: none !important; }
+.pdf-mt-3 { margin-top: 0.75rem; }
+
+/* MODALS */
+.pdf-modal-backdrop {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 1rem;
+}
+
+.pdf-modal-card {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 460px;
+    box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    animation: modalSlideUp 0.18s ease;
+}
+
+@keyframes modalSlideUp {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.pdf-modal-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--brand-border);
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.pdf-modal-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.pdf-modal-icon.success { background: #ecfdf5; color: #047857; }
+.pdf-modal-icon.info { background: #f0f9ff; color: #0284c7; }
+
+.pdf-modal-header h3 { font-size: 1rem; font-weight: 700; color: var(--brand-text-main); margin: 0; }
+.pdf-modal-sub { font-size: 0.75rem; color: var(--brand-text-muted); margin: 0; }
+.pdf-modal-body { padding: 1.25rem; }
+
+.pdf-modal-notice {
+    background: #f8fafc;
+    border: 1px solid var(--brand-border);
+    padding: 0.75rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    color: #334155;
+    line-height: 1.5;
+}
+
+.pdf-modal-footer {
+    padding: 0.75rem 1.25rem;
+    background: #fafafa;
+    border-top: 1px solid var(--brand-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+@media print {
+    body * { visibility: hidden; }
+    #pdfPaperSheet, #pdfPaperSheet * { visibility: visible; }
+    #pdfPaperSheet {
+        position: absolute;
+        left: 0; top: 0;
+        width: 100% !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+    }
+    .pdf-preview-toolbar, .pdf-sidebar-config { display: none !important; }
+}

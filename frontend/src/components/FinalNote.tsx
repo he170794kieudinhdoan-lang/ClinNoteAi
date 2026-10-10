@@ -2,6 +2,8 @@
 
 import * as Dialog from "@radix-ui/react-dialog";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { FileDown } from "lucide-react";
 import { ReactNode, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getSupabase } from "@/lib/supabase";
@@ -51,6 +53,7 @@ function sourceLine(encounter: Encounter) {
 }
 
 export default function FinalNote({ encounter, children }: { encounter: Encounter; children: ReactNode }) {
+  const router = useRouter();
   const [parts, setParts] = useState<Record<Part, boolean>>({
     patient: true,
     soap: true,
@@ -58,9 +61,7 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
     transcript: false,
   });
   const [doctor, setDoctor] = useState("Bác sĩ");
-  const [saving, setSaving] = useState(false);
   const [preview, setPreview] = useState(false);
-  const [pdfError, setPdfError] = useState("");
 
   useEffect(() => {
     const supabase = getSupabase();
@@ -78,22 +79,6 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
 
   function toggle(part: Part) {
     setParts((current) => ({ ...current, [part]: !current[part] }));
-  }
-
-  async function exportPdf() {
-    setPdfError("");
-    setSaving(true);
-    try {
-      const { downloadNotePdf } = await import("@/lib/notePdf");
-      await downloadNotePdf(encounter, doctor, parts, approved);
-      toast.success("Đã xuất PDF");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Không xuất được PDF.";
-      setPdfError(message);
-      toast.error(message);
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
@@ -158,13 +143,11 @@ export default function FinalNote({ encounter, children }: { encounter: Encounte
         </button>
         <button
           type="button"
-          disabled={saving}
-          onClick={() => void exportPdf()}
-          className="h-9 rounded-lg bg-ink px-4 text-sm font-semibold text-white hover:bg-ink/90 disabled:opacity-60"
+          onClick={() => router.push(`/encounters/${encounter.id}/pdf`)}
+          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-ink px-4 text-sm font-semibold text-white hover:bg-ink/90 transition-colors"
         >
-          {saving ? "Đang tạo..." : "Xuất PDF"}
+          <FileDown className="h-4 w-4" /> Tải PDF
         </button>
-        {pdfError && <p className="w-full text-right text-xs text-rose-700">{pdfError}</p>}
       </footer>
       <Dialog.Root open={preview} onOpenChange={setPreview}>
         <Dialog.Portal>

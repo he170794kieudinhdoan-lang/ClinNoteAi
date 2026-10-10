@@ -6,6 +6,7 @@ import { Command } from "cmdk";
 import { Loader2, Search } from "lucide-react";
 import { useEffect, useState } from "react";
 import { lookupIcd, peekIcd, searchIcdRemote, type IcdDetail } from "@/lib/api";
+import { IcdSearchItemSkeleton, IcdSuggestSkeleton } from "@/components/Skeletons";
 import type { IcdSuggestion } from "@/types";
 
 const ICD_CODE = /^[A-Z][0-9]{2}(\.[0-9A-Z]{1,4})?$/;
@@ -14,12 +15,14 @@ export default function IcdSuggestBar({
   suggestions,
   selectedIcd,
   locked,
+  loading = false,
   onSelect,
   onSuggestions,
 }: {
   suggestions: IcdSuggestion[];
   selectedIcd?: string;
   locked?: boolean;
+  loading?: boolean;
   onSelect: (code: string) => void;
   onSuggestions: (items: IcdSuggestion[]) => void;
 }) {
@@ -82,13 +85,30 @@ export default function IcdSuggestBar({
     setOpen(false);
   }
 
+  if (loading && suggestions.length === 0) {
+    return <IcdSuggestSkeleton />;
+  }
+
   return (
     <div className="border-t border-line bg-white px-4 py-3">
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h3 className="text-xs font-bold">Gợi ý ICD-10</h3>
-        <p className="text-[11px] text-muted">Rê chuột để xem phân loại KCB</p>
+        <div className="flex items-center gap-2">
+          <h3 className="text-xs font-bold">Gợi ý ICD-10</h3>
+          {loading && (
+            <span className="inline-flex items-center gap-1 text-[11px] text-muted">
+              <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
+              Đang phân tích…
+            </span>
+          )}
+        </div>
+        {suggestions.length > 0 && <p className="text-[11px] text-muted">Rê chuột để xem phân loại KCB</p>}
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {suggestions.length === 0 && !loading && (
+          <span className="text-[12px] text-muted italic">
+            Chưa có gợi ý tự động (sẽ hiển thị khi có chẩn đoán trong SOAP)
+          </span>
+        )}
         {suggestions.map((item) => {
           const on = item.code === selected;
           return (
@@ -120,9 +140,9 @@ export default function IcdSuggestBar({
           <button
             type="button"
             onClick={() => setOpen(true)}
-            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-dashed border-line bg-white px-2.5 text-[12px] text-muted hover:bg-subtle"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-dashed border-line bg-white px-2.5 text-[12px] font-medium text-ink hover:bg-subtle transition-colors shadow-2xs"
           >
-            <Search size={13} /> Tìm mã
+            <Search size={13} /> Tìm mã ICD-10
           </button>
         )}
       </div>
@@ -153,10 +173,8 @@ export default function IcdSuggestBar({
                       <Loader2 size={14} className="animate-spin" />
                       Đang tra danh mục KCB…
                     </p>
-                    <div className="mt-3 space-y-2">
-                      {[0, 1, 2].map((row) => (
-                        <div key={row} className="h-8 animate-pulse rounded-lg bg-white" />
-                      ))}
+                    <div className="mt-3">
+                      <IcdSearchItemSkeleton />
                     </div>
                   </div>
                 )}

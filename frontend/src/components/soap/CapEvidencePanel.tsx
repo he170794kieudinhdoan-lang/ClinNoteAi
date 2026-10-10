@@ -111,7 +111,11 @@ export default function CapEvidencePanel({
           <span className="rounded-full bg-subtle px-2.5 py-1 text-[10px] text-muted">Nguồn văn bản</span>
         </header>
         <ul className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
-          {caps.length === 0 && <li className="rounded-xl border border-dashed border-[#d9cbb9] p-5 text-sm text-muted">Chưa có CAP cho run này.</li>}
+          {caps.length === 0 && (
+            <div className="rounded-xl border border-dashed border-line bg-subtle/50 p-6 text-center text-xs text-muted">
+              Chưa có mệnh đề lâm sàng (CAP) nào được trích xuất.
+            </div>
+          )}
           {caps.map((cap) => {
             const active = emphasizedCapIds.has(cap.prop_id) || selectedCapId === cap.prop_id;
             return (
@@ -174,7 +178,11 @@ export default function CapEvidencePanel({
           <p className="mt-0.5 text-xs text-muted">Đoạn có trích dẫn khớp được tô sáng; mốc giờ bao trùm toàn segment.</p>
         </header>
         <ol className="min-h-0 flex-1 space-y-2 overflow-auto p-3">
-          {turns.length === 0 && <li className="rounded-xl border border-dashed border-[#d9cbb9] p-5 text-sm text-muted">Run này chưa có lượt thoại để hiển thị.</li>}
+          {turns.length === 0 && (
+            <div className="rounded-xl border border-dashed border-line bg-subtle/50 p-6 text-center text-xs text-muted">
+              Chưa có lượt hội thoại nào được ghi nhận.
+            </div>
+          )}
           {turns.map((turn) => {
             const quotes = evidenceByTurn.get(turn.turn_id) ?? [];
             const highlighted = quotes.length > 0;
