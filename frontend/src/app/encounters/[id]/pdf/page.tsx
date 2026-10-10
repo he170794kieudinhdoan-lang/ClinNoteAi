@@ -18,8 +18,6 @@ import {
   Image as ImageIcon,
   Info,
   Layout,
-  Maximize2,
-  Minimize2,
   Minus,
   Palette,
   Plus,
@@ -219,7 +217,6 @@ export default function EncounterPdfConfigPage({ params }: { params: Promise<{ i
 
   // Preview & Toolbar states
   const [zoomScale, setZoomScale] = useState(1.0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [pageCount, setPageCount] = useState(1);
 
   // Modals
@@ -422,9 +419,9 @@ export default function EncounterPdfConfigPage({ params }: { params: Promise<{ i
     const opt = {
       margin: 0,
       filename: cleanFileName,
-      image: { type: "jpeg" as const, quality: 0.98 },
+      image: { type: "jpeg" as const, quality: 1.0 },
       html2canvas: {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         logging: false,
         letterRendering: true,
@@ -432,6 +429,9 @@ export default function EncounterPdfConfigPage({ params }: { params: Promise<{ i
         onclone: (clonedDoc: Document) => {
           const sheet = clonedDoc.getElementById("pdfPaperSheet");
           if (sheet) {
+            sheet.style.transform = "none";
+            sheet.style.margin = "0";
+            sheet.style.boxShadow = "none";
             sheet.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
           }
         },
@@ -440,6 +440,7 @@ export default function EncounterPdfConfigPage({ params }: { params: Promise<{ i
         unit: "in",
         format: pdfConfig.layout.pageSize.toLowerCase(),
         orientation: pdfConfig.layout.orientation,
+        compress: true,
       },
     };
 
@@ -537,14 +538,6 @@ export default function EncounterPdfConfigPage({ params }: { params: Promise<{ i
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsFullscreen(!isFullscreen)}
-              className="hidden md:inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-xs font-semibold text-ink shadow-xs hover:bg-subtle transition-colors"
-            >
-              {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
-              {isFullscreen ? "Thoát toàn màn hình" : "Toàn màn hình"}
-            </button>
-            <button
-              type="button"
               onClick={() => window.print()}
               className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line bg-white px-2.5 text-xs font-semibold text-ink shadow-xs hover:bg-subtle transition-colors"
             >
@@ -564,12 +557,9 @@ export default function EncounterPdfConfigPage({ params }: { params: Promise<{ i
         </header>
 
         {/* MAIN STUDIO AREA */}
-        <div
-          className="pdf-studio-layout"
-          style={{ gridTemplateColumns: isFullscreen ? "0px 1fr" : "380px minmax(0, 1fr)" }}
-        >
+        <div className="pdf-studio-layout">
           {/* LEFT SIDEBAR: CONFIG CONTROLS */}
-          <aside className={`pdf-sidebar-config ${isFullscreen ? "pdf-hidden" : ""}`}>
+          <aside className="pdf-sidebar-config">
             {/* Tier 1: Fixed Header */}
             <div className="pdf-sidebar-header">
               <div className="pdf-preset-selector-bar">
@@ -1431,7 +1421,7 @@ export default function EncounterPdfConfigPage({ params }: { params: Promise<{ i
                       <div className="pdf-section-title">ICD-10 ĐÃ XÁC NHẬN</div>
                       <div className="pdf-icd-container">
                         <div className="pdf-icd-single-card">
-                          <div>
+                          <div className="pdf-icd-info-group">
                             {pdfConfig.icd.showCode && (
                               <span className="pdf-icd-code-val">{icdInfo.code}</span>
                             )}

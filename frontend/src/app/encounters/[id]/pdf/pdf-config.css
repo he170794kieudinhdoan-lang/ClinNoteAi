@@ -744,41 +744,68 @@
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .pdf-icd-single-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 7px 11px;
-    background: #f8fafc;
-    border: 1px solid var(--pdf-border);
+    gap: 0.75rem;
+    padding: 8px 12px;
+    background: var(--pdf-header-bg, #f8fafc);
+    border: 1px solid var(--pdf-border, #e2e8f0);
     border-radius: 6px;
     font-size: 0.835rem;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.pdf-icd-info-group {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
 }
 
 .pdf-icd-code-val {
-    font-family: monospace;
+    font-family: var(--font-mono, monospace);
     font-weight: 800;
     color: var(--pdf-primary);
     background: var(--pdf-accent-light);
-    padding: 3px 7px;
+    border: 1px solid var(--pdf-border, #e2e8f0);
+    padding: 2.5px 8px;
     border-radius: 4px;
-    margin-right: 0.5rem;
+    font-size: 0.825rem;
+    letter-spacing: 0.5px;
+    display: inline-flex;
+    align-items: center;
+    flex-shrink: 0;
 }
 
-.pdf-icd-diag-val { font-weight: 700; color: var(--pdf-text); }
+.pdf-icd-diag-val {
+    font-weight: 700;
+    color: var(--pdf-text);
+    line-height: 1.4;
+    word-break: break-word;
+}
 
 .pdf-icd-status-tag {
     font-size: 0.7rem;
     font-weight: 700;
     color: #047857;
     background: #ecfdf5;
-    padding: 2px 7px;
-    border-radius: 10px;
-    display: flex;
+    border: 1px solid #a7f3d0;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    display: inline-flex;
     align-items: center;
     gap: 0.25rem;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 
 .pdf-ai-disclaimer {
@@ -920,15 +947,54 @@
 }
 
 @media print {
-    body * { visibility: hidden; }
-    #pdfPaperSheet, #pdfPaperSheet * { visibility: visible; }
-    #pdfPaperSheet {
-        position: absolute;
-        left: 0; top: 0;
-        width: 100% !important;
-        margin: 0 !important;
-        box-shadow: none !important;
-        padding: 0 !important;
+    @page {
+        size: auto;
+        margin: 10mm 15mm 10mm 15mm;
     }
-    .pdf-preview-toolbar, .pdf-sidebar-config { display: none !important; }
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #ffffff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    body * {
+        visibility: hidden;
+    }
+    #pdfPaperSheet, #pdfPaperSheet * {
+        visibility: visible;
+    }
+    #pdfPaperSheet {
+        position: static !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        box-shadow: none !important;
+        border: none !important;
+        transform: none !important;
+        box-sizing: border-box !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+    .pdf-preview-toolbar, .pdf-sidebar-config, .clinic-shell-header, header, nav {
+        display: none !important;
+    }
+    .pdf-section {
+        page-break-inside: avoid;
+        break-inside: avoid;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .pdf-icd-container {
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .pdf-icd-single-card {
+        width: 100% !important;
+        box-sizing: border-box !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
 }
