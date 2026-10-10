@@ -7,7 +7,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Copy, Eye, PanelLeft, PanelRight, Printer, RefreshCw } from "lucide-react";
+import { Copy, Eye, FileDown, PanelLeft, PanelRight, Printer, RefreshCw } from "lucide-react";
 import { memo, use, useCallback, useEffect, useRef, useState } from "react";
 import { Panel, PanelGroup, PanelResizeHandle, type ImperativePanelHandle } from "react-resizable-panels";
 import { toast } from "sonner";
@@ -16,6 +16,7 @@ import FirstVisitGuide, { FIRST_VISIT_GUIDE_HIDE, firstVisitGuideKey } from "@/c
 import ClinicShell from "@/components/ClinicShell";
 import FinalNote from "@/components/FinalNote";
 import IcdSuggestBar from "@/components/IcdSuggestBar";
+import { EncounterPageSkeleton, SoapSkeleton } from "@/components/Skeletons";
 import SoapEditor from "@/components/SoapEditor";
 import TranscriptPanel from "@/components/TranscriptPanel";
 import SoapWorkspace from "@/components/soap/SoapWorkspace";
@@ -96,6 +97,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const [printing, setPrinting] = useState(false);
   const [regenBusy, setRegenBusy] = useState(false);
   const [transcriptBusy, setTranscriptBusy] = useState(false);
+  const [transcriptLoading, setTranscriptLoading] = useState(false);
   const [cleanOpen, setCleanOpen] = useState(false);
   const [guideOn, setGuideOn] = useState(false);
   const [mobileTab, setMobileTab] = useState<"soap" | "transcript" | "files">("soap");
@@ -210,6 +212,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     if (!consultationId) return;
 
     let active = true;
+    setTranscriptLoading(true);
     getConsultationTranscript(consultationId)
       .then((res) => {
         if (!active || !res.segments || res.segments.length === 0) return;
@@ -226,6 +229,9 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       })
       .catch(() => {
         // Silently skip if consultation not found on backend DB
+      })
+      .finally(() => {
+        if (active) setTranscriptLoading(false);
       });
 
     return () => {
@@ -470,7 +476,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   if (!ready || (encounter && !draft)) {
     return (
       <ClinicShell section="encounter">
-        <div className="grid h-full place-items-center bg-canvas text-sm text-muted">Đang tải lượt khám…</div>
+        <EncounterPageSkeleton />
       </ClinicShell>
     );
   }
@@ -537,27 +543,15 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     }
   }
 
-  async function printPdf() {
-    setPrinting(true);
-    try {
-      const supabase = getSupabase();
-      const session = supabase ? (await supabase.auth.getSession()).data.session : null;
-      const fullName = session?.user.user_metadata?.full_name;
-      const doctor = typeof fullName === "string" && fullName.trim() ? fullName.trim() : "Bác sĩ";
-      const approved = new Date().toLocaleString("vi-VN");
-      const { downloadNotePdf } = await import("@/lib/notePdf");
-      await downloadNotePdf(
-        { ...note, soap: noteSoap() },
-        doctor,
-        { patient: true, soap: true, icd: true, transcript: false },
-        approved,
-      );
-      toast.success("Đã xuất PDF");
-    } catch (cause) {
-      toast.error(cause instanceof Error ? cause.message : "Không xuất được PDF.");
-    } finally {
-      setPrinting(false);
+  function goToPdfConfig() {
+    if (draft) {
+      const latest = { ...draft, soap: noteSoap() };
+      saveEncounter(latest);
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem(`clinnote-draft-${id}`, JSON.stringify(latest));
+      }
     }
+    router.push(`/encounters/${id}/pdf`);
   }
 
   async function regenerateNote() {
@@ -594,6 +588,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       variant="panel"
       lines={draft.transcript}
       locked={locked}
+      loading={isUploading || transcriptBusy || transcriptLoading}
       onChange={onLines}
       onRegen={() => void regenTranscript()}
       onCollapse={() => transcriptPanel.current?.collapse()}
@@ -670,8 +665,13 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           <button type="button" onClick={() => void copyNote()} disabled={!soapGenerated} className={toolBtn}>
             <Copy size={14} /> Sao chép
           </button>
-          <button type="button" onClick={() => void printPdf()} disabled={printing || !soapGenerated} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink bg-ink px-2.5 sm:px-3 text-xs sm:text-[12.5px] font-semibold text-white disabled:opacity-60">
-            <Printer size={14} /> {printing ? "Đang tạo…" : "In PDF"}
+          <button
+            type="button"
+            onClick={goToPdfConfig}
+            disabled={!soapGenerated}
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink bg-ink px-2.5 sm:px-3 text-xs sm:text-[12.5px] font-semibold text-white hover:bg-ink/90 disabled:opacity-60 transition-colors"
+          >
+            <FileDown size={14} /> Tải PDF
           </button>
           {!filesOpen && (
             <button type="button" aria-label="Mở tài liệu" onClick={() => filesPanel.current?.expand()} className={cn(toolBtn, "hidden lg:inline-flex")}>
@@ -685,7 +685,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
           <PatientCard patient={draft.patient} locked={locked} />
           {activeRunId ? (soapBusy || jsonBusy ? (
-            <div role="status" className="flex min-h-48 items-center justify-center rounded-2xl border border-line bg-white p-6 text-sm shadow-panel">Đang tạo ghi chú SOAP…</div>
+            <SoapSkeleton statusText="Đang tạo ghi chú SOAP với bằng chứng CAP…" />
           ) : (
             <SoapWorkspace key={activeRunId} embedded embeddedRunId={activeRunId} runSource={draft.soapActiveSource} onBindRegen={bindRegen} onPlainSoap={rememberSoap} onIcdSuggestions={receiveRemoteIcdSuggestions} />
           )) : (
@@ -694,8 +694,9 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                 soap={draft.soap}
                 suggestions={draft.icdSuggestions}
                 selectedIcd={draft.selectedIcd}
-                showIcd={draft.transcript.length > 0}
-                locked={locked || !soapGenerated}
+                showIcd={true}
+                locked={locked}
+                loading={soapBusy || jsonBusy}
                 onSoap={(soap) => setDraft((current) => (current ? { ...current, soap } : current))}
                 onSelect={(selectedIcd) => setDraft((current) => (current ? { ...current, selectedIcd } : current))}
                 onSuggestions={(icdSuggestions) => setDraft((current) => (current ? { ...current, icdSuggestions } : current))}
@@ -705,11 +706,12 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </div>
-      {activeRunId && draft.transcript.length > 0 && !soapBusy && !jsonBusy && (
+      {activeRunId && draft.transcript.length > 0 && (
         <IcdSuggestBar
           suggestions={icdSuggestions}
           selectedIcd={draft.selectedIcd}
           locked={locked}
+          loading={soapBusy || jsonBusy}
           onSelect={handleSelectIcd}
           onSuggestions={(next) => setDraft((current) => current ? { ...current, icdSuggestions: next } : current)}
         />
@@ -906,7 +908,12 @@ function cleanParts(text: string) {
 function CleanLines({ text }: { text: string }) {
   const lines = cleanParts(text);
   if (lines.length === 0) {
-    return <p className="text-[15px] leading-8 text-muted">Chưa có nội dung.</p>;
+    return (
+      <div className="space-y-2 py-2 animate-pulse">
+        <div className="h-3.5 w-4/5 rounded bg-line/70" />
+        <div className="h-3.5 w-3/5 rounded bg-line/50" />
+      </div>
+    );
   }
   return (
     <ul className="flex flex-col gap-2">

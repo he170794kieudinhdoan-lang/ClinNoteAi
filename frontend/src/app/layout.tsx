@@ -33,6 +33,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" className="scroll-smooth" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `if(window.location.hostname==="c4-app-057.vercel.app"){window.location.replace("https://c4-app-006.vercel.app"+window.location.pathname+window.location.search+window.location.hash);}`,
+          }}
+        />
+      </head>
       <body className={`${sans.variable} ${display.variable} ${pixel.variable} min-h-screen antialiased`} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>

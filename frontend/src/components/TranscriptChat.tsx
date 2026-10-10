@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MessageSquareOff } from "lucide-react";
+import { TranscriptSkeleton } from "@/components/Skeletons";
 import type { TranscriptLine } from "@/types";
 import type { SoapTranscript, SoapTranscriptTurn } from "@/types/soap";
 
@@ -82,10 +84,12 @@ function spanLabel(line: ChatLine) {
 export default function TranscriptChat({
   lines,
   focusId,
+  loading = false,
   onClose,
 }: {
   lines: ChatLine[];
   focusId?: string | null;
+  loading?: boolean;
   onClose: () => void;
 }) {
   const focusRef = useRef<HTMLLIElement>(null);
@@ -124,7 +128,21 @@ export default function TranscriptChat({
           </button>
         </header>
         <ol className="flex min-h-0 flex-1 flex-col gap-3 overflow-auto bg-subtle px-3 py-4">
-          {lines.length === 0 && <li className="py-8 text-center text-sm text-muted">Chưa có hội thoại.</li>}
+          {lines.length === 0 && (
+            loading ? (
+              <TranscriptSkeleton variant="chat" count={5} />
+            ) : (
+              <div className="flex flex-1 flex-col items-center justify-center py-12 text-center">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white text-muted shadow-xs ring-1 ring-line">
+                  <MessageSquareOff size={22} />
+                </div>
+                <p className="mt-3 text-sm font-bold text-ink">Chưa có nội dung hội thoại</p>
+                <p className="mt-1 max-w-[240px] text-xs leading-relaxed text-muted">
+                  Tải âm thanh cuộc khám để hệ thống bóc băng và hiển thị hội thoại chi tiết tại đây.
+                </p>
+              </div>
+            )
+          )}
           {lines.map((line, index) => {
             const doctor = line.speaker === "doctor";
             const active = focusId != null && focusId === line.id;

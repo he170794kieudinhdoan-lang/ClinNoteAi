@@ -7,10 +7,11 @@
 
 import { useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { PanelLeftClose } from "lucide-react";
+import { Mic, PanelLeftClose } from "lucide-react";
 import TextareaAutosize from "react-textarea-autosize";
 import TranscriptChat, { chatLinesFromTranscript } from "@/components/TranscriptChat";
 import { updateTranscriptSegment } from "@/lib/api";
+import { TranscriptSkeleton } from "@/components/Skeletons";
 import type { TranscriptLine } from "@/types";
 
 function clock(total: number) {
@@ -30,6 +31,7 @@ function roleLabel(speaker: TranscriptLine["speaker"]) {
 export default function TranscriptPanel({
   lines,
   locked,
+  loading = false,
   onChange,
   onRegen,
   variant = "compact",
@@ -37,6 +39,7 @@ export default function TranscriptPanel({
 }: {
   lines: TranscriptLine[];
   locked?: boolean;
+  loading?: boolean;
   onChange?: (lines: TranscriptLine[]) => void;
   onRegen?: () => void;
   variant?: "compact" | "panel";
@@ -123,11 +126,71 @@ export default function TranscriptPanel({
     getItemKey: (index) => lines[index]?.id ?? index,
   });
 
+  if (loading && lines.length === 0) {
+    return <TranscriptSkeleton variant={variant} onCollapse={onCollapse} />;
+  }
+
+  if (lines.length === 0) {
+    if (variant === "compact") {
+      return (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-line bg-subtle/50 p-4 text-center">
+          <Mic size={20} className="text-muted/60" />
+          <p className="mt-2 text-xs font-semibold text-ink">Chưa có bản ghi thoại</p>
+          <p className="mt-0.5 text-[11px] text-muted">Tải file âm thanh để bóc băng</p>
+        </div>
+      );
+    }
+
+    return (
+      <div data-guide="transcript" className="flex h-full min-h-0 flex-col bg-white">
+        <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-subtle px-3.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[13.5px] font-bold">Hội thoại</span>
+          </div>
+          {onCollapse && (
+            <button
+              type="button"
+              aria-label="Thu gọn hội thoại"
+              onClick={onCollapse}
+              className="grid h-7 w-7 place-items-center rounded-md text-muted hover:bg-white"
+            >
+              <PanelLeftClose size={15} />
+            </button>
+          )}
+        </header>
+
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center p-6 text-center">
+          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-subtle text-muted shadow-xs ring-1 ring-line">
+            <Mic size={22} className="text-muted" />
+          </div>
+          <h3 className="mt-3.5 text-sm font-bold text-ink">Chưa có bản ghi âm cuộc khám</h3>
+          <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-muted">
+            Tải lên tệp âm thanh hoặc ghi âm trực tiếp ở cột bên phải để hệ thống tự động bóc băng hội thoại và trích xuất dữ liệu lâm sàng.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-faint">
+            <span className="rounded-md bg-subtle px-2 py-0.5 ring-1 ring-line-soft">.mp3</span>
+            <span className="rounded-md bg-subtle px-2 py-0.5 ring-1 ring-line-soft">.wav</span>
+            <span className="rounded-md bg-subtle px-2 py-0.5 ring-1 ring-line-soft">.m4a</span>
+            <span className="rounded-md bg-subtle px-2 py-0.5 ring-1 ring-line-soft">Tối đa 100MB</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (variant === "panel") {
     return (
       <div data-guide="transcript" className="flex h-full min-h-0 flex-col bg-white">
         <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-subtle px-3.5">
-          <span className="text-[13.5px] font-bold">Hội thoại</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[13.5px] font-bold">Hội thoại</span>
+            {loading && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-muted ring-1 ring-line animate-pulse">
+                <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping" />
+                Đang xử lý…
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-1">
             {!locked && onRegen && !editing && (
               <button type="button" onClick={onRegen} disabled={lines.length === 0} className="hidden h-7 rounded-md px-2 text-[11px] font-semibold text-muted hover:bg-white disabled:opacity-40">
@@ -161,7 +224,6 @@ export default function TranscriptPanel({
         </header>
         {editError && <p className="border-b border-line bg-warn-bg px-3.5 py-2 text-xs text-danger">{editError}</p>}
         <div ref={scrollRef} className="min-h-0 flex-1 overflow-auto">
-          {lines.length === 0 && <p className="p-3.5 text-sm text-muted">Chưa có hội thoại.</p>}
           <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
             {virtualizer.getVirtualItems().map((item) => {
               const line = lines[item.index];
