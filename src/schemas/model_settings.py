@@ -11,7 +11,7 @@ PipelineStep = Literal["stt", "roles", "caps", "soap"]
 class ModelPreference(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
-    provider: Literal["default", "blaze", "9router", "openai", "ollama", "gemini", "openrouter", "groq", "custom"] = "default"
+    provider: Literal["default", "blaze", "9router", "openai", "ollama", "gemini", "openrouter", "jev", "groq", "custom"] = "default"
     custom_provider: str = Field(default="", alias="customProvider", max_length=200)
     model: str = Field(default="", max_length=200)
     base_url: str = Field(default="", alias="baseUrl", max_length=500)

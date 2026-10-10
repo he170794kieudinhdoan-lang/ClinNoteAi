@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     gemini_model: str = ""
     openrouter_api_key: str = ""
     openrouter_model: str = ""
+    openrouter_jev_model: str = "typesafe/jev-1.13"
     groq_api_key: str = ""
     groq_model: str = ""
     llm_temperature: float = Field(default=0.7, ge=0.0, le=2.0)

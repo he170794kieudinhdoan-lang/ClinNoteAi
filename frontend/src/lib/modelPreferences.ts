@@ -2,7 +2,7 @@
 export const MODEL_PREFERENCES_KEY = "clinnote.model-preferences.v1";
 export const PIPELINE_STEPS = ["stt", "roles", "caps", "soap"] as const;
 export type PipelineStep = (typeof PIPELINE_STEPS)[number];
-export type ModelProvider = "default" | "blaze" | "9router" | "openai" | "ollama" | "gemini" | "openrouter" | "groq" | "custom";
+export type ModelProvider = "default" | "blaze" | "9router" | "openai" | "ollama" | "gemini" | "openrouter" | "jev" | "groq" | "custom";
 
 export interface StepModelPreference {
   provider: ModelProvider;
@@ -24,7 +24,9 @@ export function defaultModelPreferences(): ModelPreferences {
 }
 
 export function availableProviders(step: PipelineStep): ModelProvider[] {
-  return step === "stt" ? ["default", "blaze", "9router", "groq", "custom"] : ["default", "9router", "openai", "gemini", "openrouter", "groq", "ollama", "custom"];
+  if (step === "stt") return ["default", "blaze", "9router", "groq", "custom"];
+  if (step === "roles") return ["default", "jev", "9router", "openai", "gemini", "openrouter", "groq", "ollama", "custom"];
+  return ["default", "9router", "openai", "gemini", "openrouter", "groq", "ollama", "custom"];
 }
 
 export function providerApiUrl(provider: ModelProvider): string {
@@ -35,6 +37,7 @@ export function providerApiUrl(provider: ModelProvider): string {
     openai: "https://api.openai.com/v1",
     gemini: "https://generativelanguage.googleapis.com/v1beta/openai",
     openrouter: "https://openrouter.ai/api/v1",
+    jev: "https://openrouter.ai/api/alpha/decisions",
     groq: "https://api.groq.com/openai/v1",
     ollama: "http://localhost:11434/v1",
   };

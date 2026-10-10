@@ -18,7 +18,7 @@ const STEPS = {
   soap: { title: "Tạo ghi chú SOAP", short: "SOAP", description: "Dùng transcript và CAP để tạo bốn phần S, O, A, P.", icon: SlidersHorizontal },
 };
 const PROVIDER_LABELS: Record<ModelProvider, string> = {
-  default: "Mặc định máy chủ", blaze: "Blaze", "9router": "9router", openai: "OpenAI", gemini: "Google Gemini", openrouter: "OpenRouter", groq: "Groq", ollama: "Ollama", custom: "Provider tùy chỉnh…",
+  default: "Mặc định máy chủ", blaze: "Blaze", "9router": "9router", openai: "OpenAI", gemini: "Google Gemini", openrouter: "OpenRouter", jev: "Jev (OpenRouter)", groq: "Groq", ollama: "Ollama", custom: "Provider tùy chỉnh…",
 };
 const FIELD_CLASS = "mt-1.5 h-10 w-full rounded-lg border border-line bg-white px-3 text-xs outline-none focus:border-accent focus:ring-2 focus:ring-accent/15";
 const STORAGE_UNAVAILABLE = "storage-unavailable";
