@@ -141,6 +141,13 @@ async def ping_model(step: PipelineStep, preference: ModelPreference) -> dict:
             }
             payload = {
                 "model": connection.model,
+                "state": "Health check",
+                "questions": {
+                    "is_health_check": {
+                        "type": "noul",
+                        "instructions": "Is this a health check ping?",
+                    }
+                },
                 "input": "Reply with OK only.",
                 "messages": [{"role": "user", "content": "Reply with OK only."}],
             }

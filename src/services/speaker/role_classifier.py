@@ -436,6 +436,17 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
 
         payload = {
             "model": model_name,
+            "state": user_prompt.strip(),
+            "questions": {
+                "is_speaker_1_doctor": {
+                    "type": "noul",
+                    "instructions": "Is Speaker 1 acting as the doctor in this conversation?",
+                },
+                "is_speaker_2_doctor": {
+                    "type": "noul",
+                    "instructions": "Is Speaker 2 acting as the doctor in this conversation?",
+                },
+            },
             "messages": [
                 {"role": "system", "content": system_prompt.strip()},
                 {"role": "user", "content": user_prompt.strip()},
@@ -501,7 +512,7 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
                     content = data["decision"]
                 elif "result" in data and isinstance(data["result"], str):
                     content = data["result"]
-                elif "speaker_roles" in data or "segment_roles" in data:
+                elif "speaker_roles" in data or "segment_roles" in data or "answers" in data:
                     return self._adapt_jev_result(data)
                 else:
                     content = json.dumps(data)
@@ -524,6 +535,28 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
         """Adapt Jev Decisions API output into standard speaker_roles structure."""
         if not isinstance(data, dict):
             raise SpeakerRoleError("Jev classification result must be a JSON object")
+
+        if "answers" in data and isinstance(data["answers"], dict):
+            answers = data["answers"]
+            spk1_prob = answers.get("is_speaker_1_doctor", {}).get("noul", 0.5)
+            spk2_prob = answers.get("is_speaker_2_doctor", {}).get("noul", 0.5)
+            spk1_role = "doctor" if spk1_prob >= spk2_prob else "patient"
+            spk2_role = "patient" if spk1_role == "doctor" else "doctor"
+            return {
+                "speaker_roles": {
+                    "1": {
+                        "role": spk1_role,
+                        "confidence": round(max(spk1_prob, 1.0 - spk1_prob) if spk1_role == "doctor" else max(1.0 - spk1_prob, 0.5), 2),
+                        "evidence": ["Jev Decision"],
+                    },
+                    "2": {
+                        "role": spk2_role,
+                        "confidence": round(max(spk2_prob, 1.0 - spk2_prob) if spk2_role == "doctor" else max(1.0 - spk2_prob, 0.5), 2),
+                        "evidence": ["Jev Decision"],
+                    },
+                },
+                "reason": "Phân vai thực hiện bởi Jev Decisions API.",
+            }
 
         if "speaker_roles" in data and isinstance(data["speaker_roles"], dict):
             return data
