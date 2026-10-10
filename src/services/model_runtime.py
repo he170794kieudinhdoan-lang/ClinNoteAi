@@ -20,6 +20,8 @@ class ModelConfigurationError(ValueError):
 
 def provider_error_message(error: Exception) -> str:
     """Only expose HTTP status categories, never upstream body or credentials."""
+    if isinstance(error, ModelConfigurationError):
+        return str(error)
     status = getattr(error, "status_code", None)
     if status is None:
         status = getattr(getattr(error, "response", None), "status_code", None)
@@ -47,17 +49,25 @@ def resolve_connection(step: PipelineStep, preference: ModelPreference | None = 
         raise ModelConfigurationError("Cấu hình model tùy chỉnh hiện chỉ bật ở development/test.")
     provider = choice.provider
     if provider == "default":
-        provider = "blaze" if step == "stt" else settings.llm_provider
+        if step == "stt":
+            provider = "blaze"
+        elif step == "roles":
+            provider = "jev"
+        else:
+            provider = settings.llm_provider
     if step == "stt" and provider not in {"blaze", "custom", "9router", "groq"}:
         raise ModelConfigurationError("STT hỗ trợ Blaze, 9router, Groq hoặc API tương thích Blaze.")
     if step != "stt" and provider == "blaze":
         raise ModelConfigurationError("Blaze chỉ dùng cho bước STT.")
+    if step != "roles" and provider == "jev":
+        raise ModelConfigurationError("Jev chỉ dùng cho bước phân loại Speaker Role (roles).")
     defaults = {
         "blaze": ("stt-async-1.5", settings.blaze_api_url, settings.blaze_api_key),
         "9router": (settings.ninerouter_model, settings.ninerouter_base_url, settings.ninerouter_api_key),
         "openai": (settings.model_name, "https://api.openai.com/v1", settings.openai_api_key),
         "gemini": (settings.gemini_model, "https://generativelanguage.googleapis.com/v1beta/openai", settings.gemini_api_key),
         "openrouter": (settings.openrouter_model, "https://openrouter.ai/api/v1", settings.openrouter_api_key),
+        "jev": (settings.openrouter_jev_model, "https://openrouter.ai/api/alpha/decisions", settings.openrouter_api_key),
         "groq": (settings.groq_model, "https://api.groq.com/openai/v1", settings.groq_api_key),
         "ollama": (settings.ollama_model, settings.ollama_base_url.rstrip("/") + "/v1", "ollama"),
         "custom": ("", "", ""),
@@ -73,7 +83,13 @@ def resolve_connection(step: PipelineStep, preference: ModelPreference | None = 
         raise ModelConfigurationError("Provider tùy chỉnh cần tên, mã model và URL API.")
     target = (choice.base_url or url).rstrip("/")
     # Never forward a server credential to an arbitrary user supplied endpoint.
-    if target != url.rstrip("/"):
+    allowed_official = {
+        url.rstrip("/"),
+        "https://openrouter.ai/api/v1",
+        "https://openrouter.ai/api/alpha/decisions",
+    } if provider in {"openrouter", "jev"} else {url.rstrip("/")}
+
+    if target not in allowed_official:
         key = ""
     if choice.api_key is not None:
         key = choice.api_key.get_secret_value().strip()
@@ -116,6 +132,39 @@ async def ping_model(step: PipelineStep, preference: ModelPreference) -> dict:
             await asyncio.wait_for(
                 create_stt(preference).transcribe_bytes(audio.getvalue(), allow_empty=True), timeout=30,
             )
+        elif connection.provider == "jev":
+            if not connection.api_key:
+                raise ModelConfigurationError("Jev (OpenRouter) yêu cầu OPENROUTER_API_KEY. Vui lòng nhập API key trong .env hoặc ô API key bên dưới.")
+            headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {connection.api_key}",
+            }
+            payload = {
+                "model": connection.model,
+                "input": "Reply with OK only.",
+                "messages": [{"role": "user", "content": "Reply with OK only."}],
+            }
+            endpoints = [
+                connection.base_url,
+                "https://openrouter.ai/api/alpha/decisions",
+                "https://openrouter.ai/api/v1/chat/completions",
+            ]
+            seen = set()
+            target_urls = [u for u in endpoints if u and not (u in seen or seen.add(u))]
+
+            last_exc = None
+            success = False
+            for target_url in target_urls:
+                try:
+                    async with httpx.AsyncClient(timeout=20) as client:
+                        response = await client.post(target_url, json=payload, headers=headers)
+                        response.raise_for_status()
+                    success = True
+                    break
+                except Exception as exc:
+                    last_exc = exc
+            if not success and last_exc is not None:
+                raise last_exc
         else:
             model = create_model(step, preference)
             response = await asyncio.wait_for(model.ainvoke([HumanMessage(content="Reply with OK only.")], max_tokens=8), timeout=20)

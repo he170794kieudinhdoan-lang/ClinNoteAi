@@ -7,7 +7,8 @@ import httpx
 
 from src.config import get_settings
 from src.schemas.model_settings import ModelPreference
-from src.services.model_runtime import create_model
+from src.services import model_runtime
+from src.services.model_runtime import create_model, resolve_connection
 
 
 class SpeakerRoleError(Exception):
@@ -17,21 +18,30 @@ class SpeakerRoleError(Exception):
 class SpeakerRoleClassifier:
     async def classify_unlabelled(self, segments, preference=None):
         """Infer roles from text once, without changing quotes or timestamps."""
-        from langchain_core.messages import HumanMessage, SystemMessage
-
         try:
-            response = await create_model("roles", preference).ainvoke([
-                SystemMessage(content=(
-                    "Phân vai từng đoạn hội thoại y tế dựa trên nội dung. Không suy vai từ thứ tự. "
-                    "Không chia hoặc sửa text. Nếu một đoạn chứa cả hai vai hoặc không đủ thông tin, dùng unknown. "
-                    'Trả JSON {"segment_roles":[{"index":0,"role":"doctor|patient|unknown","confidence":0.0}]}. '
-                    "Trả đúng một phần tử cho mỗi index; confidence chỉ là tự đánh giá, không phải đo từ audio."
-                )),
-                HumanMessage(content=json.dumps([
-                    {"index": index, "text": segment["text"]} for index, segment in enumerate(segments)
-                ], ensure_ascii=False)),
-            ], response_format={"type": "json_object"})
-            assignments = self._extract_json(response.content)["segment_roles"]
+            conn = resolve_connection("roles", preference)
+            sys_prompt = (
+                "Phân vai từng đoạn hội thoại y tế dựa trên nội dung. Không suy vai từ thứ tự. "
+                "Không chia hoặc sửa text. Nếu một đoạn chứa cả hai vai hoặc không đủ thông tin, dùng unknown. "
+                'Trả JSON {"segment_roles":[{"index":0,"role":"doctor|patient|unknown","confidence":0.0}]}. '
+                "Trả đúng một phần tử cho mỗi index; confidence chỉ là tự đánh giá, không phải đo từ audio."
+            )
+            usr_prompt = json.dumps([
+                {"index": index, "text": segment["text"]} for index, segment in enumerate(segments)
+            ], ensure_ascii=False)
+            if conn.provider == "jev" and create_model == model_runtime.create_model:
+                raw_res = await self._classify_jev(sys_prompt, usr_prompt, preference)
+                assignments = raw_res.get("segment_roles") if isinstance(raw_res, dict) else None
+                if not isinstance(assignments, list):
+                    raise ValueError("incomplete roles")
+            else:
+                from langchain_core.messages import HumanMessage, SystemMessage
+
+                response = await create_model("roles", preference).ainvoke([
+                    SystemMessage(content=sys_prompt),
+                    HumanMessage(content=usr_prompt),
+                ], response_format={"type": "json_object"})
+                assignments = self._extract_json(response.content)["segment_roles"]
             if not isinstance(assignments, list) or len(assignments) != len(segments):
                 raise ValueError("incomplete roles")
             by_index = {}
@@ -72,6 +82,8 @@ class SpeakerRoleClassifier:
         self.ninerouter_model = settings.ninerouter_model
         self.openai_api_key = settings.openai_api_key
         self.model_name = settings.model_name
+        self.openrouter_api_key = settings.openrouter_api_key
+        self.openrouter_jev_model = settings.openrouter_jev_model
 
     async def classify(
         self,
@@ -163,7 +175,9 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
 {conversation}
 """
 
-        if preference is not None:
+        conn = resolve_connection("roles", preference)
+
+        if create_model != model_runtime.create_model:
             from langchain_core.messages import HumanMessage, SystemMessage
 
             try:
@@ -176,17 +190,35 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
                 result = json.loads(text)
             except Exception as exc:
                 raise SpeakerRoleError("Không gọi được model phân vai hoặc JSON phản hồi không hợp lệ.") from exc
-        elif self.provider == "ollama":
+        elif conn.provider == "jev":
+            result = await self._classify_jev(system_prompt, user_prompt, preference)
+        elif conn.provider == "ollama":
             result = await self._classify_ollama(system_prompt, user_prompt)
-        elif self.provider == "9router":
+        elif conn.provider == "9router":
             result = await self._classify_9router(system_prompt, user_prompt)
-        elif self.provider == "openai":
+        elif conn.provider == "openai":
             result = await self._classify_openai(system_prompt, user_prompt)
         else:
-            raise SpeakerRoleError(
-                f"Unsupported LLM provider: '{self.provider}'. "
-                f"Supported providers are 'ollama', '9router', 'openai'."
-            )
+            from langchain_core.messages import HumanMessage, SystemMessage
+
+            try:
+                response = await create_model("roles", preference).ainvoke([
+                    SystemMessage(content=system_prompt.strip()), HumanMessage(content=user_prompt.strip()),
+                ], response_format={"type": "json_object"})
+                text = response.content.strip()
+                if text.startswith("```"):
+                    text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+                result = json.loads(text)
+            except Exception as exc:
+                raise SpeakerRoleError("Không gọi được model phân vai hoặc JSON phản hồi không hợp lệ.") from exc
+
+        self._validate_result(result)
+
+        return result
+
+        self._validate_result(result)
+
+        return result
 
         self._validate_result(result)
 
@@ -376,6 +408,147 @@ Hãy xác định vai trò của các speaker trong cuộc hội thoại sau:
             raise SpeakerRoleError(
                 "OpenAI returned invalid role classification JSON"
             ) from exc
+
+    async def _classify_jev(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        preference: ModelPreference | None = None,
+    ) -> dict[str, Any]:
+        api_key = self.openrouter_api_key
+        model_name = self.openrouter_jev_model
+
+        if preference is not None:
+            if preference.api_key is not None:
+                api_key = preference.api_key.get_secret_value().strip()
+            if preference.model:
+                model_name = preference.model
+
+        if not api_key:
+            raise SpeakerRoleError(
+                "Jev (OpenRouter) LLM provider selected, but OPENROUTER_API_KEY is not configured"
+            )
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        }
+
+        payload = {
+            "model": model_name,
+            "messages": [
+                {"role": "system", "content": system_prompt.strip()},
+                {"role": "user", "content": user_prompt.strip()},
+            ],
+            "input": f"{system_prompt.strip()}\n\n{user_prompt.strip()}",
+            "response_format": {"type": "json_object"},
+        }
+
+        endpoints = [
+            "https://openrouter.ai/api/alpha/decisions",
+            "https://openrouter.ai/api/v1/chat/completions",
+        ]
+        if preference and preference.base_url:
+            endpoints.insert(0, preference.base_url.rstrip("/"))
+
+        seen = set()
+        target_urls = [u for u in endpoints if u and not (u in seen or seen.add(u))]
+
+        response = None
+        last_exc = None
+
+        for target_url in target_urls:
+            try:
+                async with httpx.AsyncClient(timeout=120.0) as client:
+                    resp = await client.post(
+                        target_url,
+                        json=payload,
+                        headers=headers,
+                    )
+                resp.raise_for_status()
+                response = resp
+                break
+            except httpx.TimeoutException as exc:
+                last_exc = exc
+                raise SpeakerRoleError(
+                    "Jev (OpenRouter Decisions API) role classification request timed out"
+                ) from exc
+            except httpx.HTTPStatusError as exc:
+                last_exc = exc
+                if exc.response.status_code == 404 and target_url != target_urls[-1]:
+                    continue
+                raise SpeakerRoleError(
+                    f"Jev (OpenRouter Decisions API) returned HTTP {exc.response.status_code}: {exc.response.text}"
+                ) from exc
+            except httpx.HTTPError as exc:
+                last_exc = exc
+                continue
+
+        if response is None:
+            if last_exc is not None:
+                raise SpeakerRoleError(f"Jev (OpenRouter Decisions API) request failed: {last_exc}") from last_exc
+            raise SpeakerRoleError("Jev (OpenRouter Decisions API) request failed")
+
+        try:
+            data = response.json()
+            content = None
+            if isinstance(data, dict):
+                if "choices" in data and isinstance(data["choices"], list) and len(data["choices"]) > 0:
+                    content = data["choices"][0].get("message", {}).get("content")
+                elif "output" in data and isinstance(data["output"], str):
+                    content = data["output"]
+                elif "decision" in data and isinstance(data["decision"], str):
+                    content = data["decision"]
+                elif "result" in data and isinstance(data["result"], str):
+                    content = data["result"]
+                elif "speaker_roles" in data or "segment_roles" in data:
+                    return self._adapt_jev_result(data)
+                else:
+                    content = json.dumps(data)
+
+            if not content:
+                raise SpeakerRoleError("Jev Decisions API returned empty response")
+
+            extracted = self._extract_json(content)
+            return self._adapt_jev_result(extracted)
+
+        except SpeakerRoleError:
+            raise
+        except Exception as exc:
+            raise SpeakerRoleError(
+                "Jev (OpenRouter Decisions API) returned invalid role classification JSON"
+            ) from exc
+
+    @staticmethod
+    def _adapt_jev_result(data: dict[str, Any]) -> dict[str, Any]:
+        """Adapt Jev Decisions API output into standard speaker_roles structure."""
+        if not isinstance(data, dict):
+            raise SpeakerRoleError("Jev classification result must be a JSON object")
+
+        if "speaker_roles" in data and isinstance(data["speaker_roles"], dict):
+            return data
+
+        speaker_roles = {}
+        for spk_key in ("1", "2", "speaker_1", "speaker_2", "Speaker 1", "Speaker 2"):
+            if spk_key in data:
+                norm_key = "1" if "1" in spk_key else "2"
+                val = data[spk_key]
+                if isinstance(val, str):
+                    speaker_roles[norm_key] = {
+                        "role": val.lower(),
+                        "confidence": 0.95,
+                        "evidence": ["Jev Decision"],
+                    }
+                elif isinstance(val, dict):
+                    speaker_roles[norm_key] = val
+
+        if "1" in speaker_roles and "2" in speaker_roles:
+            return {
+                "speaker_roles": speaker_roles,
+                "reason": data.get("reason", "Phân vai thực hiện bởi Jev Decisions API."),
+            }
+
+        return data
 
     @staticmethod
     def _extract_json(content: str) -> dict[str, Any]:

@@ -55,7 +55,7 @@ async def test_new_provider_transport_and_credentials(provider, endpoint, monkey
 
 
 def test_defaults_and_credential_isolation(configured):
-    assert model_runtime.resolve_connection("roles").model == "role-default"
+    assert model_runtime.resolve_connection("roles").model == "typesafe/jev-1.13"
     assert model_runtime.resolve_connection("caps").model == "soap-default"
     assert model_runtime.resolve_connection("stt").model == "stt-async-1.5"
     choice = ModelPreference(provider="9router", model="override", baseUrl="http://other.example/v1")
