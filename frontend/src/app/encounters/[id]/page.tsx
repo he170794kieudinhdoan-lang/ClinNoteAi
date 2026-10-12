@@ -32,7 +32,6 @@ import {
   uploadConsultationAudio,
 } from "@/lib/api";
 import { getSupabase } from "@/lib/supabase";
-import { optimizeAudioForStt } from "@/lib/audioCompressor";
 import { extractCaps, fetchConsultationIcd, generateSoap, patchIcdSuggestion, saveConsultationIcd, suggestIcdRemote } from "@/lib/soapApi";
 import { soapTranscriptFromConsultation } from "@/lib/soapTranscript";
 import type { Encounter, IcdSuggestion, Patient, SoapNote } from "@/types";
@@ -325,22 +324,8 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
         setDraft((current) => (current ? { ...current, consultationId: targetConsultationId, doctorId } : current));
       }
 
-      // 1. Tối ưu hóa & nén âm thanh trước khi upload (chuẩn hóa 16kHz Mono cho STT)
-      let fileToUpload = file;
-      try {
-        const compressResult = await optimizeAudioForStt(file);
-        if (compressResult.wasCompressed) {
-          fileToUpload = compressResult.file;
-          const origMB = (compressResult.originalSize / (1024 * 1024)).toFixed(1);
-          const compMB = (compressResult.compressedSize / (1024 * 1024)).toFixed(1);
-          toast.info(`Đã nén audio: ${origMB}MB → ${compMB}MB (giảm ${compressResult.ratio}%)`);
-        }
-      } catch (compressErr) {
-        console.warn("Nén audio thất bại, dùng file gốc:", compressErr);
-      }
-
-      // 2. Upload audio tới POST /api/v1/consultations/{consultation_id}/audio
-      const uploadRes = await uploadConsultationAudio(targetConsultationId, fileToUpload);
+      // 1. Upload audio tới POST /api/v1/consultations/{consultation_id}/audio
+      const uploadRes = await uploadConsultationAudio(targetConsultationId, file);
 
       // 2. Lấy transcript mới nhất từ GET /api/v1/consultations/{consultation_id}/transcript
       let lines = dedupeTranscriptLines(uploadRes.transcript.map(mapSegmentToTranscriptLine));
