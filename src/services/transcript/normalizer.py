@@ -96,6 +96,47 @@ def normalize_transcript(
     return normalized
 
 
+def normalize_unclassified_transcript(
+    segments: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Normalize STT segments without speaker-role mapping (for unclassified, blocked, or review-required transcripts).
+    """
+    if not segments:
+        raise TranscriptNormalizationError("No transcript segments provided")
+
+    normalized: list[dict[str, Any]] = []
+
+    for index, segment in enumerate(segments):
+        speaker = segment.get("speaker")
+        text = str(segment.get("text", "")).strip()
+
+        if not text:
+            continue
+
+        speaker_id = str(speaker) if speaker is not None else str(index + 1)
+        start_time = segment.get("startTime")
+        end_time = segment.get("endTime")
+
+        normalized_segment = {
+            "speaker_label": speaker_id,
+            "resolved_role": None,
+            "content": text,
+            "start_ms": _seconds_to_ms(start_time),
+            "end_ms": _seconds_to_ms(end_time),
+            "asr_confidence": _get_asr_confidence(segment),
+            "role_confidence": None,
+        }
+        normalized.append(normalized_segment)
+
+    if not normalized:
+        raise TranscriptNormalizationError(
+            "No usable transcript segments after normalization"
+        )
+
+    return normalized
+
+
 def _seconds_to_ms(value: Any) -> int | None:
     if value is None:
         return None

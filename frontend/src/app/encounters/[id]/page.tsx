@@ -34,7 +34,7 @@ import {
 import { getSupabase } from "@/lib/supabase";
 import { extractCaps, fetchConsultationIcd, generateSoap, patchIcdSuggestion, saveConsultationIcd, suggestIcdRemote } from "@/lib/soapApi";
 import { soapTranscriptFromConsultation } from "@/lib/soapTranscript";
-import type { Encounter, IcdSuggestion, Patient, SoapNote } from "@/types";
+import type { Encounter, IcdSuggestion, Patient, SoapNote, TranscriptLine } from "@/types";
 import { SOAP_SECTIONS, type SoapInputFormat } from "@/types/soap";
 
 const EMPTY_SOAP = { subjective: "", objective: "", assessment: "", plan: "" };
@@ -215,7 +215,19 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     setTranscriptLoading(true);
     getConsultationTranscript(consultationId)
       .then((res) => {
-        if (!active || !res.segments || res.segments.length === 0) return;
+        if (!active) return;
+        if (res.status === "NON_CLINICAL") {
+          setDraft((current) => {
+            if (!current) return current;
+            return {
+              ...current,
+              transcript: [],
+              clinicalGateStatus: "NON_CLINICAL",
+            };
+          });
+          return;
+        }
+        if (!res.segments || res.segments.length === 0) return;
         const lines = dedupeTranscriptLines(res.segments.map(mapSegmentToTranscriptLine));
         setDraft((current) => {
           if (!current) return current;
@@ -327,19 +339,41 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       // 1. Upload audio tới POST /api/v1/consultations/{consultation_id}/audio
       const uploadRes = await uploadConsultationAudio(targetConsultationId, file);
 
+      const gateStatus = uploadRes.clinical_relevance?.status;
+      const gateReason = uploadRes.clinical_relevance?.reason;
+      const gateConf = uploadRes.clinical_relevance?.confidence ?? undefined;
+      const isNonClinical = gateStatus === "NON_CLINICAL";
+
       // 2. Lấy transcript mới nhất từ GET /api/v1/consultations/{consultation_id}/transcript
-      let lines = dedupeTranscriptLines(uploadRes.transcript.map(mapSegmentToTranscriptLine));
-      try {
-        const transcriptRes = await getConsultationTranscript(targetConsultationId);
-        if (transcriptRes.segments && transcriptRes.segments.length > 0) {
-          lines = dedupeTranscriptLines(transcriptRes.segments.map(mapSegmentToTranscriptLine));
+      let lines: TranscriptLine[] = [];
+      if (!isNonClinical) {
+        lines = dedupeTranscriptLines(uploadRes.transcript.map(mapSegmentToTranscriptLine));
+        try {
+          const transcriptRes = await getConsultationTranscript(targetConsultationId);
+          if (transcriptRes.status !== "NON_CLINICAL" && transcriptRes.segments && transcriptRes.segments.length > 0) {
+            lines = dedupeTranscriptLines(transcriptRes.segments.map(mapSegmentToTranscriptLine));
+          }
+        } catch (err: unknown) {
+          console.warn("Không lấy được transcript qua GET API, dùng kết quả từ upload response:", err);
         }
-      } catch (err: unknown) {
-        console.warn("Không lấy được transcript qua GET API, dùng kết quả từ upload response:", err);
       }
 
       setDraft((current) => {
         if (!current) return current;
+        if (isNonClinical) {
+          return {
+            ...withoutAudio(current),
+            audioFileName: file.name,
+            consultationId: targetConsultationId,
+            transcript: [],
+            clinicalGateStatus: "NON_CLINICAL",
+            clinicalGateReason: gateReason,
+            clinicalGateConfidence: gateConf,
+            soapRunId: undefined,
+            soapTestRunId: undefined,
+            soapActiveSource: undefined,
+          };
+        }
         const hasNote = Boolean(current.soapRunId || current.soapTestRunId) || (["subjective", "objective", "assessment", "plan"] as const).some((key) => current.soap[key].trim());
         return {
           ...current,
@@ -350,9 +384,18 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           missingFields: current.missingFields.filter((field) => field !== "Audio / transcript"),
           soapActiveSource: "consultation",
           soapRunOutdated: Boolean(current.soapRunId),
+          clinicalGateStatus: gateStatus,
+          clinicalGateReason: gateReason,
+          clinicalGateConfidence: gateConf,
         };
       });
-      if (lines.length > 0) toast.success("Bản hội thoại thô đã hiện ở cột Hội thoại");
+      if (isNonClinical) {
+        toast.error(`Hội thoại không phải buổi khám bệnh: ${gateReason || "Nội dung ngoài lề"}. AI đã dừng tạo SOAP và không lưu hội thoại.`);
+      } else if (gateStatus === "UNCERTAIN") {
+        toast.warning(`Chưa đủ bằng chứng xác nhận buổi khám: ${gateReason || "Cần bác sĩ kiểm tra lại"}.`);
+      } else if (lines.length > 0) {
+        toast.success("Bản hội thoại thô đã hiện ở cột Hội thoại");
+      }
     } catch (err: unknown) {
       setUploadError(err instanceof Error ? err.message : "Xử lý âm thanh thất bại.");
     } finally {
@@ -428,6 +471,11 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     let runId: string | null = null;
     try {
       const transcriptResponse = await getConsultationTranscript(consultationId);
+      if (transcriptResponse.status === "NON_CLINICAL" || !transcriptResponse.segments || transcriptResponse.segments.length === 0) {
+        setSoapError("Hội thoại không phải buổi khám bệnh hoặc không có dữ liệu lâm sàng.");
+        toast.error("Hội thoại không phải buổi khám bệnh hoặc không có dữ liệu lâm sàng.");
+        return;
+      }
       const transcript = soapTranscriptFromConsultation(transcriptResponse);
       const extracted = await extractCaps({ input_format: "canonical", content: JSON.stringify(transcript) });
       runId = extracted.run_id;
@@ -495,11 +543,12 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   }
 
   const locked = draft.status === "final";
-  const activeRunId = draft.soapActiveSource === "test" ? draft.soapTestRunId : draft.soapRunId;
-  const icdSuggestions = draft.icdSuggestions.length ? draft.icdSuggestions : suggestIcd(draft.transcript);
+  const isNonClinical = draft.clinicalGateStatus === "NON_CLINICAL";
+  const activeRunId = isNonClinical ? null : (draft.soapActiveSource === "test" ? draft.soapTestRunId : draft.soapRunId);
+  const icdSuggestions = isNonClinical ? [] : (draft.icdSuggestions.length ? draft.icdSuggestions : suggestIcd(draft.transcript));
   const encounterId = draft.id;
-  const canApprove = !locked && (["subjective", "objective", "assessment", "plan"] as const).every((key) => draft.soap[key].trim());
-  const soapGenerated = Boolean(activeRunId) || (["subjective", "objective", "assessment", "plan"] as const).some((key) => draft.soap[key].trim());
+  const canApprove = !isNonClinical && !locked && (["subjective", "objective", "assessment", "plan"] as const).every((key) => draft.soap[key].trim());
+  const soapGenerated = !isNonClinical && (Boolean(activeRunId) || (["subjective", "objective", "assessment", "plan"] as const).some((key) => draft.soap[key].trim()));
 
   function leave(next: Encounter | null) {
     leaveRef.current = true;
@@ -572,6 +621,14 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
 
   function onGenerateClick() {
     if (!draft || draft.transcript.length === 0 || soapBusy || jsonBusy || isUploading || regenBusy) return;
+    if (draft.clinicalGateStatus === "NON_CLINICAL") {
+      toast.error(`Hội thoại không phải buổi khám bệnh (${draft.clinicalGateReason || "Nội dung ngoài lề"}). AI không tạo SOAP.`);
+      return;
+    }
+    if (draft.clinicalGateStatus === "UNCERTAIN") {
+      toast.error(`Chưa đủ dữ kiện xác nhận buổi khám (${draft.clinicalGateReason || "Mơ hồ"}). Vui lòng kiểm tra lại trước khi tạo SOAP.`);
+      return;
+    }
     if (activeRunId) {
       void regenerateNote();
       return;
@@ -586,7 +643,9 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const transcriptNode = (
     <TranscriptPanel
       variant="panel"
-      lines={draft.transcript}
+      lines={isNonClinical ? [] : draft.transcript}
+      emptyTitle={isNonClinical ? "Hội thoại bị từ chối (Không phải buổi khám)" : undefined}
+      emptyDescription={isNonClinical ? (draft.clinicalGateReason ? `Lý do: ${draft.clinicalGateReason}. Vui lòng tải lên file ghi âm buổi khám thực tế.` : "Bản ghi âm không phải cuộc trao đổi khám chữa bệnh giữa bác sĩ và bệnh nhân.") : undefined}
       locked={locked}
       loading={isUploading || transcriptBusy || transcriptLoading}
       onChange={onLines}
@@ -614,7 +673,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           onTab={(next) => { setTab(next); setUploadError(""); }}
           fileName={draft.audioFileName}
           audioUrl={audioUrl}
-          lines={draft.transcript}
+          lines={isNonClinical ? [] : draft.transcript}
           locked={locked}
           isUploading={isUploading}
           isProcessingTranscript={jsonBusy}
@@ -659,7 +718,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
               {showLegacyFinal ? "SOAP có CAP" : "Phiếu cũ"}
             </button>
           )}
-          <button type="button" data-guide="generate" onClick={onGenerateClick} disabled={soapBusy || jsonBusy || regenBusy || isUploading || draft.transcript.length === 0 || (!soapGenerated && !draft.consultationId)} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink bg-ink px-2.5 sm:px-3 text-xs sm:text-[12.5px] font-semibold text-white disabled:opacity-45">
+          <button type="button" data-guide="generate" onClick={onGenerateClick} disabled={soapBusy || jsonBusy || regenBusy || isUploading || draft.transcript.length === 0 || (!soapGenerated && !draft.consultationId) || draft.clinicalGateStatus === "NON_CLINICAL"} className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-ink bg-ink px-2.5 sm:px-3 text-xs sm:text-[12.5px] font-semibold text-white disabled:opacity-45">
             <RefreshCw size={14} /> {soapBusy || jsonBusy || regenBusy ? "Đang tạo…" : soapGenerated ? "Tạo lại" : "Tạo SOAP"}
           </button>
           <button type="button" onClick={() => void copyNote()} disabled={!soapGenerated} className={toolBtn}>
@@ -706,7 +765,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           )}
         </div>
       </div>
-      {activeRunId && draft.transcript.length > 0 && (
+      {activeRunId && !isNonClinical && draft.transcript.length > 0 && (
         <IcdSuggestBar
           suggestions={icdSuggestions}
           selectedIcd={draft.selectedIcd}
@@ -791,7 +850,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
                     mobileTab === "transcript" ? "bg-white text-ink shadow-xs" : "text-muted hover:text-ink"
                   )}
                 >
-                  Hội thoại ({draft.transcript.length})
+                  Hội thoại ({isNonClinical ? 0 : draft.transcript.length})
                 </button>
                 <button
                   type="button"

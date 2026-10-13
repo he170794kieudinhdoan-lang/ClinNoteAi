@@ -30,6 +30,10 @@ from src.services.audio.temp_storage import save_temp_audio
 from src.services.blaze.stt_async import BlazeSTTAsync, BlazeSTTError, blaze_stt
 from src.services.icd_kcb import IcdNotFoundError, IcdUnavailableError, IcdUpstreamError, lookup_code, search_codes
 from src.services.model_runtime import ModelConfigurationError, resolve_connection
+from src.services.clinical_gate import (
+    ClinicalGateError,
+    clinical_gate_classifier,
+)
 from src.services.speaker.role_classifier import (
     SpeakerRoleError,
     speaker_role_classifier,
@@ -38,6 +42,7 @@ from src.services.stt import create_stt
 from src.services.transcript.normalizer import (
     TranscriptNormalizationError,
     normalize_transcript,
+    normalize_unclassified_transcript,
 )
 from src.services.transcript.repository import (
     save_transcript_for_consultation,
@@ -260,7 +265,61 @@ async def upload_consultation_audio(
                 detail="Blaze STT returned no transcript segments",
             )
 
-        # 3. Qwen Speaker Role
+        # 3. Clinical Relevance Gate (reuses preferences.roles)
+        gate_decision = await clinical_gate_classifier.evaluate(
+            segments, preferences.roles if preferences else None
+        )
+
+        if gate_decision.is_technical_failure:
+            db.rollback()
+            consultation.status = "FAILED"
+            db.commit()
+            raise HTTPException(
+                status_code=502,
+                detail=f"Kiểm tra tính phù hợp lâm sàng thất bại: {gate_decision.reason}",
+            )
+
+        if gate_decision.status == "NON_CLINICAL":
+            consultation.status = "NON_CLINICAL"
+            db.commit()
+            return {
+                "consultation_id": str(consultation.id),
+                "status": consultation.status,
+                "segments_count": 0,
+                "speaker_source": stt_result.get("speaker_source", "audio"),
+                "clinical_relevance": gate_decision.model_dump(),
+                "transcript": [],
+            }
+
+        if gate_decision.status == "UNCERTAIN":
+            normalized_segments = normalize_unclassified_transcript(segments)
+            saved_segments = save_transcript_for_consultation(
+                db=db,
+                consultation=consultation,
+                segments=normalized_segments,
+                status=gate_decision.status,
+            )
+            return {
+                "consultation_id": str(consultation.id),
+                "status": consultation.status,
+                "segments_count": len(saved_segments),
+                "speaker_source": stt_result.get("speaker_source", "audio"),
+                "clinical_relevance": gate_decision.model_dump(),
+                "transcript": [
+                    {
+                        "id": str(segment.id),
+                        "speaker_label": segment.speaker_label,
+                        "resolved_role": segment.resolved_role,
+                        "content": segment.content,
+                        "start_ms": segment.start_ms,
+                        "end_ms": segment.end_ms,
+                        "role_confidence": segment.role_confidence,
+                    }
+                    for segment in saved_segments
+                ],
+            }
+
+        # 4. Speaker Role Classification (if CLINICAL)
         if stt_result.get("speaker_source") == "text_inference":
             segments, role_result = await speaker_role_classifier.classify_unlabelled(
                 segments, preferences.roles if preferences else None,
@@ -268,17 +327,18 @@ async def upload_consultation_audio(
         else:
             role_result = await speaker_role_classifier.classify(segments, preferences.roles) if preferences else await speaker_role_classifier.classify(segments)
 
-        # 4. Normalize
+        # 5. Normalize
         normalized_segments = normalize_transcript(
             segments=segments,
             speaker_roles=role_result["speaker_roles"],
         )
 
-        # 5. Save transcript vào consultation
+        # 6. Save transcript vào consultation
         saved_segments = save_transcript_for_consultation(
             db=db,
             consultation=consultation,
             segments=normalized_segments,
+            status="COMPLETED",
         )
 
         return {
@@ -286,6 +346,7 @@ async def upload_consultation_audio(
             "status": consultation.status,
             "segments_count": len(saved_segments),
             "speaker_source": stt_result.get("speaker_source", "audio"),
+            "clinical_relevance": gate_decision.model_dump(),
             "transcript": [
                 {
                     "id": str(segment.id),
@@ -375,6 +436,13 @@ async def get_consultation_transcript(
         raise HTTPException(
             status_code=404,
             detail="Consultation not found",
+        )
+
+    if consultation.status == "NON_CLINICAL":
+        return TranscriptResponse(
+            consultation_id=consultation.id,
+            status=consultation.status,
+            segments=[],
         )
 
     segments = (
