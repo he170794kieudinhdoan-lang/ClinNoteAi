@@ -131,10 +131,21 @@ export interface ConsultationResponse {
   language: string;
 }
 
+export interface ClinicalRelevanceDecision {
+  status: "CLINICAL" | "NON_CLINICAL" | "UNCERTAIN";
+  confidence?: number | null;
+  reason: string;
+  evidence_signals?: string[];
+  is_technical_failure?: boolean;
+  raw_error?: string | null;
+}
+
 export interface UploadAudioResponse {
   consultation_id: string;
   status: string;
   segments_count: number;
+  speaker_source?: string;
+  clinical_relevance?: ClinicalRelevanceDecision;
   transcript: BackendTranscriptSegment[];
 }
 

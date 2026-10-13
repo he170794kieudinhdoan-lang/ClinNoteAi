@@ -18,4 +18,5 @@ class SoapPipelineState(TypedDict, total=False):
     model_metadata: dict
     cap_repair_count: int
     soap_repair_count: int
+    gate_decision: dict
     error: dict
