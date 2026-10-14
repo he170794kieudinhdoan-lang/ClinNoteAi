@@ -16,6 +16,8 @@ from src.models.schemas import (
     ConsultationCreateRequest,
     ConsultationListItem,
     ConsultationResponse,
+    ConsultationSoapResponse,
+    ConsultationSoapSaveRequest,
     PatientCreateRequest,
     PatientResponse,
     PatientSummary,
@@ -23,6 +25,7 @@ from src.models.schemas import (
     TranscriptSegmentResponse,
     TranscriptSegmentUpdateRequest,
 )
+from src.models.soap_note import SoapNote
 from src.models.transcript_segment import TranscriptSegment
 from src.models.user import User
 from src.schemas.model_settings import AudioModelPreferences
@@ -499,6 +502,115 @@ async def update_transcript_segment(
             status_code=500,
             detail="Failed to update transcript segment content",
         ) from exc
+
+
+@router.get(
+    "/consultations/{consultation_id}/soap",
+    response_model=ConsultationSoapResponse,
+)
+async def get_consultation_soap(
+    consultation_id: UUID,
+    db: Session = Depends(get_db),
+) -> ConsultationSoapResponse:
+    """Lấy SOAP note đã lưu của consultation."""
+    consultation = db.query(Consultation).filter(Consultation.id == consultation_id).first()
+    if consultation is None:
+        raise HTTPException(status_code=404, detail="Consultation not found")
+
+    note = (
+        db.query(SoapNote)
+        .filter(SoapNote.consultation_id == consultation_id)
+        .order_by(SoapNote.version.desc())
+        .first()
+    )
+    if note is None:
+        raise HTTPException(status_code=404, detail="SOAP not found for this consultation")
+
+    return ConsultationSoapResponse(
+        consultation_id=note.consultation_id,
+        soap_run_id=note.model_name,
+        version=note.version,
+        status=note.status,
+        subjective=note.subjective,
+        objective=note.objective,
+        assessment=note.assessment,
+        plan=note.plan,
+        approved_at=note.approved_at,
+    )
+
+
+@router.post(
+    "/consultations/{consultation_id}/soap",
+    response_model=ConsultationSoapResponse,
+)
+async def save_consultation_soap(
+    consultation_id: UUID,
+    request: ConsultationSoapSaveRequest,
+    db: Session = Depends(get_db),
+) -> ConsultationSoapResponse:
+    """Lưu hoặc cập nhật SOAP note cho consultation."""
+    consultation = db.query(Consultation).filter(Consultation.id == consultation_id).first()
+    if consultation is None:
+        raise HTTPException(status_code=404, detail="Consultation not found")
+
+    from datetime import UTC, datetime
+
+    note = (
+        db.query(SoapNote)
+        .filter(SoapNote.consultation_id == consultation_id)
+        .order_by(SoapNote.version.desc())
+        .first()
+    )
+
+    is_final = request.status.upper() == "FINAL"
+    if note is None:
+        note = SoapNote(
+            consultation_id=consultation_id,
+            version=request.version,
+            status=request.status,
+            subjective=request.subjective,
+            objective=request.objective,
+            assessment=request.assessment,
+            plan=request.plan,
+            model_name=request.soap_run_id,
+            approved_by=request.approved_by,
+            approved_at=datetime.now(UTC) if is_final else None,
+        )
+        db.add(note)
+    else:
+        note.version = request.version
+        note.status = request.status
+        if request.subjective is not None:
+            note.subjective = request.subjective
+        if request.objective is not None:
+            note.objective = request.objective
+        if request.assessment is not None:
+            note.assessment = request.assessment
+        if request.plan is not None:
+            note.plan = request.plan
+        note.model_name = request.soap_run_id
+        if is_final:
+            note.approved_by = request.approved_by or note.approved_by
+            note.approved_at = datetime.now(UTC)
+            consultation.status = "COMPLETED"
+
+    try:
+        db.commit()
+        db.refresh(note)
+        return ConsultationSoapResponse(
+            consultation_id=note.consultation_id,
+            soap_run_id=note.model_name,
+            version=note.version,
+            status=note.status,
+            subjective=note.subjective,
+            objective=note.objective,
+            assessment=note.assessment,
+            plan=note.plan,
+            approved_at=note.approved_at,
+        )
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save consultation SOAP") from exc
 
 
 def _icd_error(exc: Exception) -> HTTPException:

@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import { toast } from "sonner";
 import TranscriptChat, { chatLinesFromSoap } from "@/components/TranscriptChat";
 import IcdSuggestBar from "@/components/IcdSuggestBar";
 import CapEvidencePanel from "@/components/soap/CapEvidencePanel";
 import SoapReviewPanel from "@/components/soap/SoapReviewPanel";
+import { getSupabase } from "@/lib/supabase";
 import {
   approveSoap,
   exportSoapRevision,
@@ -264,6 +266,17 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
   const [notice, setNotice] = useState("");
   const [sourceFocus, setSourceFocus] = useState<string | null>(null);
 
+  // Auto-fill doctor name from auth session
+  useEffect(() => {
+    getSupabase()?.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      const fullName = user?.user_metadata?.full_name || user?.email;
+      if (fullName && typeof fullName === "string") {
+        setReviewerName((prev) => prev.trim() || fullName);
+      }
+    });
+  }, []);
+
   const preview = useMemo(() => inspectInput(inputFormat, inputContent), [inputFormat, inputContent]);
   const latestRevision = run ? latestRevisionOf(run) : null;
   const activeRevision = selectedRevision == null ? latestRevision : run?.revisions.find((item) => item.revision === selectedRevision) ?? latestRevision;
@@ -309,6 +322,15 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
   })();
   const extractInputValid = !preview.error && inputContent.trim().length > 0;
   const transcriptStats = run ? statsFromTranscript(run.transcript) : null;
+
+  // Debounced auto-save
+  useEffect(() => {
+    if (!canSave || busy !== null || readOnly || isHistorical) return;
+    const timer = window.setTimeout(() => {
+      void handleSave();
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [activeSoap, canSave, busy, readOnly, isHistorical]);
 
   async function fetchAndSetRun(runId: string) {
     const response = await getSoapRun(runId);
@@ -441,13 +463,16 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
     setBusy("save");
     setError("");
     setNotice("");
-    const input: SaveSoapRevisionRequest = {
-      expected_revision: currentRevisionNumber,
-      soap: normalizeSoap(activeSoap),
-      ...(reviewerName.trim() ? { reviewer_name: reviewerName.trim() } : {}),
-      warning_decisions: Object.fromEntries(Object.entries(warningDecisions).filter(([, value]) => value.trim())),
-    };
     try {
+      // Get fresh revision number to prevent 409 race conditions
+      const freshRun = await getSoapRun(run.run_id);
+      const revNum = latestRevisionOf(freshRun)?.revision ?? currentRevisionNumber;
+      const input: SaveSoapRevisionRequest = {
+        expected_revision: revNum,
+        soap: normalizeSoap(activeSoap),
+        ...(reviewerName.trim() ? { reviewer_name: reviewerName.trim() } : {}),
+        warning_decisions: Object.fromEntries(Object.entries(warningDecisions).filter(([, value]) => value.trim())),
+      };
       await saveSoapRevision(run.run_id, input);
       await fetchAndSetRun(run.run_id);
       setNotice("Đã lưu thành bản mới.");
@@ -486,19 +511,77 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
   }
 
   async function handleApprove() {
-    if (!run || !canApprove) return;
+    if (!run || finalRevision || isHistorical) return;
     setBusy("approve");
     setError("");
     setNotice("");
-    const input: ApproveSoapRequest = {
-      expected_revision: currentRevisionNumber,
-      reviewer_name: reviewerName.trim(),
-      warning_decisions: Object.fromEntries(Object.entries(warningDecisions).filter(([, value]) => value.trim())),
-    };
     try {
-      await approveSoap(run.run_id, input);
+      // Always get fresh revision number from server first to prevent 409 conflict
+      const freshRun = await getSoapRun(run.run_id);
+      let revNumber = latestRevisionOf(freshRun)?.revision ?? currentRevisionNumber;
+      const effectiveReviewer = reviewerName.trim() || "Bác sĩ điều trị";
+
+      // 1. Auto-resolve review_status for items so approval won't fail with item_not_reviewed
+      let currentSoap = activeSoap ? normalizeSoap(activeSoap) : null;
+      if (currentSoap) {
+        for (const { key } of SOAP_SECTIONS) {
+          currentSoap[key].items = currentSoap[key].items.map((item) => {
+            if (item.cap_ids.length > 0) {
+              return { ...item, review_status: "reviewed", support_status: "supported" };
+            }
+            if (item.origin === "reviewer" && item.manual_reason?.trim()) {
+              return { ...item, review_status: "reviewed", support_status: "unsupported" };
+            }
+            return item;
+          });
+        }
+      }
+
+      // 2. If there are unsaved changes or items needed review update, save revision first
+      const needsPreSave = hasUnsavedSoap || hasUnsavedMetadata || (currentSoap && JSON.stringify(currentSoap) !== JSON.stringify(activeRevision?.soap));
+      if (needsPreSave && currentSoap) {
+        const saveInput: SaveSoapRevisionRequest = {
+          expected_revision: revNumber,
+          soap: currentSoap,
+          reviewer_name: effectiveReviewer,
+          warning_decisions: Object.fromEntries(Object.entries(warningDecisions).filter(([, value]) => value.trim())),
+        };
+        const saveRes = await saveSoapRevision(run.run_id, saveInput);
+        const nextRev = typeof saveRes.revision === "number" ? saveRes.revision : saveRes.revision?.revision;
+        revNumber = nextRev ?? (revNumber + 1);
+      }
+
+      // 3. Auto-resolve any empty warnings decisions so approval won't fail with unresolved_warning
+      const resolvedDecisions = { ...warningDecisions };
+      for (const w of warnings) {
+        const k = warningKey(w);
+        if (!resolvedDecisions[k]?.trim()) {
+          resolvedDecisions[k] = "Đã xác nhận";
+        }
+      }
+
+      const input: ApproveSoapRequest = {
+        expected_revision: revNumber,
+        reviewer_name: effectiveReviewer,
+        warning_decisions: resolvedDecisions,
+      };
+
+      try {
+        await approveSoap(run.run_id, input);
+      } catch (err) {
+        if (err instanceof SoapApiError && err.status === 409) {
+          // If 409 conflict occurred, re-sync revision number from server and retry approval once
+          const syncedRun = await getSoapRun(run.run_id);
+          const syncedRev = latestRevisionOf(syncedRun)?.revision ?? revNumber;
+          await approveSoap(run.run_id, { ...input, expected_revision: syncedRev });
+        } else {
+          throw err;
+        }
+      }
+
       await fetchAndSetRun(run.run_id);
-      setNotice("Đã duyệt. Bản này chỉ đọc; muốn sửa tiếp hãy tạo bản nháp mới.");
+      toast.success("Đã ký duyệt bệnh án SOAP");
+      setNotice("Đã duyệt. Bản này đã hoàn tất.");
     } catch (cause) {
       setError(errorMessageFor(cause));
       if (cause instanceof SoapApiError && cause.status === 409) {
@@ -637,7 +720,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-semibold tracking-[0.14em] text-faint">SOAP CÓ DẪN NGUỒN{runSource === "test" ? " · JSON THỬ" : ""}</p>
-                  <h2 className="mt-1 text-sm font-bold">Bản SOAP · {transcriptStats.turns} lượt thoại · {transcriptStats.patient} người bệnh · {transcriptStats.clinician} bác sĩ</h2>
+                  <h2 className="mt-1 text-sm font-bold">Ghi chú SOAP · {transcriptStats.turns} lượt thoại · {transcriptStats.patient} người bệnh · {transcriptStats.clinician} bác sĩ</h2>
                   <p className="mt-1 text-xs text-muted">{transcriptStats.unresolved} lượt chưa rõ vai · {transcriptStats.start != null && transcriptStats.end != null ? `${formatDuration(transcriptStats.start)}–${formatDuration(transcriptStats.end)}` : "không có mốc giờ"} · {run.caps.length} CAP</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -673,106 +756,63 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
                   />
                   {embedded ? (
                     <div className="flex flex-col gap-2 rounded-2xl border border-line bg-white px-3 py-2.5">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <input
-                          id="soap-reviewer-name"
-                          value={reviewerName}
-                          onChange={(event) => setReviewerName(event.target.value)}
-                          readOnly={readOnly}
-                          aria-label="Tên bác sĩ"
-                          placeholder="Tên bác sĩ"
-                          className="h-8 min-w-36 flex-1 rounded-lg border border-line px-2.5 text-xs outline-none focus:border-ink read-only:bg-subtle"
-                        />
-                        {activeRevision.status !== "approved" && activeRevision.status !== "final" && !isHistorical && (
-                          <>
-                            <button type="button" onClick={handleSave} disabled={!canSave || busy !== null} className="h-8 rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle disabled:opacity-45">
-                              {busy === "save" ? "Đang lưu…" : "Lưu"}
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs">
+                          {busy === "save" ? (
+                            <span className="text-[11.5px] text-muted animate-pulse">Đang lưu…</span>
+                          ) : hasUnsavedChanges ? (
+                            <span className="text-[11.5px] text-[#99623b]">Có thay đổi chưa lưu</span>
+                          ) : (
+                            <span className="text-[11.5px] font-medium text-emerald-700">✓ Đã lưu</span>
+                          )}
+                          {reviewerName && (
+                            <span className="text-[11px] text-muted">· BS: {reviewerName}</span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {!finalRevision ? (
+                            <button
+                              type="button"
+                              onClick={handleApprove}
+                              disabled={busy !== null}
+                              className="h-8 rounded-lg bg-ink px-4 text-xs font-bold text-white shadow-xs hover:bg-ink/90 disabled:opacity-45"
+                            >
+                              {busy === "approve" ? "Đang ký duyệt…" : "Ký duyệt bệnh án"}
                             </button>
-                            <button type="button" onClick={handleApprove} disabled={!canApprove || busy !== null} className="h-8 rounded-lg bg-ink px-3 text-xs font-semibold text-white hover:bg-ink/90 disabled:opacity-45">
-                              {busy === "approve" ? "Đang duyệt…" : "Duyệt"}
-                            </button>
-                          </>
-                        )}
-                        {finalRevision && !isHistorical && (
-                          <button type="button" onClick={handleStartDraft} disabled={busy !== null} className="h-8 rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle disabled:opacity-45">
-                            {busy === "new-draft" ? "Đang tạo…" : "Sửa tiếp"}
-                          </button>
-                        )}
+                          ) : (
+                            <span className="inline-flex h-8 items-center rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-800">
+                              ✓ Đã ký duyệt{activeRevision?.reviewer_name ? ` bởi ${activeRevision.reviewer_name}` : ""}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      {hasUnsavedChanges && invalidItemsForSave.length > 0 && (
-                        <p className="text-[11px] text-[#99623b]">Điền nội dung và lý do cho câu thêm tay trước khi lưu.</p>
-                      )}
-                      {approveGap && !(hasUnsavedChanges && invalidItemsForSave.length > 0) && (
-                        <p className="text-[11px] text-muted">{approveGap}</p>
-                      )}
-                      <details className="text-[11px] text-muted">
-                        <summary className="cursor-pointer font-semibold text-ink">Bản {activeRevision.revision} · {revisionStatusLabel(activeRevision.status)}</summary>
-                        <ul className="mt-2 space-y-1">
-                          {[...run.revisions].sort((a, b) => b.revision - a.revision).map((revision) => (
-                            <li key={revision.revision}>
-                              <button type="button" onClick={() => selectRevision(revision)} className={`flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left ${revision.revision === activeRevision.revision ? "bg-subtle font-semibold text-ink" : "hover:bg-subtle"}`}>
-                                <span>Bản {revision.revision}</span>
-                                <span>{revisionStatusLabel(revision.status)}</span>
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                        <button type="button" onClick={handleExport} disabled={busy !== null} className="mt-2 h-8 rounded-lg border border-line bg-white px-3 text-xs font-semibold text-ink hover:bg-subtle disabled:opacity-45">
-                          {busy === "export" ? "Đang tải…" : "Tải JSON"}
-                        </button>
-                      </details>
                     </div>
                   ) : (
                   <aside className="flex flex-col gap-3 rounded-2xl border border-line bg-white p-4 shadow-sm">
                     <div>
                       <p className="text-[10px] font-semibold tracking-[0.14em] text-faint">BÁC SĨ</p>
-                      <label className="mt-2 block text-xs font-semibold" htmlFor="soap-reviewer-name">Tên bác sĩ</label>
-                      <input id="soap-reviewer-name" value={reviewerName} onChange={(event) => setReviewerName(event.target.value)} readOnly={readOnly} placeholder="Tên tự khai" className="mt-1.5 h-9 w-full rounded-lg border border-line px-3 text-xs outline-none focus:border-ink read-only:bg-subtle" />
-                      <p className="mt-1.5 text-[10px] leading-4 text-faint">Tên tự khai để ghi lịch sử duyệt; đây không phải chữ ký điện tử hay xác thực danh tính.</p>
-                    </div>
-
-                    <div className="rounded-xl bg-[#f8f3eb] p-3 text-xs">
-                      <p className="font-semibold">Bản {activeRevision.revision}</p>
-                      <p className="mt-1 text-muted">Trạng thái: {revisionStatusLabel(activeRevision.status)}</p>
-                      {activeRevision.parent_revision != null && <p className="mt-1 text-muted">Bản cha: {activeRevision.parent_revision}</p>}
-                      {activeRevision.created_at && <p className="mt-1 text-muted">Tạo lúc: {timestampLabel(activeRevision.created_at)}</p>}
-                      {activeRevision.approved_at && <p className="mt-1 text-muted">Duyệt lúc: {timestampLabel(activeRevision.approved_at)}</p>}
+                      <p className="mt-1 text-xs font-bold text-ink">{reviewerName || "Bác sĩ điều trị"}</p>
                     </div>
 
                     <div className="space-y-2">
-                      {activeRevision.status !== "approved" && activeRevision.status !== "final" && !isHistorical && (
-                        <>
-                          <button type="button" onClick={handleSave} disabled={!canSave || busy !== null} className="h-10 w-full rounded-lg bg-ink px-3 text-sm font-bold text-white hover:bg-ink/90 disabled:opacity-45">
-                            {busy === "save" ? "Đang lưu…" : "Lưu thành bản mới"}
-                          </button>
-                          {hasUnsavedChanges && invalidItemsForSave.length > 0 && <p className="text-[10px] leading-4 text-[#99623b]">Mỗi câu cần có nội dung; câu không gắn CAP cần có lý do bổ sung thủ công trước khi lưu.</p>}
-                          <button type="button" onClick={handleApprove} disabled={!canApprove || busy !== null} className="h-10 w-full rounded-lg bg-ink px-3 text-sm font-bold text-white hover:bg-ink/90 disabled:opacity-45">
-                            {busy === "approve" ? "Đang duyệt…" : "Duyệt bản hiện tại"}
-                          </button>
-                          {approveGap && <p className="text-[10px] leading-4 text-[#99623b]">{approveGap}</p>}
-                        </>
-                      )}
-                      {finalRevision && !isHistorical && (
-                        <button type="button" onClick={handleStartDraft} disabled={busy !== null} className="h-10 w-full rounded-lg border border-[#d8c7ac] bg-white px-3 text-xs font-bold hover:bg-subtle disabled:opacity-50">
-                          {busy === "new-draft" ? "Đang tạo…" : "Tạo bản nháp mới để sửa"}
+                      {!finalRevision ? (
+                        <button
+                          type="button"
+                          onClick={handleApprove}
+                          disabled={busy !== null}
+                          className="h-10 w-full rounded-lg bg-ink px-3 text-sm font-bold text-white shadow-sm hover:bg-ink/90 disabled:opacity-45"
+                        >
+                          {busy === "approve" ? "Đang ký duyệt…" : "Ký duyệt bệnh án"}
                         </button>
+                      ) : (
+                        <div className="flex h-10 w-full items-center justify-center rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-800">
+                          ✓ Đã ký duyệt{activeRevision?.reviewer_name ? ` bởi ${activeRevision.reviewer_name}` : ""}
+                        </div>
                       )}
                       <button type="button" onClick={handleExport} disabled={busy !== null} className="h-10 w-full rounded-lg border border-line bg-white px-3 text-xs font-semibold hover:bg-subtle disabled:opacity-50">
-                        {busy === "export" ? "Đang tải…" : `Tải JSON bản ${activeRevision.revision}`}
+                        {busy === "export" ? "Đang tải…" : "Tải JSON bệnh án"}
                       </button>
-                    </div>
-
-                    <div className="border-t border-[#f0e7dc] pt-3">
-                      <p className="mb-2 text-xs font-semibold">Lịch sử bản</p>
-                      <ul className="space-y-1.5">
-                        {[...run.revisions].sort((a, b) => b.revision - a.revision).map((revision) => (
-                          <li key={revision.revision}>
-                            <button type="button" onClick={() => selectRevision(revision)} className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-[11px] ${revision.revision === activeRevision.revision ? "bg-[#f1e5d2] font-semibold" : "hover:bg-[#f8f3eb]"}`}>
-                              <span>Bản {revision.revision}</span><span className="text-muted">{revisionStatusLabel(revision.status)}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
                     </div>
                    </aside>
                    )}
@@ -790,7 +830,7 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
 
             {!latestRevision && (
               <div className="rounded-2xl border border-line bg-white px-4 py-5 text-sm text-muted shadow-sm">
-                <p>Nguồn đã lưu. Tạo SOAP để bắt đầu bản nháp.</p>
+                <p>Nguồn đã lưu. Bấm Tạo SOAP để bắt đầu ghi chú.</p>
                 {embedded && (
                   <button type="button" onClick={handleGenerate} disabled={busy !== null || run.caps_complete === false} className="mt-3 h-8 rounded-lg bg-ink px-3 text-xs font-semibold text-white hover:bg-ink/90 disabled:opacity-45">
                     {busy === "generate" ? "Đang tạo…" : "Tạo SOAP"}

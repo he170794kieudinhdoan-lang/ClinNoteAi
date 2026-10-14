@@ -32,7 +32,16 @@ import {
   uploadConsultationAudio,
 } from "@/lib/api";
 import { getSupabase } from "@/lib/supabase";
-import { extractCaps, fetchConsultationIcd, generateSoap, patchIcdSuggestion, saveConsultationIcd, suggestIcdRemote } from "@/lib/soapApi";
+import {
+  extractCaps,
+  fetchConsultationIcd,
+  fetchConsultationSoap,
+  generateSoap,
+  patchIcdSuggestion,
+  saveConsultationIcd,
+  saveConsultationSoap,
+  suggestIcdRemote,
+} from "@/lib/soapApi";
 import { soapTranscriptFromConsultation } from "@/lib/soapTranscript";
 import type { Encounter, IcdSuggestion, Patient, SoapNote, TranscriptLine } from "@/types";
 import { SOAP_SECTIONS, type SoapInputFormat } from "@/types/soap";
@@ -145,6 +154,18 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   const rememberSoap = useCallback((soap: SoapNote) => {
     groundedSoap.current = soap;
     setPreviewSoap(soap);
+    const consultationId = draftRef.current?.consultationId;
+    const runId = draftRef.current?.soapRunId;
+    if (consultationId && runId) {
+      void saveConsultationSoap(consultationId, {
+        soap_run_id: runId,
+        subjective: soap.subjective,
+        objective: soap.objective,
+        assessment: soap.assessment,
+        plan: soap.plan,
+        status: "DRAFT",
+      }).catch(() => undefined);
+    }
   }, []);
   const audioUrlRef = useRef<string | null>(null);
   const seen = useRef<string | null>(null);
@@ -183,6 +204,58 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
       .catch(() => undefined);
     return () => { alive = false; };
   }, [encounter?.consultationId]);
+
+  useEffect(() => {
+    const consultationId = encounter?.consultationId || (isUUID(id) ? id : null);
+    if (!consultationId) return;
+    let alive = true;
+
+    try {
+      const cachedRunId = localStorage.getItem(`clinnote-soap-run:${consultationId}`);
+      if (cachedRunId) {
+        setDraft((current) => {
+          if (!current || current.soapRunId) return current;
+          return {
+            ...current,
+            soapRunId: cachedRunId,
+            soapActiveSource: "consultation",
+            soapRunOutdated: false,
+            status: current.status === "empty" ? "soap" : current.status,
+          };
+        });
+      }
+    } catch {}
+
+    fetchConsultationSoap(consultationId)
+      .then((soapData) => {
+        if (!alive || !soapData) return;
+        if (soapData.soap_run_id) {
+          try {
+            localStorage.setItem(`clinnote-soap-run:${consultationId}`, soapData.soap_run_id);
+          } catch {}
+        }
+        setDraft((current) => {
+          if (!current) return current;
+          const runId = soapData.soap_run_id || current.soapRunId;
+          const s = soapData.subjective ?? current.soap.subjective;
+          const o = soapData.objective ?? current.soap.objective;
+          const a = soapData.assessment ?? current.soap.assessment;
+          const p = soapData.plan ?? current.soap.plan;
+          const hasNote = Boolean(runId || s || o || a || p);
+          return {
+            ...current,
+            soapRunId: runId,
+            soapActiveSource: "consultation",
+            soapRunOutdated: false,
+            status: soapData.status === "FINAL" ? "final" : (hasNote ? (current.status === "empty" ? "soap" : current.status) : current.status),
+            soap: { subjective: s ?? "", objective: o ?? "", assessment: a ?? "", plan: p ?? "" },
+          };
+        });
+      })
+      .catch(() => undefined);
+
+    return () => { alive = false; };
+  }, [encounter?.consultationId, id]);
 
   useEffect(() => {
     if (localStorage.getItem(FIRST_VISIT_GUIDE_HIDE) === "1") return;
@@ -488,6 +561,16 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
         saveEncounter(next);
       }
       await generateSoap(runId, 0);
+      if (runId && consultationId) {
+        try {
+          localStorage.setItem(`clinnote-soap-run:${consultationId}`, runId);
+        } catch {}
+        void saveConsultationSoap(consultationId, {
+          soap_run_id: runId,
+          version: 1,
+          status: "DRAFT",
+        }).catch(() => undefined);
+      }
       requestRemoteIcdSuggestions(runId);
       toast.success("Đã tạo ghi chú SOAP");
     } catch (cause) {
@@ -1037,9 +1120,11 @@ const PatientCard = memo(function PatientCard({ patient, locked }: { patient: En
           </span>
         </span>
       </div>
-      <span className="shrink-0 rounded-full bg-subtle px-2.5 py-1 text-[11px] font-semibold text-muted">
-        {locked ? "Đã duyệt" : "Bản nháp"}
-      </span>
+      {locked && (
+        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-bold text-emerald-800">
+          Đã ký duyệt
+        </span>
+      )}
     </article>
   );
 });
