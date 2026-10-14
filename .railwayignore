@@ -1,0 +1,10 @@
+/frontend/
+/.venv/
+/data/
+/audio/
+/scratch/
+.git/
+.pytest_cache/
+.ruff_cache/
+__pycache__/
+*.pyc
