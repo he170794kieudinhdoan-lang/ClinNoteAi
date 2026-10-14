@@ -181,3 +181,44 @@ export function patchIcdSuggestion(suggestionId: string, status: "SUGGESTED" | "
     body: JSON.stringify({ status }),
   });
 }
+
+export interface ConsultationSoapData {
+  consultation_id: string;
+  soap_run_id: string | null;
+  version: number;
+  status: string;
+  subjective?: string | null;
+  objective?: string | null;
+  assessment?: string | null;
+  plan?: string | null;
+  approved_at?: string | null;
+}
+
+export function fetchConsultationSoap(consultationId: string) {
+  return requestJson<ConsultationSoapData>(
+    `/api/v1/consultations/${encodeURIComponent(consultationId)}/soap`,
+  );
+}
+
+export function saveConsultationSoap(
+  consultationId: string,
+  input: {
+    soap_run_id: string;
+    version?: number;
+    status?: string;
+    subjective?: string | null;
+    objective?: string | null;
+    assessment?: string | null;
+    plan?: string | null;
+    approved_by?: string | null;
+  },
+) {
+  return requestJson<ConsultationSoapData>(
+    `/api/v1/consultations/${encodeURIComponent(consultationId)}/soap`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+}
+

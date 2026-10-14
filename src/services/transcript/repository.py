@@ -95,6 +95,7 @@ def save_transcript_for_consultation(
     db: Session,
     consultation: Consultation,
     segments: list[dict[str, Any]],
+    status: str = "COMPLETED",
 ) -> list[TranscriptSegment]:
     try:
         db.query(TranscriptSegment).filter(
@@ -107,7 +108,7 @@ def save_transcript_for_consultation(
             segments=segments,
         )
 
-        consultation.status = "COMPLETED"
+        consultation.status = status
 
         db.commit()
 

@@ -11,7 +11,7 @@ def create_soap_pipeline(store, llm):
     nodes = make_nodes(store, llm)
     graph = StateGraph(SoapPipelineState)
     for name in (
-        "normalize", "save_input", "extract_caps", "repair_caps", "check_caps", "save_caps",
+        "normalize", "check_gate", "save_input", "extract_caps", "repair_caps", "check_caps", "save_caps",
         "load_snapshot", "render_soap", "repair_soap", "check_soap", "save_draft", "record_error",
     ):
         graph.add_node(name, nodes[name])
@@ -28,7 +28,8 @@ def create_soap_pipeline(store, llm):
             return route(state, target)
         return decide
 
-    graph.add_conditional_edges("normalize", next_or_error("save_input"))
+    graph.add_conditional_edges("normalize", next_or_error("check_gate"))
+    graph.add_conditional_edges("check_gate", next_or_error("save_input"))
     graph.add_conditional_edges("save_input", next_or_error("extract_caps"))
 
     async def after_extract(state):

@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 
 from src.config import get_settings
 from src.schemas.soap import Cap, SoapRevision, Transcript
+from src.services.clinical_gate import clinical_gate_classifier
 from src.services.soap import extractor, renderer
 from src.services.soap.errors import SoapFailure
 from src.services.soap.semantic_validator import check_item_safety
@@ -30,6 +31,36 @@ def make_nodes(store, llm):
         except (TranscriptNormalizationError, ValueError) as exc:
             return {"error": {"stage": "normalize_transcript", "code": "invalid_input", "message": str(exc),
                               "status": 422, "run_id": None}}
+
+    async def check_gate(state):
+        try:
+            transcript_dict = state["transcript"]
+            turns = transcript_dict.get("turns", [])
+            segments = [{"speaker": t.get("speaker"), "text": t.get("text")} for t in turns]
+            gate_decision = await clinical_gate_classifier.evaluate(segments)
+            if gate_decision.is_technical_failure:
+                return {
+                    "error": {
+                        "stage": "clinical_gate",
+                        "code": "gate_technical_failure",
+                        "message": f"Kiểm tra tính phù hợp lâm sàng thất bại: {gate_decision.raw_error}",
+                        "status": 502,
+                        "run_id": None,
+                    }
+                }
+            if gate_decision.status != "CLINICAL":
+                return {
+                    "error": {
+                        "stage": "clinical_gate",
+                        "code": "non_clinical_transcript" if gate_decision.status == "NON_CLINICAL" else "uncertain_clinical_context",
+                        "message": f"Transcript không hợp lệ để tạo CAP/SOAP ({gate_decision.status}): {gate_decision.reason}",
+                        "status": 422,
+                        "run_id": None,
+                    }
+                }
+            return {"gate_decision": gate_decision.model_dump()}
+        except Exception as exc:
+            return {"error": failure(exc, "clinical_gate")}
 
     async def save_input(state):
         try:

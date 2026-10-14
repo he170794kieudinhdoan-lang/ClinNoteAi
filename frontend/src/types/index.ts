@@ -75,4 +75,7 @@ export interface Encounter {
   soapRunOutdated?: boolean;
   patientId?: string;
   doctorId?: string;
+  clinicalGateStatus?: "CLINICAL" | "NON_CLINICAL" | "UNCERTAIN";
+  clinicalGateReason?: string;
+  clinicalGateConfidence?: number;
 }

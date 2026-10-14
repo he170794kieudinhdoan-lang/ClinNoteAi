@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { ArrowLeft, ShieldCheck } from "lucide-react";
@@ -22,6 +23,82 @@ export default function LoginPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [agreeTerms, setAgreeTerms] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState("");
+  const turnstileContainerRef = useRef<HTMLDivElement>(null);
+  const widgetIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || mode === "forgot") return;
+    const siteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || "0x4AAAAAAFVX1XXgYAAkje_7";
+    let active = true;
+
+    function mountWidget() {
+      if (!active) return;
+      const tw = (window as unknown as { turnstile?: { render: (el: HTMLElement, opts: Record<string, unknown>) => string; reset: (id: string) => void; remove?: (id: string) => void } }).turnstile;
+      if (tw && turnstileContainerRef.current && !widgetIdRef.current) {
+        turnstileContainerRef.current.innerHTML = "";
+        try {
+          widgetIdRef.current = tw.render(turnstileContainerRef.current, {
+            sitekey: siteKey,
+            callback: (token: string) => {
+              if (!active) return;
+              setTurnstileToken(token);
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next.turnstile;
+                return next;
+              });
+            },
+            "expired-callback": () => {
+              if (active) setTurnstileToken("");
+            },
+            "error-callback": () => {
+              if (active) setErrors((prev) => ({ ...prev, turnstile: "Lỗi kết nối kiểm tra bảo mật Turnstile." }));
+            },
+          });
+        } catch (err) {
+          console.warn("Turnstile render error:", err);
+        }
+      }
+    }
+
+    let interval: NodeJS.Timeout | null = null;
+    if ((window as unknown as { turnstile?: unknown }).turnstile) {
+      mountWidget();
+    } else {
+      interval = setInterval(() => {
+        if ((window as unknown as { turnstile?: unknown }).turnstile) {
+          if (interval) clearInterval(interval);
+          mountWidget();
+        }
+      }, 100);
+    }
+
+    return () => {
+      active = false;
+      if (interval) clearInterval(interval);
+      if (widgetIdRef.current && typeof window !== "undefined") {
+        const tw = (window as unknown as { turnstile?: { remove?: (id: string) => void } }).turnstile;
+        if (tw && typeof tw.remove === "function") {
+          try {
+            tw.remove(widgetIdRef.current);
+          } catch {}
+        }
+        widgetIdRef.current = null;
+      }
+      setTurnstileToken("");
+    };
+  }, [mode]);
+
+  function resetTurnstile() {
+    setTurnstileToken("");
+    const tw = (window as unknown as { turnstile?: { reset: (id: string) => void } }).turnstile;
+    if (tw && widgetIdRef.current) {
+      try {
+        tw.reset(widgetIdRef.current);
+      } catch {}
+    }
+  }
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [shake, setShake] = useState(0);
   const [busy, setBusy] = useState<"form" | "google" | null>(null);
@@ -128,6 +205,7 @@ export default function LoginPage() {
     setShowConfirmPassword(false);
     setShake(0);
     setAgreeTerms(false);
+    resetTurnstile();
   }
 
   function validate() {
@@ -146,6 +224,9 @@ export default function LoginPage() {
     }
     if (mode === "register" && !agreeTerms) {
       next.terms = "Vui lòng đồng ý với Điều khoản dịch vụ & Miễn trừ trách nhiệm trước khi đăng ký.";
+    }
+    if (mode !== "forgot" && !turnstileToken) {
+      next.turnstile = "Vui lòng xác minh bảo mật chống bot (Turnstile).";
     }
     return next;
   }
@@ -182,11 +263,32 @@ export default function LoginPage() {
         return;
       }
 
+      // Xác minh Turnstile với backend API trước khi đăng nhập/đăng ký
+      try {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        const verifyRes = await fetch(`${apiUrl}/api/v1/auth/verify-turnstile`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: turnstileToken }),
+        });
+        if (!verifyRes.ok) {
+          const errData = await verifyRes.json().catch(() => ({}));
+          throw new Error(errData.detail || "Xác thực chống bot không thành công.");
+        }
+      } catch (vErr) {
+        resetTurnstile();
+        throw vErr;
+      }
+
       if (mode === "register") {
         const { data, error } = await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { full_name: name.trim() }, emailRedirectTo: redirectTo },
+          options: {
+            data: { full_name: name.trim() },
+            emailRedirectTo: redirectTo,
+            captchaToken: turnstileToken,
+          },
         });
         if (error) throw error;
         if (data.user) {
@@ -202,6 +304,9 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: email.trim(),
           password,
+          options: {
+            captchaToken: turnstileToken,
+          },
         });
         if (error) throw error;
         if (data.user) {
@@ -214,6 +319,7 @@ export default function LoginPage() {
       left = true;
       router.replace("/desk");
     } catch (err) {
+      resetTurnstile();
       sceneRef.current = false;
       setScene(false);
       setErrors({ form: err instanceof Error ? err.message : "Không đăng nhập được." });
@@ -238,6 +344,7 @@ export default function LoginPage() {
 
   return (
     <main className="relative flex h-dvh items-center justify-center overflow-hidden bg-gradient-to-br from-emerald-50/70 via-neutral-50 to-teal-50/50 p-3 sm:p-6 selection:bg-emerald-100 selection:text-emerald-900">
+      <Script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" strategy="afterInteractive" />
       {/* Soft Clinical Ambient Glows */}
       <div className="pointer-events-none absolute -top-40 -left-40 h-[480px] w-[480px] rounded-full bg-emerald-200/40 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-40 -right-40 h-[480px] w-[480px] rounded-full bg-teal-200/30 blur-3xl" />
@@ -576,6 +683,15 @@ export default function LoginPage() {
 
                   {notice && <p className="mb-3 text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg p-2.5">{notice}</p>}
                   {errors.form && <p className="mb-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-2.5">{errors.form}</p>}
+
+                  {mode !== "forgot" && (
+                    <div className="flex flex-col items-center justify-center py-2 min-h-[65px]">
+                      <div ref={turnstileContainerRef} />
+                      {errors.turnstile && (
+                        <p className="mt-1.5 text-xs text-red-600 font-medium">{errors.turnstile}</p>
+                      )}
+                    </div>
+                  )}
 
                   <div>
                     <button

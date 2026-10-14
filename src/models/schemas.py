@@ -107,4 +107,28 @@ class TranscriptResponse(BaseModel):
     consultation_id: UUID
     status: str
     segments: list[TranscriptSegmentResponse]
-
+
+
+class ConsultationSoapSaveRequest(BaseModel):
+    soap_run_id: str = Field(..., description="ID của SOAP run trong SoapStore")
+    version: int = Field(default=1, ge=1)
+    status: str = Field(default="DRAFT")
+    subjective: str | None = None
+    objective: str | None = None
+    assessment: str | None = None
+    plan: str | None = None
+    approved_by: UUID | None = None
+
+
+class ConsultationSoapResponse(BaseModel):
+    consultation_id: UUID
+    soap_run_id: str | None = None
+    version: int
+    status: str
+    subjective: str | None = None
+    objective: str | None = None
+    assessment: str | None = None
+    plan: str | None = None
+    approved_at: datetime | None = None
+
+

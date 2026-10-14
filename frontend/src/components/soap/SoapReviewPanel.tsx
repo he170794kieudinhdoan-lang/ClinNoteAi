@@ -42,6 +42,15 @@ function sourcesFor(item: SoapItem, caps: ClinicalAtomicProposition[], transcrip
         lineId,
       });
     }
+    // ponytail: fallback đảm bảo nút Nguồn luôn hiển thị nếu item có liên kết CAP
+    if (rows.length === 0 && cap.proposition_text) {
+      rows.push({
+        speaker: speakerLabel(cap.speaker_source),
+        time: "",
+        quote: cap.proposition_text,
+        lineId: cap.prop_id,
+      });
+    }
   }
   return rows;
 }

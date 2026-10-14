@@ -36,6 +36,8 @@ export default function TranscriptPanel({
   onRegen,
   variant = "compact",
   onCollapse,
+  emptyTitle,
+  emptyDescription,
 }: {
   lines: TranscriptLine[];
   locked?: boolean;
@@ -44,6 +46,8 @@ export default function TranscriptPanel({
   onRegen?: () => void;
   variant?: "compact" | "panel";
   onCollapse?: () => void;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -163,9 +167,9 @@ export default function TranscriptPanel({
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-subtle text-muted shadow-xs ring-1 ring-line">
             <Mic size={22} className="text-muted" />
           </div>
-          <h3 className="mt-3.5 text-sm font-bold text-ink">Chưa có bản ghi âm cuộc khám</h3>
+          <h3 className="mt-3.5 text-sm font-bold text-ink">{emptyTitle || "Chưa có bản ghi âm cuộc khám"}</h3>
           <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-muted">
-            Tải lên tệp âm thanh hoặc ghi âm trực tiếp ở cột bên phải để hệ thống tự động bóc băng hội thoại và trích xuất dữ liệu lâm sàng.
+            {emptyDescription || "Tải lên tệp âm thanh hoặc ghi âm trực tiếp ở cột bên phải để hệ thống tự động bóc băng hội thoại và trích xuất dữ liệu lâm sàng."}
           </p>
           <div className="mt-4 flex flex-wrap items-center justify-center gap-1.5 text-[11px] text-faint">
             <span className="rounded-md bg-subtle px-2 py-0.5 ring-1 ring-line-soft">.mp3</span>

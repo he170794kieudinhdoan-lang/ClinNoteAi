@@ -63,7 +63,7 @@ const STATUS_CONFIG: Record<
     icon: FileAudio,
   },
   soap: {
-    label: "Bản nháp SOAP",
+    label: "Ghi chú SOAP",
     badgeCls: "bg-purple-50 text-purple-700 border-purple-200",
     icon: Sparkles,
   },
@@ -78,7 +78,7 @@ const FILTER_TABS: { id: "all" | EncounterStatus; label: string }[] = [
   { id: "all", label: "Tất cả" },
   { id: "empty", label: "Chờ thu âm" },
   { id: "uploaded", label: "Đã có âm thanh" },
-  { id: "soap", label: "Bản nháp SOAP" },
+  { id: "soap", label: "Ghi chú SOAP" },
   { id: "final", label: "Đã duyệt" },
 ];
 
@@ -318,7 +318,7 @@ export default function PatientsPage() {
 
           <div className="flex flex-col justify-between rounded-xl border border-line bg-white p-3.5 shadow-panel">
             <div className="flex items-center justify-between text-purple-700">
-              <span className="text-xs font-medium">Bản nháp SOAP</span>
+              <span className="text-xs font-medium">Ghi chú SOAP</span>
               <Sparkles size={16} className="text-purple-500" />
             </div>
             <p className="mt-2 text-2xl font-black text-purple-900">{stats.soapReady}</p>

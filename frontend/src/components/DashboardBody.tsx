@@ -33,7 +33,7 @@ export default function DashboardBody({
     () => [
       { name: "Chờ ghi âm", value: counts.empty },
       { name: "Đang xử lý", value: counts.recording + counts.uploaded },
-      { name: "Bản nháp SOAP", value: counts.soap },
+      { name: "Ghi chú SOAP", value: counts.soap },
       { name: "Đã duyệt", value: counts.final },
     ],
     [counts],
@@ -57,7 +57,7 @@ export default function DashboardBody({
       <div className="grid shrink-0 grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4">
         <Stat label="Tổng lượt khám" value={encounters.length} />
         <Stat label="Chờ ghi âm" value={counts.empty} />
-        <Stat label="Bản nháp ghi chú" value={counts.soap} />
+        <Stat label="Ghi chú SOAP" value={counts.soap} />
         <Stat label="Đã duyệt hoàn tất" value={counts.final} />
       </div>
 
@@ -129,7 +129,7 @@ export default function DashboardBody({
               <span className="text-sm font-bold text-ink">{counts.recording + counts.uploaded}</span>
             </div>
             <div className="rounded-lg bg-subtle/60 p-2 text-center">
-              <span className="block text-[11px] text-faint">Bản nháp SOAP</span>
+              <span className="block text-[11px] text-faint">Ghi chú SOAP</span>
               <span className="text-sm font-bold text-ink">{counts.soap}</span>
             </div>
             <div className="rounded-lg bg-subtle/60 p-2 text-center">

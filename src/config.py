@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     parse_api_key: str = ""
     parse_icd_base_url: str = "https://api.parse.bot/scraper/f43e4b76-2a78-47fd-b08d-13fc8f3dbba3"
 
+    # Cloudflare Turnstile
+    turnstile_secret_key: str = "0x4AAAAAAFVX1Wq1OCyK1uid4yYImroCem8"
+
 
 @lru_cache
 def get_settings() -> Settings:

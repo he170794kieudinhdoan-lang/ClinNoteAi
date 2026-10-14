@@ -1,8 +1,8 @@
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
-from pydantic import ValidationError
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,6 +16,8 @@ from src.models.schemas import (
     ConsultationCreateRequest,
     ConsultationListItem,
     ConsultationResponse,
+    ConsultationSoapResponse,
+    ConsultationSoapSaveRequest,
     PatientCreateRequest,
     PatientResponse,
     PatientSummary,
@@ -23,6 +25,7 @@ from src.models.schemas import (
     TranscriptSegmentResponse,
     TranscriptSegmentUpdateRequest,
 )
+from src.models.soap_note import SoapNote
 from src.models.transcript_segment import TranscriptSegment
 from src.models.user import User
 from src.schemas.model_settings import AudioModelPreferences
@@ -30,6 +33,10 @@ from src.services.audio.temp_storage import save_temp_audio
 from src.services.blaze.stt_async import BlazeSTTAsync, BlazeSTTError, blaze_stt
 from src.services.icd_kcb import IcdNotFoundError, IcdUnavailableError, IcdUpstreamError, lookup_code, search_codes
 from src.services.model_runtime import ModelConfigurationError, resolve_connection
+from src.services.clinical_gate import (
+    ClinicalGateError,
+    clinical_gate_classifier,
+)
 from src.services.speaker.role_classifier import (
     SpeakerRoleError,
     speaker_role_classifier,
@@ -38,6 +45,7 @@ from src.services.stt import create_stt
 from src.services.transcript.normalizer import (
     TranscriptNormalizationError,
     normalize_transcript,
+    normalize_unclassified_transcript,
 )
 from src.services.transcript.repository import (
     save_transcript_for_consultation,
@@ -260,7 +268,61 @@ async def upload_consultation_audio(
                 detail="Blaze STT returned no transcript segments",
             )
 
-        # 3. Qwen Speaker Role
+        # 3. Clinical Relevance Gate (reuses preferences.roles)
+        gate_decision = await clinical_gate_classifier.evaluate(
+            segments, preferences.roles if preferences else None
+        )
+
+        if gate_decision.is_technical_failure:
+            db.rollback()
+            consultation.status = "FAILED"
+            db.commit()
+            raise HTTPException(
+                status_code=502,
+                detail=f"Kiểm tra tính phù hợp lâm sàng thất bại: {gate_decision.reason}",
+            )
+
+        if gate_decision.status == "NON_CLINICAL":
+            consultation.status = "NON_CLINICAL"
+            db.commit()
+            return {
+                "consultation_id": str(consultation.id),
+                "status": consultation.status,
+                "segments_count": 0,
+                "speaker_source": stt_result.get("speaker_source", "audio"),
+                "clinical_relevance": gate_decision.model_dump(),
+                "transcript": [],
+            }
+
+        if gate_decision.status == "UNCERTAIN":
+            normalized_segments = normalize_unclassified_transcript(segments)
+            saved_segments = save_transcript_for_consultation(
+                db=db,
+                consultation=consultation,
+                segments=normalized_segments,
+                status=gate_decision.status,
+            )
+            return {
+                "consultation_id": str(consultation.id),
+                "status": consultation.status,
+                "segments_count": len(saved_segments),
+                "speaker_source": stt_result.get("speaker_source", "audio"),
+                "clinical_relevance": gate_decision.model_dump(),
+                "transcript": [
+                    {
+                        "id": str(segment.id),
+                        "speaker_label": segment.speaker_label,
+                        "resolved_role": segment.resolved_role,
+                        "content": segment.content,
+                        "start_ms": segment.start_ms,
+                        "end_ms": segment.end_ms,
+                        "role_confidence": segment.role_confidence,
+                    }
+                    for segment in saved_segments
+                ],
+            }
+
+        # 4. Speaker Role Classification (if CLINICAL)
         if stt_result.get("speaker_source") == "text_inference":
             segments, role_result = await speaker_role_classifier.classify_unlabelled(
                 segments, preferences.roles if preferences else None,
@@ -268,17 +330,18 @@ async def upload_consultation_audio(
         else:
             role_result = await speaker_role_classifier.classify(segments, preferences.roles) if preferences else await speaker_role_classifier.classify(segments)
 
-        # 4. Normalize
+        # 5. Normalize
         normalized_segments = normalize_transcript(
             segments=segments,
             speaker_roles=role_result["speaker_roles"],
         )
 
-        # 5. Save transcript vào consultation
+        # 6. Save transcript vào consultation
         saved_segments = save_transcript_for_consultation(
             db=db,
             consultation=consultation,
             segments=normalized_segments,
+            status="COMPLETED",
         )
 
         return {
@@ -286,6 +349,7 @@ async def upload_consultation_audio(
             "status": consultation.status,
             "segments_count": len(saved_segments),
             "speaker_source": stt_result.get("speaker_source", "audio"),
+            "clinical_relevance": gate_decision.model_dump(),
             "transcript": [
                 {
                     "id": str(segment.id),
@@ -377,6 +441,13 @@ async def get_consultation_transcript(
             detail="Consultation not found",
         )
 
+    if consultation.status == "NON_CLINICAL":
+        return TranscriptResponse(
+            consultation_id=consultation.id,
+            status=consultation.status,
+            segments=[],
+        )
+
     segments = (
         db.query(TranscriptSegment)
         .filter(
@@ -433,6 +504,115 @@ async def update_transcript_segment(
         ) from exc
 
 
+@router.get(
+    "/consultations/{consultation_id}/soap",
+    response_model=ConsultationSoapResponse,
+)
+async def get_consultation_soap(
+    consultation_id: UUID,
+    db: Session = Depends(get_db),
+) -> ConsultationSoapResponse:
+    """Lấy SOAP note đã lưu của consultation."""
+    consultation = db.query(Consultation).filter(Consultation.id == consultation_id).first()
+    if consultation is None:
+        raise HTTPException(status_code=404, detail="Consultation not found")
+
+    note = (
+        db.query(SoapNote)
+        .filter(SoapNote.consultation_id == consultation_id)
+        .order_by(SoapNote.version.desc())
+        .first()
+    )
+    if note is None:
+        raise HTTPException(status_code=404, detail="SOAP not found for this consultation")
+
+    return ConsultationSoapResponse(
+        consultation_id=note.consultation_id,
+        soap_run_id=note.model_name,
+        version=note.version,
+        status=note.status,
+        subjective=note.subjective,
+        objective=note.objective,
+        assessment=note.assessment,
+        plan=note.plan,
+        approved_at=note.approved_at,
+    )
+
+
+@router.post(
+    "/consultations/{consultation_id}/soap",
+    response_model=ConsultationSoapResponse,
+)
+async def save_consultation_soap(
+    consultation_id: UUID,
+    request: ConsultationSoapSaveRequest,
+    db: Session = Depends(get_db),
+) -> ConsultationSoapResponse:
+    """Lưu hoặc cập nhật SOAP note cho consultation."""
+    consultation = db.query(Consultation).filter(Consultation.id == consultation_id).first()
+    if consultation is None:
+        raise HTTPException(status_code=404, detail="Consultation not found")
+
+    from datetime import UTC, datetime
+
+    note = (
+        db.query(SoapNote)
+        .filter(SoapNote.consultation_id == consultation_id)
+        .order_by(SoapNote.version.desc())
+        .first()
+    )
+
+    is_final = request.status.upper() == "FINAL"
+    if note is None:
+        note = SoapNote(
+            consultation_id=consultation_id,
+            version=request.version,
+            status=request.status,
+            subjective=request.subjective,
+            objective=request.objective,
+            assessment=request.assessment,
+            plan=request.plan,
+            model_name=request.soap_run_id,
+            approved_by=request.approved_by,
+            approved_at=datetime.now(UTC) if is_final else None,
+        )
+        db.add(note)
+    else:
+        note.version = request.version
+        note.status = request.status
+        if request.subjective is not None:
+            note.subjective = request.subjective
+        if request.objective is not None:
+            note.objective = request.objective
+        if request.assessment is not None:
+            note.assessment = request.assessment
+        if request.plan is not None:
+            note.plan = request.plan
+        note.model_name = request.soap_run_id
+        if is_final:
+            note.approved_by = request.approved_by or note.approved_by
+            note.approved_at = datetime.now(UTC)
+            consultation.status = "COMPLETED"
+
+    try:
+        db.commit()
+        db.refresh(note)
+        return ConsultationSoapResponse(
+            consultation_id=note.consultation_id,
+            soap_run_id=note.model_name,
+            version=note.version,
+            status=note.status,
+            subjective=note.subjective,
+            objective=note.objective,
+            assessment=note.assessment,
+            plan=note.plan,
+            approved_at=note.approved_at,
+        )
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to save consultation SOAP") from exc
+
+
 def _icd_error(exc: Exception) -> HTTPException:
     if isinstance(exc, IcdNotFoundError):
         return HTTPException(status_code=404, detail="Không có mã ICD này.")
@@ -457,3 +637,36 @@ async def icd_search(q: str = ""):
         return await search_codes(q)
     except (IcdNotFoundError, IcdUnavailableError, IcdUpstreamError) as exc:
         raise _icd_error(exc) from exc
+
+
+class TurnstileVerifyRequest(BaseModel):
+    token: str
+
+
+@router.post("/auth/verify-turnstile")
+async def verify_turnstile(body: TurnstileVerifyRequest, request: Request):
+    """Xác minh Cloudflare Turnstile token trước khi đăng nhập / đăng ký."""
+    import httpx
+    from src.config import get_settings
+
+    secret = get_settings().turnstile_secret_key
+    if not secret:
+        return {"success": True}
+
+    client_ip = request.headers.get("CF-Connecting-IP") or (request.client.host if request.client else None)
+    payload = {"secret": secret, "response": body.token}
+    if client_ip:
+        payload["remoteip"] = client_ip
+
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            res = await client.post("https://challenges.cloudflare.com/turnstile/v0/siteverify", data=payload)
+            data = res.json()
+            if not data.get("success"):
+                raise HTTPException(status_code=400, detail="Xác thực Cloudflare Turnstile thất bại hoặc token đã hết hạn.")
+            return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Không thể kết nối máy chủ Cloudflare: {exc}")
+
