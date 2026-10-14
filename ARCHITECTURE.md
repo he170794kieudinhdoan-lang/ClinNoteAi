@@ -1,110 +1,40 @@
-# Architecture Document
+# Architecture Overview — ClinNote AI P-006
 
-## System Overview
+Tài liệu kiến trúc chính của dự án:
 
-[Tóm tắt 2-3 câu về kiến trúc hệ thống]
+- [Architecture Diagram](docs/architecture_diagram.md): system overview, data flow, storage, deployment và các phần còn thiếu.
+- [Transcript-to-SOAP Pipeline](docs/TRANSCRIPT_TO_SOAP_PIPELINE.md): hợp đồng chi tiết của pipeline `Transcript → CAP → SOAP → review/approve`.
+- [SOAP Evaluation Report](eval/soap/report.md): kết quả đánh giá và giới hạn bằng chứng.
+- [Backend Source Architecture](src/ARCHITECTURE.md): ranh giới module trong `src/`.
 
-## Architecture Diagram
+## Current Architecture
 
 ```mermaid
-graph TB
-    subgraph Frontend
-        UI[React/Next.js UI]
-    end
-
-    subgraph Backend[FastAPI Backend]
-        API[API Routes]
-        Agent[LangGraph Agent]
-        LLM[LLM Service]
-        Tools[Agent Tools]
-    end
-
-    subgraph Data[Data Layer]
-        DB[(Database)]
-        Vector[Vector Store]
-    end
-
-    UI -->|HTTP/REST| API
-    API --> Agent
-    Agent --> LLM
-    Agent --> Tools
-    Agent --> Vector
-    Tools --> DB
+flowchart LR
+    FE[Next.js Frontend] --> API[FastAPI Backend]
+    FE --> AUTH[Supabase Auth]
+    API --> AUDIO[STT · Clinical Gate · Roles]
+    API --> SOAP[LangGraph CAP / SOAP]
+    API --> ICD[ICD Suggestion / Verification]
+    AUDIO --> DB[(SQL Database)]
+    SOAP --> STORE[(JSON SOAP Store)]
     API --> DB
+    ICD --> STORE
+    ICD --> DB
 ```
 
-## Components
+## Boundaries
 
-### 1. Frontend (React/Next.js)
-- **Purpose:** [mô tả]
-- **Key Features:** [danh sách]
-- **State Management:** [approach]
+- SQL database lưu người dùng, bệnh nhân, consultation, transcript, SOAP tóm tắt và ICD suggestion.
+- JSON SOAP Store lưu snapshot nguồn, CAP, attempts và lịch sử revision/final theo `run_id`.
+- LangGraph chỉ điều phối hai operation SOAP: extract và render. Review/approve/export đi qua service riêng.
+- Clinical gate chạy trước phân vai audio và trước khi tạo CAP từ transcript.
+- Pipeline hiện xử lý theo request/response; chưa có SSE, WebSocket hoặc streaming.
+- Vector Store/RAG, FHIR/EHR, Event Consolidation, tự chẩn đoán và kê đơn không thuộc implementation hiện tại.
 
-### 2. Backend (FastAPI)
-- **Purpose:** [mô tả]
-- **API Design:** RESTful
-- **Authentication:** [JWT/None]
+## Known Gaps
 
-### 3. AI Agent (LangGraph)
-- **Agent Type:** [ReAct / Plan-and-Execute / Custom]
-- **State:** [mô tả state schema]
-- **Nodes:** [danh sách nodes]
-- **Tools:** [danh sách tools]
-- **Flow:**
-
-```mermaid
-graph LR
-    START --> A[Node A]
-    A --> B{Decision}
-    B -->|Yes| C[Node C]
-    B -->|No| D[Node D]
-    C --> E[END]
-    D --> E
-```
-
-### 4. Database
-- **Type:** [PostgreSQL / SQLite]
-- **Tables:** [danh sách]
-- **Migrations:** Alembic
-
-### 5. Vector Store
-- **Type:** [ChromaDB / FAISS / Pinecone]
-- **Embeddings:** [model]
-- **Purpose:** [RAG / similarity search]
-
-## Data Flow
-
-1. User gửi request từ Frontend
-2. API route nhận và validate input
-3. Agent xử lý qua LangGraph pipeline
-4. LLM generate response
-5. Tools thực thi actions (nếu cần)
-6. Response trả về Frontend
-
-## Deployment Architecture
-
-```mermaid
-graph LR
-    subgraph Docker
-        FE[Frontend Container]
-        BE[Backend Container]
-        DB_C[Database Container]
-    end
-    FE --> BE --> DB_C
-```
-
-## Security
-
-- API keys stored in `.env` (never commit)
-- Input validation via Pydantic
-- Rate limiting on API endpoints
-- CORS configured for frontend domain
-
-## Design Decisions
-
-| Decision | Choice | Reason |
-|----------|--------|--------|
-| Framework | FastAPI | Async, auto-docs, type-safe |
-| Agent | LangGraph | Flexible state management |
-| Database | [choice] | [reason] |
-| Frontend | Next.js | [reason] |
+- JSON final, `soap_notes` và dữ liệu chuyển sang PDF chưa có transaction/revision đồng bộ thống nhất.
+- Frontend có Supabase session nhưng backend API chưa có lớp xác thực/phân quyền tương ứng cho toàn bộ endpoint.
+- UI approve hiện có thể tự chuẩn bị trạng thái review; cần nghiệm thu việc người dùng thực sự kiểm tra từng item.
+- Backend/model end-to-end trên deployment công khai và PDF toàn luồng chưa được xác nhận.
