@@ -323,12 +323,12 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
   const extractInputValid = !preview.error && inputContent.trim().length > 0;
   const transcriptStats = run ? statsFromTranscript(run.transcript) : null;
 
-  // Debounced auto-save
+  // Debounced auto-save (0.5s sau khi người dùng ngừng nhập)
   useEffect(() => {
     if (!canSave || busy !== null || readOnly || isHistorical) return;
     const timer = window.setTimeout(() => {
       void handleSave();
-    }, 1500);
+    }, 500);
     return () => window.clearTimeout(timer);
   }, [activeSoap, canSave, busy, readOnly, isHistorical]);
 
@@ -454,8 +454,15 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
     return () => onBindRegen?.(null);
   }, [onBindRegen]);
 
+  const lastReportedPlainSoapRef = useRef<string>("");
   useEffect(() => {
-    if (activeSoap) onPlainSoap?.(toPlainSoap(activeSoap));
+    if (!activeSoap) return;
+    const plain = toPlainSoap(activeSoap);
+    const key = JSON.stringify(plain);
+    if (key !== lastReportedPlainSoapRef.current) {
+      lastReportedPlainSoapRef.current = key;
+      onPlainSoap?.(plain);
+    }
   }, [activeSoap, onPlainSoap]);
 
   async function handleSave() {
@@ -464,17 +471,28 @@ export default function SoapWorkspace({ embedded = false, embeddedRunId = null, 
     setError("");
     setNotice("");
     try {
-      // Get fresh revision number to prevent 409 race conditions
-      const freshRun = await getSoapRun(run.run_id);
-      const revNum = latestRevisionOf(freshRun)?.revision ?? currentRevisionNumber;
+      // Dùng revision number hiện tại, chỉ fetch lại nếu server báo conflict 409
+      const revNum = latestRevisionOf(run)?.revision ?? currentRevisionNumber;
+      const normalizedSoap = normalizeSoap(activeSoap);
       const input: SaveSoapRevisionRequest = {
         expected_revision: revNum,
-        soap: normalizeSoap(activeSoap),
+        soap: normalizedSoap,
         ...(reviewerName.trim() ? { reviewer_name: reviewerName.trim() } : {}),
         warning_decisions: Object.fromEntries(Object.entries(warningDecisions).filter(([, value]) => value.trim())),
       };
-      await saveSoapRevision(run.run_id, input);
-      await fetchAndSetRun(run.run_id);
+      const response = await saveSoapRevision(run.run_id, input);
+      const savedRevision = response.revision;
+      setRun((prev) => {
+        if (!prev) return prev;
+        const revisions = [...prev.revisions.filter((item) => item.revision !== savedRevision.revision), savedRevision];
+        return {
+          ...prev,
+          latest_revision: savedRevision,
+          revisions,
+        };
+      });
+      setSelectedRevision(savedRevision.revision);
+      setSoapDraft(normalizeSoap(savedRevision.soap));
       setNotice("Đã lưu thành bản mới.");
     } catch (cause) {
       setError(errorMessageFor(cause));

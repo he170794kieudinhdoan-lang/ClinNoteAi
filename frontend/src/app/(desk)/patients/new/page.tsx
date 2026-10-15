@@ -342,7 +342,7 @@ export default function AddPatientPage() {
           <aside className="flex flex-col bg-subtle p-5">
             <div className="flex flex-1 flex-col rounded-md border border-line bg-white p-4">
               <div className="flex items-start gap-3">
-                <img src="/logo-mark.png" alt="" className="h-12 w-12 shrink-0 object-contain" />
+                <img src="/patient-avatar.png" alt="" className="h-12 w-12 shrink-0 rounded-full border border-line bg-white object-cover" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 flex-1 break-words text-sm font-semibold leading-snug">{name.trim() || "—"}</p>

@@ -154,7 +154,7 @@ export default function TranscriptChat({
                 className={`flex items-end gap-2 ${doctor ? "flex-row-reverse" : ""} ${active ? "rounded-md bg-[#e7f6ee] px-2 py-2 ring-1 ring-[#1f7a4d]" : ""}`}
               >
                 {line.speaker === "patient" ? (
-                  <img src="/patient-avatar.jpg" alt="" className="h-8 w-8 shrink-0 rounded-full border border-line bg-white object-cover" />
+                  <img src="/patient-avatar.png" alt="" className="h-8 w-8 shrink-0 rounded-full border border-line bg-white object-cover" />
                 ) : (
                   <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full text-[10px] font-bold ${doctor ? "bg-[#3a3a3a] text-white" : "border border-line bg-white text-ink"}`}>
                     {mark(line.speaker)}
