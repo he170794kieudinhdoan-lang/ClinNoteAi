@@ -151,21 +151,58 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
     });
     if (target?.id) void patchIcdSuggestion(target.id, "ACCEPTED").catch(() => undefined);
   }
+  const saveSoapDebounceTimerRef = useRef<NodeJS.Timeout | number | null>(null);
+  const lastSavedConsultationSoapRef = useRef<string>("");
+
+  const flushSaveSoap = useCallback(() => {
+    if (saveSoapDebounceTimerRef.current) {
+      clearTimeout(saveSoapDebounceTimerRef.current);
+      saveSoapDebounceTimerRef.current = null;
+    }
+    const consultationId = draftRef.current?.consultationId;
+    const runId = draftRef.current?.soapRunId;
+    const soap = groundedSoap.current;
+    if (!consultationId || !runId || !soap) return;
+
+    const soapKey = JSON.stringify({
+      s: soap.subjective.trim(),
+      o: soap.objective.trim(),
+      a: soap.assessment.trim(),
+      p: soap.plan.trim(),
+    });
+    if (soapKey === lastSavedConsultationSoapRef.current) return;
+
+    lastSavedConsultationSoapRef.current = soapKey;
+    void saveConsultationSoap(consultationId, {
+      soap_run_id: runId,
+      subjective: soap.subjective,
+      objective: soap.objective,
+      assessment: soap.assessment,
+      plan: soap.plan,
+      status: "DRAFT",
+    }).catch(() => undefined);
+  }, []);
+
   const rememberSoap = useCallback((soap: SoapNote) => {
     groundedSoap.current = soap;
     setPreviewSoap(soap);
-    const consultationId = draftRef.current?.consultationId;
-    const runId = draftRef.current?.soapRunId;
-    if (consultationId && runId) {
-      void saveConsultationSoap(consultationId, {
-        soap_run_id: runId,
-        subjective: soap.subjective,
-        objective: soap.objective,
-        assessment: soap.assessment,
-        plan: soap.plan,
-        status: "DRAFT",
-      }).catch(() => undefined);
+
+    if (saveSoapDebounceTimerRef.current) {
+      clearTimeout(saveSoapDebounceTimerRef.current);
     }
+
+    // Debounce lưu sau khi người dùng ngừng nhập 0.5s
+    saveSoapDebounceTimerRef.current = setTimeout(() => {
+      flushSaveSoap();
+    }, 500);
+  }, [flushSaveSoap]);
+
+  useEffect(() => {
+    return () => {
+      if (saveSoapDebounceTimerRef.current) {
+        clearTimeout(saveSoapDebounceTimerRef.current);
+      }
+    };
   }, []);
   const audioUrlRef = useRef<string | null>(null);
   const seen = useRef<string | null>(null);
@@ -241,6 +278,12 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
           const o = soapData.objective ?? current.soap.objective;
           const a = soapData.assessment ?? current.soap.assessment;
           const p = soapData.plan ?? current.soap.plan;
+          lastSavedConsultationSoapRef.current = JSON.stringify({
+            s: (s ?? "").trim(),
+            o: (o ?? "").trim(),
+            a: (a ?? "").trim(),
+            p: (p ?? "").trim(),
+          });
           const hasNote = Boolean(runId || s || o || a || p);
           return {
             ...current,
@@ -641,6 +684,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   }
 
   function approve() {
+    flushSaveSoap();
     setDraft((current) =>
       current ? { ...current, status: "final", approvedAt: new Date().toISOString() } : current,
     );
@@ -676,6 +720,7 @@ export default function ClinicalEditorPage({ params }: { params: Promise<{ id: s
   }
 
   function goToPdfConfig() {
+    flushSaveSoap();
     if (draft) {
       const latest = { ...draft, soap: noteSoap() };
       saveEncounter(latest);
@@ -1112,7 +1157,7 @@ const PatientCard = memo(function PatientCard({ patient, locked }: { patient: En
   return (
     <article className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-white px-4 py-3 shadow-panel">
       <div className="flex min-w-0 items-center gap-3">
-        <img src="/patient-avatar.jpg" alt="" className="h-10 w-10 shrink-0 rounded-full border border-line bg-white object-cover" />
+        <img src="/patient-avatar.png" alt="" className="h-10 w-10 shrink-0 rounded-full border border-line bg-white object-cover" />
         <span className="min-w-0">
           <span className="block truncate text-[15px] font-extrabold">{patient.name}</span>
           <span className="block truncate text-[11.5px] text-muted">

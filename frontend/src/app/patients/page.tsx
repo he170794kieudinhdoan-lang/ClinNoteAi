@@ -504,11 +504,11 @@ export default function PatientsPage() {
                           <div className="grid grid-cols-[30%_18%_18%_20%_14%] items-center px-4 py-3.5">
                             {/* Cột 1: Tên, Avatar & Mã BN */}
                             <div className="flex items-center gap-3 pr-2">
-                              <div
-                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${genderStyle.avatarBg}`}
-                              >
-                                {getInitials(patient.name)}
-                              </div>
+                              <img
+                                src="/patient-avatar.png"
+                                alt=""
+                                className="h-10 w-10 shrink-0 rounded-full border border-line bg-white object-cover"
+                              />
                               <div className="min-w-0 flex-1">
                                 <Link
                                   href={`/encounters/${latestEncounter.id}`}

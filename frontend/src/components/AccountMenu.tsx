@@ -53,7 +53,7 @@ export default function AccountMenu() {
         onClick={toggle}
         className="block h-8 w-8 overflow-hidden rounded-full border border-line bg-white"
       >
-        <img src="/default-avatar.jpg" alt="" className="h-full w-full object-cover" />
+        <img src="/logo-mark.png" alt="" className="h-full w-full object-contain p-0.5" />
       </button>
       {open && (
         <div
@@ -61,7 +61,7 @@ export default function AccountMenu() {
           style={{ top: place.top, right: place.right }}
         >
           <div className="flex items-center gap-3">
-            <img src="/default-avatar.jpg" alt="" className="h-12 w-12 rounded-full border border-line object-cover" />
+            <img src="/logo-mark.png" alt="" className="h-12 w-12 rounded-full border border-line bg-white object-contain p-1" />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold">{name || "Bác sĩ"}</p>
               <p className="truncate text-xs text-muted">{email || "Chưa đăng nhập"}</p>

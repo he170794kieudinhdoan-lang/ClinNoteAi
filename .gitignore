@@ -65,3 +65,5 @@ README_LOCAL.md
 .local_backups/
 /SOAP/
 AGENTS.md
+.agents/
+
